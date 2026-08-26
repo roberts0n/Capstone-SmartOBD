@@ -1,28 +1,28 @@
 import React from 'react';
 import { StatusBar, StyleSheet, useColorScheme } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { ObdScannerScreen } from './src/screens/ObdScannerScreen';
+import { PantallaEscanerObd } from './src/pantallas/PantallaEscanerObd';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+function Aplicacion() {
+  const esModoOscuro = useColorScheme() === 'dark';
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={esModoOscuro ? 'light-content' : 'dark-content'} />
       <SafeAreaView
-        style={styles.container}
+        style={estilos.contenedor}
         edges={['top', 'right', 'bottom', 'left']}
       >
-        <ObdScannerScreen />
+        <PantallaEscanerObd />
       </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const estilos = StyleSheet.create({
+  contenedor: { flex: 1 },
 });
 
-export default App;
+export default Aplicacion;

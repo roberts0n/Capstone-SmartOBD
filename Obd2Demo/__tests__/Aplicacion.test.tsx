@@ -4,7 +4,7 @@
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import App from '../App';
+import Aplicacion from '../App';
 
 jest.mock('react-native-ble-plx', () => ({
   State: {
@@ -24,8 +24,8 @@ jest.mock('react-native-ble-plx', () => ({
   })),
 }));
 
-test('renders correctly', async () => {
+test('renderiza la aplicacion correctamente', async () => {
   await ReactTestRenderer.act(() => {
-    ReactTestRenderer.create(<App />);
+    ReactTestRenderer.create(<Aplicacion />);
   });
 });
