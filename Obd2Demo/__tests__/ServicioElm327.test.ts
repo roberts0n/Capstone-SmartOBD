@@ -4,6 +4,7 @@ import {
   asciiABase64,
   base64ABytes,
 } from '../src/obd/AcumuladorRespuestaObd';
+import { analizarRespuestaObd } from '../src/obd/AnalisisRespuestaObd';
 
 describe('codificación y acumulador ELM327', () => {
   test('codifica el comando ASCII con retorno de carro', () => {
@@ -39,5 +40,54 @@ describe('traducción OBD2', () => {
     expect(traducirRespuestaObd('03', '43 01 33 00 00\r>').valor).toEqual([
       'P0133',
     ]);
+  });
+
+  test('no combina el final de una linea con la cabecera de la siguiente', () => {
+    const respuestaRealista = '4300\r43001F\r>';
+
+    expect(traducirRespuestaObd('03', respuestaRealista)).toEqual({
+      valor: ['P001F'],
+      unidad: 'DTC',
+      error: null,
+    });
+  });
+
+  test('elimina DTC repetidos por respuestas de varias ECU', () => {
+    expect(traducirRespuestaObd('03', '03\r43001F\r43001F\r>').valor).toEqual([
+      'P001F',
+    ]);
+  });
+
+  test('traduce una respuesta CAN con cabecera visible', () => {
+    const respuestaConCabecera = '7E8 06 43 00 1F 00 00 00 00\r>';
+
+    expect(traducirRespuestaObd('03', respuestaConCabecera).valor).toEqual([
+      'P001F',
+    ]);
+    expect(
+      analizarRespuestaObd('03', respuestaConCabecera).lineas[0].cabecera,
+    ).toBe('7E8');
+  });
+});
+
+describe('diagnostico de respuesta OBD', () => {
+  test('muestra por separado una linea incompleta y una valida', () => {
+    const analisis = analizarRespuestaObd('03', '4300\r43001F\r>');
+
+    expect(analisis.respuestaEscapada).toBe('4300\\r43001F\\r>');
+    expect(analisis.lineas).toHaveLength(2);
+    expect(analisis.lineas[0]).toMatchObject({
+      bytesObd: ['43', '00'],
+      codigosDtc: [],
+      tipo: 'respuesta-dtc',
+    });
+    expect(analisis.lineas[0].advertencias).toHaveLength(1);
+    expect(analisis.lineas[1]).toMatchObject({
+      bytesObd: ['43', '00', '1F'],
+      codigosDtc: ['P001F'],
+      tipo: 'respuesta-dtc',
+      advertencias: [],
+    });
+    expect(analisis.codigosDtc).toEqual(['P001F']);
   });
 });

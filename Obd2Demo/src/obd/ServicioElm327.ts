@@ -1,4 +1,3 @@
-/* eslint-disable no-bitwise */
 import type { Subscription } from 'react-native-ble-plx';
 import type { ServicioBle } from '../ble/ServicioBle';
 import type {
@@ -12,6 +11,7 @@ import {
   asciiABase64,
   base64ABytes,
 } from './AcumuladorRespuestaObd';
+import { analizarRespuestaObd } from './AnalisisRespuestaObd';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // Solo se permite un comando pendiente. Su promesa se resuelve cuando el
@@ -196,8 +196,26 @@ export function traducirRespuestaObd(
   comando: string,
   respuestaCruda: string,
 ): TraduccionObd {
-  const bytes = extraerBytesHexadecimales(respuestaCruda);
   const comandoNormalizado = comando.trim().toUpperCase();
+
+  if (comandoNormalizado === '03') {
+    const analisis = analizarRespuestaObd(comandoNormalizado, respuestaCruda);
+    const tieneRespuestaDtcValida = analisis.lineas.some(
+      linea =>
+        linea.tipo === 'respuesta-dtc' && linea.advertencias.length === 0,
+    );
+
+    if (analisis.codigosDtc.length > 0 || tieneRespuestaDtcValida) {
+      return { valor: analisis.codigosDtc, unidad: 'DTC', error: null };
+    }
+
+    return crearErrorTraduccion(
+      analisis.advertencias.join(' ') ||
+        'No se encontró una respuesta DTC válida con cabecera 43.',
+    );
+  }
+
+  const bytes = extraerBytesHexadecimales(respuestaCruda);
 
   if (comandoNormalizado === '010C') {
     // Respuesta esperada: 41 0C A B. Formula: ((A * 256) + B) / 4.
@@ -219,33 +237,6 @@ export function traducirRespuestaObd(
       return crearErrorTraduccion('No se encontró una respuesta válida 41 05.');
     }
     return { valor: bytes[indice + 2] - 40, unidad: '°C', error: null };
-  }
-
-  if (comandoNormalizado === '03') {
-    // El modo 03 responde con 43 seguido por pares de bytes que forman DTC.
-    const indice = bytes.indexOf(0x43);
-    if (indice < 0) {
-      return crearErrorTraduccion('No se encontró una respuesta válida 43.');
-    }
-    const codigos: string[] = [];
-    for (let cursor = indice + 1; cursor + 1 < bytes.length; cursor += 2) {
-      const primero = bytes[cursor];
-      const segundo = bytes[cursor + 1];
-      if (primero === 0 && segundo === 0) {
-        continue;
-      }
-      // Los dos bits superiores eligen P, C, B o U. Los bits restantes
-      // producen los cuatro digitos del codigo, por ejemplo P0133.
-      const sistema = ['P', 'C', 'B', 'U'][(primero >> 6) & 3];
-      codigos.push(
-        `${sistema}${((primero >> 4) & 3).toString(16)}${(
-          primero & 15
-        ).toString(16)}${((segundo >> 4) & 15).toString(16)}${(
-          segundo & 15
-        ).toString(16)}`.toUpperCase(),
-      );
-    }
-    return { valor: codigos, unidad: 'DTC', error: null };
   }
 
   return { valor: respuestaCruda.trim(), unidad: null, error: null };

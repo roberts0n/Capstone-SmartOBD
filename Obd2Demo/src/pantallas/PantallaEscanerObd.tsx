@@ -5,13 +5,25 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { State, type Subscription } from 'react-native-ble-plx';
 import {
   esBluetoothNoDisponible,
   esBluetoothUtilizable,
   ServicioBle,
 } from '../ble/ServicioBle';
+import {
+  analizarRespuestaObd,
+  type AnalisisRespuestaObd,
+  type DiagnosticoLineaObd,
+} from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
 import { ServicioElm327, traducirRespuestaObd } from '../obd/ServicioElm327';
 import type {
@@ -25,12 +37,13 @@ import type {
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // secuencia minima recomendada para dejar ELM327 en un formato de respuesta
-// predecible: sin eco, saltos de linea, espacios ni cabeceras, y protocolo auto.
+// predecible: sin eco ni saltos de linea, con espacios para diagnostico,
+// sin cabeceras y con protocolo automatico.
 const COMANDOS_INICIALIZACION = [
   'ATZ',
   'ATE0',
   'ATL0',
-  'ATS0',
+  'ATS1',
   'ATH0',
   'ATSP0',
 ];
@@ -95,6 +108,8 @@ export function PantallaEscanerObd() {
   >(null);
   const [ultimasMetricas, establecerUltimasMetricas] =
     useState<MetricasFlujoObd | null>(null);
+  const [ultimoAnalisis, establecerUltimoAnalisis] =
+    useState<AnalisisRespuestaObd | null>(null);
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
 
   // las suscripciones y el contador no necesitan provocar renderizados.
@@ -434,6 +449,7 @@ export function PantallaEscanerObd() {
       );
       // La traduccion nunca reemplaza la respuesta cruda: ambas se guardan.
       const inicioTraduccionMs = obtenerTiempoMs();
+      const analisis = analizarRespuestaObd(comando, respuesta.textoAscii);
       const traduccion = traducirRespuestaObd(comando, respuesta.textoAscii);
       const traduccionCompletaMs = obtenerTiempoMs();
       const erroresComunicacion = traduccion.error ? [traduccion.error] : [];
@@ -464,6 +480,7 @@ export function PantallaEscanerObd() {
       );
       establecerResultadoJsonVisible(resultadoSerializado);
       establecerUltimasMetricas(metricas);
+      establecerUltimoAnalisis(analisis);
       agregarRegistro(
         'informacion',
         `Flujo ${metricas.comando}: respuesta ${formatearMilisegundos(
@@ -507,6 +524,92 @@ export function PantallaEscanerObd() {
     };
     establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
     establecerUltimasMetricas(null);
+    establecerUltimoAnalisis(null);
+  }
+
+  /** Genera un reporte de texto que conserva exactamente la captura recibida. */
+  async function compartirCapturaDiagnostico(): Promise<void> {
+    if (!ultimoAnalisis) {
+      return;
+    }
+
+    const lineas = ultimoAnalisis.lineas
+      .map(linea => {
+        const dtc =
+          linea.codigosDtc.length > 0 ? linea.codigosDtc.join(', ') : 'ninguno';
+        const advertencias =
+          linea.advertencias.length > 0
+            ? linea.advertencias.join(' | ')
+            : 'ninguna';
+        return [
+          `Linea ${linea.numero}: ${linea.texto}`,
+          `Cabecera: ${linea.cabecera ?? 'sin cabecera visible'}`,
+          `Bytes OBD: ${linea.bytesObd.join(' ') || 'ninguno'}`,
+          `Tipo: ${linea.tipo}`,
+          `DTC: ${dtc}`,
+          `Advertencias: ${advertencias}`,
+        ].join('\n');
+      })
+      .join('\n\n');
+    const metricas = ultimasMetricas
+      ? [
+          `Respuesta completa: ${formatearMilisegundos(
+            ultimasMetricas.respuestaCompletaMs,
+          )}`,
+          `Traduccion OBD: ${formatearMilisegundos(
+            ultimasMetricas.traduccionObdMs,
+          )}`,
+          `Total hasta JSON: ${formatearMilisegundos(
+            ultimasMetricas.totalHastaJsonMs,
+          )}`,
+          `Fragmentos: ${ultimasMetricas.cantidadFragmentos}`,
+          `Bytes BLE: ${ultimasMetricas.cantidadBytes}`,
+        ].join('\n')
+      : 'Sin metricas disponibles.';
+    const reporte = [
+      'SMARTOBD - CAPTURA DE DIAGNOSTICO',
+      `Fecha del reporte: ${new Date().toISOString()}`,
+      `Dispositivo: ${
+        dispositivoConectado
+          ? `${mostrarNombreDispositivo(dispositivoConectado)} (${
+              dispositivoConectado.id
+            })`
+          : 'ninguno'
+      }`,
+      `Comando: ${ultimoAnalisis.comando}`,
+      '',
+      'RESPUESTA CRUDA ESCAPADA',
+      ultimoAnalisis.respuestaEscapada,
+      '',
+      'LINEAS OBD',
+      lineas || 'Sin lineas.',
+      '',
+      'DTC CONSOLIDADOS',
+      ultimoAnalisis.codigosDtc.join(', ') || 'ninguno',
+      '',
+      'ADVERTENCIAS',
+      ultimoAnalisis.advertencias.join('\n') || 'ninguna',
+      '',
+      'METRICAS',
+      metricas,
+      '',
+      'RESULTADO JSON',
+      resultadoJsonVisible ?? 'sin resultado',
+    ].join('\n');
+
+    try {
+      await Share.share({
+        title: `Captura SmartOBD ${ultimoAnalisis.comando}`,
+        message: reporte,
+      });
+    } catch (capturado) {
+      agregarRegistro(
+        'error',
+        `No se pudo compartir la captura: ${
+          convertirAError(capturado).message
+        }`,
+      );
+    }
   }
 
   /** Normaliza errores desconocidos y los refleja en estado y consola. */
@@ -656,6 +759,11 @@ export function PantallaEscanerObd() {
             disabled={comandoEnCurso}
           />
           <BotonAccion
+            etiqueta="Cabeceras ON · ATH1"
+            onPress={() => ejecutarComandos(['ATH1'])}
+            disabled={comandoEnCurso}
+          />
+          <BotonAccion
             etiqueta="Inicializar ELM327"
             onPress={() => ejecutarComandos(COMANDOS_INICIALIZACION)}
             disabled={comandoEnCurso}
@@ -729,6 +837,53 @@ export function PantallaEscanerObd() {
             Ejecuta un comando para medir el flujo completo.
           </Text>
         )}
+        <Text style={estilos.etiqueta}>Diagnóstico de la respuesta</Text>
+        {ultimoAnalisis ? (
+          <View style={estilos.bloqueDiagnostico}>
+            <Text style={estilos.ayuda}>
+              Mantén presionada la respuesta para seleccionarla o comparte el
+              reporte completo.
+            </Text>
+            <BotonAccion
+              etiqueta="Compartir captura"
+              onPress={() => compartirCapturaDiagnostico()}
+              compacto
+            />
+            <Text style={estilos.subtituloDiagnostico}>
+              Respuesta cruda con separadores visibles
+            </Text>
+            <Text selectable style={estilos.respuestaCrudaDiagnostico}>
+              {ultimoAnalisis.respuestaEscapada}
+            </Text>
+            <Text style={estilos.subtituloDiagnostico}>
+              Líneas OBD detectadas
+            </Text>
+            {ultimoAnalisis.lineas.length > 0 ? (
+              ultimoAnalisis.lineas.map(linea => (
+                <DetalleLineaObd
+                  key={`${linea.numero}-${linea.texto}`}
+                  linea={linea}
+                />
+              ))
+            ) : (
+              <Text style={estilos.vacio}>No se detectaron líneas.</Text>
+            )}
+            {ultimoAnalisis.advertencias.length > 0 && (
+              <View style={estilos.advertenciasDiagnostico}>
+                <Text style={estilos.tituloAdvertencias}>Advertencias</Text>
+                {ultimoAnalisis.advertencias.map(advertencia => (
+                  <Text key={advertencia} style={estilos.textoAdvertencia}>
+                    • {advertencia}
+                  </Text>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : (
+          <Text style={estilos.vacio}>
+            Ejecuta un comando para analizar su respuesta completa.
+          </Text>
+        )}
         <Text style={estilos.etiqueta}>Resultado JSON</Text>
         <Text style={estilos.json}>
           {resultadoJsonVisible
@@ -763,6 +918,35 @@ export function PantallaEscanerObd() {
         </View>
       </Seccion>
     </ScrollView>
+  );
+}
+
+// Presenta una linea logica sin mezclarla con fragmentos BLE vecinos.
+function DetalleLineaObd({ linea }: { linea: DiagnosticoLineaObd }) {
+  return (
+    <View style={estilos.tarjetaLineaObd}>
+      <Text style={estilos.tituloLineaObd}>
+        Línea {linea.numero} · {linea.tipo}
+      </Text>
+      <Text selectable style={estilos.textoLineaObd}>
+        Texto: {linea.texto}
+      </Text>
+      <Text selectable style={estilos.textoLineaObd}>
+        Cabecera: {linea.cabecera ?? 'sin cabecera visible'}
+      </Text>
+      <Text selectable style={estilos.textoLineaObd}>
+        Bytes OBD: {linea.bytesObd.join(' ') || 'ninguno'}
+      </Text>
+      <Text style={estilos.descripcionLineaObd}>{linea.descripcion}</Text>
+      <Text style={estilos.dtcLineaObd}>
+        DTC: {linea.codigosDtc.join(', ') || 'ninguno'}
+      </Text>
+      {linea.advertencias.map(advertencia => (
+        <Text key={advertencia} style={estilos.textoAdvertencia}>
+          • {advertencia}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -1037,6 +1221,50 @@ const estilos = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#BDD7EA',
   },
+  bloqueDiagnostico: {
+    borderColor: '#BCCCDC',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+  },
+  subtituloDiagnostico: {
+    color: '#243B53',
+    fontWeight: '700',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  respuestaCrudaDiagnostico: {
+    backgroundColor: '#102A43',
+    color: '#E6F1FA',
+    borderRadius: 6,
+    padding: 9,
+    fontFamily: 'monospace',
+    fontSize: 12,
+  },
+  tarjetaLineaObd: {
+    backgroundColor: '#F5F8FA',
+    borderLeftColor: '#1367A7',
+    borderLeftWidth: 3,
+    padding: 9,
+    marginBottom: 8,
+  },
+  tituloLineaObd: { color: '#0B4F82', fontWeight: '700' },
+  textoLineaObd: {
+    color: '#243B53',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  descripcionLineaObd: { color: '#486581', marginTop: 5 },
+  dtcLineaObd: { color: '#102A43', fontWeight: '700', marginTop: 5 },
+  advertenciasDiagnostico: {
+    backgroundColor: '#FFF4E5',
+    borderRadius: 6,
+    padding: 8,
+    marginTop: 4,
+  },
+  tituloAdvertencias: { color: '#8A4B08', fontWeight: '700' },
+  textoAdvertencia: { color: '#9A3412', marginTop: 3 },
   listaOpciones: { marginBottom: 6 },
   opcion: {
     borderWidth: 1,
