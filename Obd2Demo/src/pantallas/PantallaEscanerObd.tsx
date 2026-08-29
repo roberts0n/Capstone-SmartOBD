@@ -38,6 +38,7 @@ import {
   interpretarBloquePids,
   type BloquePidsInterpretado,
 } from '../obd/DeteccionPids';
+import { comprobarDisponibilidadVin, decodificarVin } from '../obd/LecturaVin';
 import { ServicioElm327, traducirRespuestaObd } from '../obd/ServicioElm327';
 import type {
   EntradaConsola,
@@ -862,6 +863,100 @@ export function PantallaEscanerObd() {
     }
   }
 
+  /** Comprueba Mode 09 PID 02 y reconstruye el VIN si esta disponible. */
+  async function leerVinVehiculo() {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      !dispositivoConectado ||
+      !escrituraSeleccionada ||
+      !notificacionSeleccionada
+    ) {
+      return;
+    }
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    let respuesta0900: RespuestaElm | null = null;
+    let respuesta0902: RespuestaElm | null = null;
+    try {
+      respuesta0900 = await ejecutarComando('0900');
+      if (!respuesta0900) {
+        return;
+      }
+      const disponibilidad = comprobarDisponibilidadVin(
+        respuesta0900.textoAscii,
+      );
+      agregarRegistro(
+        'informacion',
+        `0900: máscara ${disponibilidad.mascaraHexadecimal}; VIN ${
+          disponibilidad.disponible ? 'disponible' : 'no anunciado'
+        }.`,
+      );
+
+      if (!disponibilidad.disponible) {
+        const mensaje = 'La ECU no declara compatibilidad con Mode 09 PID 02.';
+        const resultado: ResultadoJsonObd = {
+          fecha: new Date().toISOString(),
+          dispositivo: {
+            nombre: mostrarNombreDispositivo(dispositivoConectado),
+            identificador: dispositivoConectado.id,
+          },
+          comando: '0900',
+          respuestaCruda: respuesta0900.textoAscii,
+          datoTraducido: null,
+          unidad: 'VIN',
+          erroresComunicacion: [mensaje],
+        };
+        establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
+        agregarRegistro('informacion', mensaje);
+        return;
+      }
+
+      respuesta0902 = await ejecutarComando('0902');
+      if (!respuesta0902) {
+        return;
+      }
+      const vin = decodificarVin(respuesta0902.textoAscii);
+      const resultado: ResultadoJsonObd = {
+        fecha: new Date().toISOString(),
+        dispositivo: {
+          nombre: mostrarNombreDispositivo(dispositivoConectado),
+          identificador: dispositivoConectado.id,
+        },
+        comando: '0900 -> 0902',
+        respuestaCruda: `0900: ${respuesta0900.textoAscii}\n0902: ${respuesta0902.textoAscii}`,
+        datoTraducido: vin,
+        unidad: 'VIN',
+        erroresComunicacion: [],
+      };
+      establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
+      agregarRegistro('exito', `VIN leído correctamente: ${vin}.`);
+    } catch (capturado) {
+      const mensaje = convertirAError(capturado).message;
+      const respuestas = [
+        respuesta0900 && `0900: ${respuesta0900.textoAscii}`,
+        respuesta0902 && `0902: ${respuesta0902.textoAscii}`,
+      ].filter((valor): valor is string => Boolean(valor));
+      const resultado: ResultadoJsonObd = {
+        fecha: new Date().toISOString(),
+        dispositivo: {
+          nombre: mostrarNombreDispositivo(dispositivoConectado),
+          identificador: dispositivoConectado.id,
+        },
+        comando: respuesta0902 ? '0900 -> 0902' : '0900',
+        respuestaCruda: respuestas.join('\n') || null,
+        datoTraducido: null,
+        unidad: 'VIN',
+        erroresComunicacion: [mensaje],
+      };
+      establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
+      agregarRegistro('error', `Lectura VIN: ${mensaje}`);
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
+    }
+  }
+
   async function olvidarEscaner(id: string) {
     if (bloqueoComando.current || bloqueoConexion.current) {
       return;
@@ -1173,6 +1268,16 @@ export function PantallaEscanerObd() {
           <BotonAccion
             etiqueta="Detectar PID compatibles"
             onPress={() => detectarPidsCompatibles()}
+            disabled={
+              interfazOcupada ||
+              !dispositivoConectado ||
+              !escrituraSeleccionada ||
+              !notificacionSeleccionada
+            }
+          />
+          <BotonAccion
+            etiqueta="Leer VIN · 0902"
+            onPress={() => leerVinVehiculo()}
             disabled={
               interfazOcupada ||
               !dispositivoConectado ||
