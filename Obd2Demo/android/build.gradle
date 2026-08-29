@@ -19,3 +19,12 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// Async Storage 3 distribuye su implementacion nativa en un repositorio local.
+allprojects {
+    repositories {
+        maven {
+            url = uri(project(":react-native-async-storage_async-storage").file("local_repo"))
+        }
+    }
+}

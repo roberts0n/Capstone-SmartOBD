@@ -26,6 +26,8 @@ export class ServicioBle {
   // Se mantiene una sola instancia durante la vida de la pantalla.
   private readonly administrador = new BleManager();
   private idDispositivoConectado: string | null = null;
+  private temporizadorEscaneo: ReturnType<typeof setTimeout> | null = null;
+  private sesionEscaneo = 0;
 
   /** Solicita los permisos que corresponden a la version de Android. */
   async solicitarPermisosAndroid(): Promise<boolean> {
@@ -70,31 +72,58 @@ export class ServicioBle {
   iniciarEscaneo(
     alEncontrarDispositivo: (dispositivo: InformacionDispositivoBle) => void,
     alOcurrirError: (error: BleError) => void,
+    alFinalizar: () => void = () => undefined,
   ): void {
     this.detenerEscaneo();
-    this.administrador.startDeviceScan(
-      null,
-      { allowDuplicates: false },
-      (error, dispositivo) => {
-        if (error) {
-          alOcurrirError(error);
-          return;
-        }
-        if (!dispositivo) {
-          return;
-        }
-        alEncontrarDispositivo({
-          id: dispositivo.id,
-          nombre: dispositivo.name,
-          nombreLocal: dispositivo.localName,
-          rssi: dispositivo.rssi,
-        });
-      },
-    );
+    const sesion = this.sesionEscaneo;
+    this.temporizadorEscaneo = setTimeout(() => {
+      if (sesion !== this.sesionEscaneo) {
+        return;
+      }
+      this.detenerEscaneo();
+      alFinalizar();
+    }, 12000);
+    Promise.resolve(
+      this.administrador.startDeviceScan(
+        null,
+        { allowDuplicates: false },
+        (error, dispositivo) => {
+          if (sesion !== this.sesionEscaneo) {
+            return;
+          }
+          if (error) {
+            this.detenerEscaneo();
+            alOcurrirError(error);
+            return;
+          }
+          if (!dispositivo) {
+            return;
+          }
+          alEncontrarDispositivo({
+            id: dispositivo.id,
+            nombre: dispositivo.name,
+            nombreLocal: dispositivo.localName,
+            rssi: dispositivo.rssi,
+            serviciosAnunciados: dispositivo.serviceUUIDs,
+            datosFabricante: dispositivo.manufacturerData,
+          });
+        },
+      ),
+    ).catch(error => {
+      if (sesion === this.sesionEscaneo) {
+        this.detenerEscaneo();
+        alOcurrirError(error);
+      }
+    });
   }
 
   detenerEscaneo(): void {
-    this.administrador.stopDeviceScan();
+    this.sesionEscaneo += 1;
+    if (this.temporizadorEscaneo) {
+      clearTimeout(this.temporizadorEscaneo);
+      this.temporizadorEscaneo = null;
+    }
+    Promise.resolve(this.administrador.stopDeviceScan()).catch(() => undefined);
   }
 
   /**

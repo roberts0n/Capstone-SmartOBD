@@ -6,6 +6,14 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import Aplicacion from '../App';
 
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const almacenamiento = {
+    getItem: jest.fn().mockResolvedValue(null),
+    setItem: jest.fn().mockResolvedValue(undefined),
+  };
+  return { createAsyncStorage: jest.fn(() => almacenamiento) };
+});
+
 jest.mock('react-native-ble-plx', () => ({
   State: {
     Unknown: 'Unknown',

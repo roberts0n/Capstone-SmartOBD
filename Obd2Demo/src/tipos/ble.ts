@@ -18,6 +18,9 @@ export interface InformacionDispositivoBle {
   nombre: string | null;
   nombreLocal: string | null;
   rssi: number | null;
+  // Datos del anuncio, no del inventario GATT obtenido despues de conectar.
+  serviciosAnunciados?: string[] | null;
+  datosFabricante?: string | null;
 }
 
 // Inventario de una caracteristica descubierto en GATT. Estas propiedades se
@@ -59,9 +62,25 @@ export interface RespuestaElm {
 // Resultado de interpretar una respuesta OBD. El valor crudo se conserva por
 // separado en ResultadoJsonObd incluso cuando la traduccion falla.
 export interface TraduccionObd {
-  valor: number | string | string[] | null;
+  valor: number | string | string[] | ResultadoDeteccionPids | null;
   unidad: string | null;
   error: string | null;
+}
+
+export interface BloquePidsDetectado {
+  comando: string;
+  mascaraHexadecimal: string;
+  pidsDeclarados: string[];
+}
+
+export interface ResultadoDeteccionPids {
+  cantidadPidsSoportados: number;
+  cantidadInterpretables: number;
+  cantidadPendientes: number;
+  pidsSoportados: string[];
+  pidsInterpretables: string[];
+  pidsPendientes: string[];
+  bloques: BloquePidsDetectado[];
 }
 
 // Formato sencillo mostrado en pantalla y pensado para integraciones futuras.
@@ -73,7 +92,7 @@ export interface ResultadoJsonObd {
   } | null;
   comando: string;
   respuestaCruda: string | null;
-  datoTraducido: number | string | string[] | null;
+  datoTraducido: number | string | string[] | ResultadoDeteccionPids | null;
   unidad: string | null;
   erroresComunicacion: string[];
 }

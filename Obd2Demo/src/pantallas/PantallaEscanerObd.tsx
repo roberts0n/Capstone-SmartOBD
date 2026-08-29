@@ -14,17 +14,30 @@ import {
   View,
 } from 'react-native';
 import { State, type Subscription } from 'react-native-ble-plx';
+import { SelectorEscaneres } from '../componentes/SelectorEscaneres';
 import {
   esBluetoothNoDisponible,
   esBluetoothUtilizable,
   ServicioBle,
 } from '../ble/ServicioBle';
+import { combinarAnuncios } from '../escaneres/PerfilesEscaner';
+import { useEscaneresGuardados } from '../escaneres/usarEscaneresGuardados';
+import {
+  crearEscanerVerificado,
+  obtenerCombinacionesAutomaticas,
+  recuperarCanales,
+} from '../escaneres/VerificacionElm';
 import {
   analizarRespuestaObd,
   type AnalisisRespuestaObd,
   type DiagnosticoLineaObd,
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
+import {
+  consolidarDeteccionPids,
+  interpretarBloquePids,
+  type BloquePidsInterpretado,
+} from '../obd/DeteccionPids';
 import { ServicioElm327, traducirRespuestaObd } from '../obd/ServicioElm327';
 import type {
   EntradaConsola,
@@ -32,6 +45,7 @@ import type {
   InformacionCaracteristicaGatt,
   InformacionDispositivoBle,
   MetricasFlujoObd,
+  RespuestaElm,
   ResultadoJsonObd,
 } from '../tipos/ble';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
@@ -71,6 +85,12 @@ export function PantallaEscanerObd() {
   // suscripciones aunque React vuelva a renderizar la pantalla.
   const [servicioBle] = useState(() => new ServicioBle());
   const [servicioElm] = useState(() => new ServicioElm327(servicioBle));
+  const escaneres = useEscaneresGuardados();
+  const [mensajeVerificacion, establecerMensajeVerificacion] = useState(
+    'Sin verificar en esta conexión.',
+  );
+  const [conexionEnCurso, establecerConexionEnCurso] = useState(false);
+  const [guardadoEnCurso, establecerGuardadoEnCurso] = useState(false);
 
   // Estado de Bluetooth, busqueda, conexion e inventario GATT.
   const [estadoBluetooth, establecerEstadoBluetooth] = useState<State>(
@@ -115,6 +135,9 @@ export function PantallaEscanerObd() {
   // las suscripciones y el contador no necesitan provocar renderizados.
   const suscripcionDesconexion = useRef<Subscription | null>(null);
   const secuenciaRegistro = useRef(0);
+  const bloqueoConexion = useRef(false);
+  const bloqueoComando = useRef(false);
+  const versionConexion = useRef(0);
 
   // conserva como maximo 200 eventos para que una sesion larga no crezca sin
   // limite en memoria. Cada entrada tiene un id estable para renderizar la lista.
@@ -140,11 +163,15 @@ export function PantallaEscanerObd() {
     const suscripcionEstado = servicioBle.observarEstadoBluetooth(estado => {
       establecerEstadoBluetooth(estado);
       if (esBluetoothNoDisponible(estado) || estado === State.PoweredOff) {
+        servicioBle.detenerEscaneo();
+        versionConexion.current += 1;
+        establecerMensajeVerificacion('Sin verificar en esta conexión.');
         establecerEstadoConexion('bluetooth-no-disponible');
       }
     });
 
     return () => {
+      versionConexion.current += 1;
       suscripcionEstado.remove();
       suscripcionDesconexion.current?.remove();
       servicioElm.cancelarSuscripcion();
@@ -209,6 +236,9 @@ export function PantallaEscanerObd() {
 
   /** Inicia un escaneo nuevo y elimina duplicados usando el id del dispositivo. */
   async function iniciarEscaneo() {
+    if (bloqueoConexion.current || bloqueoComando.current) {
+      return;
+    }
     if (!(await prepararBluetooth())) {
       return;
     }
@@ -224,7 +254,10 @@ export function PantallaEscanerObd() {
           );
           const siguientes = [...anteriores];
           if (indiceExistente >= 0) {
-            siguientes[indiceExistente] = dispositivo;
+            siguientes[indiceExistente] = combinarAnuncios(
+              anteriores[indiceExistente],
+              dispositivo,
+            );
           } else {
             siguientes.push(dispositivo);
           }
@@ -238,6 +271,19 @@ export function PantallaEscanerObd() {
       error => {
         establecerEstadoConexion('error');
         agregarRegistro('error', `Error de búsqueda: ${error.message}`);
+      },
+      () => {
+        establecerEstadoConexion(actual =>
+          actual === 'buscando'
+            ? dispositivoConectado
+              ? 'conectado'
+              : 'listo'
+            : actual,
+        );
+        agregarRegistro(
+          'informacion',
+          'Búsqueda terminada tras 12 segundos. Puedes repetirla.',
+        );
       },
     );
   }
@@ -256,10 +302,23 @@ export function PantallaEscanerObd() {
    * Si ya existia otra conexion, se cierra antes de abrir la nueva.
    */
   async function conectar(dispositivo: InformacionDispositivoBle) {
+    if (bloqueoConexion.current || bloqueoComando.current) {
+      return;
+    }
+    bloqueoConexion.current = true;
+    establecerConexionEnCurso(true);
+    const version = ++versionConexion.current;
     try {
+      if (!(await prepararBluetooth())) {
+        return;
+      }
       servicioBle.detenerEscaneo();
       servicioElm.cancelarSuscripcion();
       establecerClaveSuscripcion(null);
+      establecerMensajeVerificacion('Sin verificar en esta conexión.');
+      establecerCaracteristicas([]);
+      establecerClaveEscritura(null);
+      establecerClaveNotificacion(null);
       if (dispositivoConectado) {
         suscripcionDesconexion.current?.remove();
         suscripcionDesconexion.current = null;
@@ -277,7 +336,12 @@ export function PantallaEscanerObd() {
       const descubrimiento = await servicioBle.conectarYDescubrir(
         dispositivo.id,
       );
+      if (version !== versionConexion.current) {
+        await servicioBle.desconectar();
+        return;
+      }
       const dispositivoActual: InformacionDispositivoBle = {
+        ...dispositivo,
         id: descubrimiento.dispositivo.id,
         nombre: descubrimiento.dispositivo.name ?? dispositivo.nombre,
         nombreLocal:
@@ -286,8 +350,20 @@ export function PantallaEscanerObd() {
       };
       establecerDispositivoConectado(dispositivoActual);
       establecerCaracteristicas(descubrimiento.caracteristicas);
-      establecerClaveEscritura(null);
-      establecerClaveNotificacion(null);
+      const guardado = escaneres.buscar(dispositivoActual.id);
+      const canales =
+        guardado && recuperarCanales(guardado, descubrimiento.caracteristicas);
+      if (canales) {
+        establecerClaveEscritura(clavePara(canales.escritura));
+        establecerClaveNotificacion(clavePara(canales.notificacion));
+        establecerMensajeVerificacion(
+          'Canales guardados restaurados. Verifica de nuevo con ATI si lo necesitas.',
+        );
+      } else if (guardado) {
+        establecerMensajeVerificacion(
+          'Los canales guardados no coinciden con el GATT actual. Selecciónalos manualmente y verifica de nuevo.',
+        );
+      }
       establecerEstadoConexion('conectado');
       agregarRegistro(
         'exito',
@@ -299,9 +375,14 @@ export function PantallaEscanerObd() {
       suscripcionDesconexion.current = servicioBle.observarDesconexion(
         dispositivo.id,
         error => {
+          versionConexion.current += 1;
+          establecerMensajeVerificacion('Sin verificar en esta conexión.');
           servicioElm.cancelarSuscripcion();
           establecerClaveSuscripcion(null);
           establecerDispositivoConectado(null);
+          establecerCaracteristicas([]);
+          establecerClaveEscritura(null);
+          establecerClaveNotificacion(null);
           establecerEstadoConexion('desconectado');
           agregarRegistro(
             error ? 'error' : 'informacion',
@@ -314,11 +395,21 @@ export function PantallaEscanerObd() {
     } catch (capturado) {
       await servicioBle.desconectar().catch(() => undefined);
       informarError(capturado);
+    } finally {
+      bloqueoConexion.current = false;
+      establecerConexionEnCurso(false);
     }
   }
 
   /** Cancela suscripciones antes de cerrar la conexion BLE. */
   async function desconectar() {
+    if (bloqueoConexion.current || bloqueoComando.current) {
+      return;
+    }
+    bloqueoConexion.current = true;
+    establecerConexionEnCurso(true);
+    versionConexion.current += 1;
+    establecerMensajeVerificacion('Sin verificar en esta conexión.');
     try {
       servicioElm.cancelarSuscripcion();
       establecerClaveSuscripcion(null);
@@ -326,15 +417,27 @@ export function PantallaEscanerObd() {
       suscripcionDesconexion.current = null;
       await servicioBle.desconectar();
       establecerDispositivoConectado(null);
+      establecerCaracteristicas([]);
+      establecerClaveEscritura(null);
+      establecerClaveNotificacion(null);
       establecerEstadoConexion('desconectado');
       agregarRegistro('informacion', 'Conexión cerrada por el usuario.');
     } catch (capturado) {
       informarError(capturado);
+    } finally {
+      bloqueoConexion.current = false;
+      establecerConexionEnCurso(false);
     }
   }
 
   /** Guarda la caracteristica elegida para enviar comandos. */
   function elegirEscritura(elemento: InformacionCaracteristicaGatt) {
+    if (bloqueoComando.current || bloqueoConexion.current) {
+      return;
+    }
+    establecerMensajeVerificacion(
+      'Canales modificados. Vuelve a verificar antes de guardarlos.',
+    );
     establecerClaveEscritura(clavePara(elemento));
     agregarRegistro(
       'informacion',
@@ -347,6 +450,12 @@ export function PantallaEscanerObd() {
    * monitorCharacteristicForDevice queda ligado al UUID anterior.
    */
   function elegirNotificacion(elemento: InformacionCaracteristicaGatt) {
+    if (bloqueoComando.current || bloqueoConexion.current) {
+      return;
+    }
+    establecerMensajeVerificacion(
+      'Canales modificados. Vuelve a verificar antes de guardarlos.',
+    );
     servicioElm.cancelarSuscripcion();
     establecerClaveSuscripcion(null);
     establecerClaveNotificacion(clavePara(elemento));
@@ -360,16 +469,18 @@ export function PantallaEscanerObd() {
    * Activa notificaciones RX y registra cada fragmento como ASCII y hexadecimal.
    * La union de fragmentos hasta ">" se realiza dentro de ServicioElm327.
    */
-  function suscribirseANotificaciones(): boolean {
-    if (!dispositivoConectado || !notificacionSeleccionada) {
+  function activarSuscripcion(
+    notificacion: InformacionCaracteristicaGatt,
+  ): boolean {
+    if (!dispositivoConectado) {
       agregarRegistro(
         'error',
-        'Selecciona un dispositivo y una característica de notificación.',
+        'Conecta un dispositivo antes de activar las notificaciones.',
       );
       return false;
     }
-    const claveSeleccionada = clavePara(notificacionSeleccionada);
-    servicioElm.suscribirse(dispositivoConectado.id, notificacionSeleccionada, {
+    const claveSeleccionada = clavePara(notificacion);
+    servicioElm.suscribirse(dispositivoConectado.id, notificacion, {
       alRecibirFragmento: (textoAscii, bytes) => {
         const hexadecimal = bytes
           .map(byte => byte.toString(16).padStart(2, '0'))
@@ -389,9 +500,20 @@ export function PantallaEscanerObd() {
     establecerClaveSuscripcion(claveSeleccionada);
     agregarRegistro(
       'exito',
-      `Suscripción activa: ${notificacionSeleccionada.uuidCaracteristica}`,
+      `Suscripción activa: ${notificacion.uuidCaracteristica}`,
     );
     return true;
+  }
+
+  function suscribirseANotificaciones(): boolean {
+    if (!notificacionSeleccionada) {
+      agregarRegistro(
+        'error',
+        'Selecciona una característica de notificación.',
+      );
+      return false;
+    }
+    return activarSuscripcion(notificacionSeleccionada);
   }
 
   /**
@@ -399,9 +521,10 @@ export function PantallaEscanerObd() {
    * para no enviar el siguiente comando antes de recibir el prompt del anterior.
    */
   async function ejecutarComandos(comandos: readonly string[]) {
-    if (comandoEnCurso) {
+    if (bloqueoComando.current || bloqueoConexion.current) {
       return;
     }
+    bloqueoComando.current = true;
     establecerComandoEnCurso(true);
     try {
       for (const comando of comandos) {
@@ -411,15 +534,18 @@ export function PantallaEscanerObd() {
         }
       }
     } finally {
+      bloqueoComando.current = false;
       establecerComandoEnCurso(false);
     }
   }
 
   /**
    * Valida selecciones, prepara RX, envia un comando y construye el JSON final.
-   * Devuelve false para detener una secuencia si ocurre cualquier error.
+   * Devuelve null para detener una secuencia si ocurre cualquier error.
    */
-  async function ejecutarComando(comando: string): Promise<boolean> {
+  async function ejecutarComando(
+    comando: string,
+  ): Promise<RespuestaElm | null> {
     if (
       !dispositivoConectado ||
       !escrituraSeleccionada ||
@@ -429,14 +555,10 @@ export function PantallaEscanerObd() {
         'Conecta el adaptador y selecciona características de escritura y notificación.';
       agregarRegistro('error', mensaje);
       establecerResultadoError(comando, mensaje);
-      return false;
+      return null;
     }
-    const claveSeleccionNotificacion = clavePara(notificacionSeleccionada);
-    if (
-      claveSuscripcion !== claveSeleccionNotificacion &&
-      !suscribirseANotificaciones()
-    ) {
-      return false;
+    if (!servicioElm.estaSuscrito() && !suscribirseANotificaciones()) {
+      return null;
     }
 
     agregarRegistro('tx', `TX ASCII: ${comando.toUpperCase()}\\r`);
@@ -496,13 +618,271 @@ export function PantallaEscanerObd() {
       if (estadoConexion === 'error') {
         establecerEstadoConexion('conectado');
       }
-      return true;
+      return respuesta;
     } catch (capturado) {
       const error = convertirAError(capturado);
       establecerEstadoConexion('error');
       agregarRegistro('error', `${comando}: ${error.message}`);
       establecerResultadoError(comando, error.message);
-      return false;
+      return null;
+    }
+  }
+
+  /** Prueba en orden las combinaciones FFF1/FFF1 y FFF2/FFF1 con ATI. */
+  async function detectarCanalesAutomaticamente() {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      escaneres.cargando ||
+      !dispositivoConectado
+    ) {
+      return;
+    }
+    const combinaciones = obtenerCombinacionesAutomaticas(caracteristicas);
+    if (combinaciones.length === 0) {
+      establecerMensajeVerificacion(
+        'No se encontraron combinaciones FFF1/FFF2 compatibles. Usa la selección manual.',
+      );
+      agregarRegistro(
+        'error',
+        'El GATT no contiene FFF1/FFF1 ni FFF2/FFF1 con las propiedades requeridas.',
+      );
+      return;
+    }
+
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    const version = versionConexion.current;
+    let ultimoError = 'ATI no respondió en las combinaciones conocidas.';
+    try {
+      for (const combinacion of combinaciones) {
+        if (version !== versionConexion.current) {
+          return;
+        }
+        establecerClaveEscritura(clavePara(combinacion.escritura));
+        establecerClaveNotificacion(clavePara(combinacion.notificacion));
+        establecerMensajeVerificacion(
+          `Probando automáticamente ${combinacion.descripcion} con ATI…`,
+        );
+        agregarRegistro(
+          'informacion',
+          `Prueba automática de canales ${combinacion.descripcion}.`,
+        );
+
+        try {
+          servicioElm.cancelarSuscripcion();
+          establecerClaveSuscripcion(null);
+          if (!activarSuscripcion(combinacion.notificacion)) {
+            throw new Error('No fue posible activar el canal de recepción.');
+          }
+          agregarRegistro('tx', 'TX ASCII: ATI\\r');
+          const respuesta = await servicioElm.enviarComando(
+            dispositivoConectado.id,
+            combinacion.escritura,
+            'ATI',
+            5000,
+          );
+          const registro = crearEscanerVerificado(
+            dispositivoConectado,
+            combinacion.escritura,
+            combinacion.notificacion,
+            respuesta.textoAscii,
+          );
+          await escaneres.guardar(registro);
+          if (version !== versionConexion.current) {
+            return;
+          }
+          establecerMensajeVerificacion(
+            `✓ Canales detectados: ${combinacion.descripcion}. ${registro.identificacionElm}.`,
+          );
+          agregarRegistro(
+            'exito',
+            `Canales ${combinacion.descripcion} verificados y guardados con ATI.`,
+          );
+          establecerEstadoConexion('conectado');
+          return;
+        } catch (capturado) {
+          ultimoError = convertirAError(capturado).message;
+          agregarRegistro(
+            'informacion',
+            `${combinacion.descripcion} no fue validado: ${ultimoError}`,
+          );
+        }
+      }
+
+      servicioElm.cancelarSuscripcion();
+      establecerClaveSuscripcion(null);
+      establecerMensajeVerificacion(
+        `No se detectaron canales automáticamente. Último resultado: ${ultimoError} Usa la selección manual.`,
+      );
+      agregarRegistro(
+        'error',
+        'Finalizaron las combinaciones automáticas sin una respuesta ATI válida.',
+      );
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
+    }
+  }
+
+  /** Envia solo ATI en los canales elegidos y persiste tras validar la respuesta. */
+  async function verificarYGuardar() {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      escaneres.cargando ||
+      !dispositivoConectado ||
+      !escrituraSeleccionada ||
+      !notificacionSeleccionada
+    ) {
+      return;
+    }
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    const version = versionConexion.current;
+    establecerMensajeVerificacion('Verificando identificación con ATI…');
+    try {
+      const respuesta = await ejecutarComando('ATI');
+      if (version !== versionConexion.current) {
+        return;
+      }
+      if (!respuesta) {
+        establecerMensajeVerificacion(
+          'No se pudo verificar. Revisa los canales y la conexión; no se guardó un registro nuevo.',
+        );
+        return;
+      }
+      const registro = crearEscanerVerificado(
+        dispositivoConectado,
+        escrituraSeleccionada,
+        notificacionSeleccionada,
+        respuesta.textoAscii,
+      );
+      await escaneres.guardar(registro);
+      if (version === versionConexion.current) {
+        establecerMensajeVerificacion(
+          `Verificado y guardado: ${registro.identificacionElm}. Esto no confirma comunicación con el vehículo.`,
+        );
+      }
+      agregarRegistro(
+        'exito',
+        `Escáner guardado localmente: ${registro.identificacionElm}.`,
+      );
+    } catch (capturado) {
+      const mensaje = convertirAError(capturado).message;
+      if (version === versionConexion.current) {
+        establecerMensajeVerificacion(
+          `No se pudo completar el guardado: ${mensaje}`,
+        );
+      }
+      agregarRegistro('error', mensaje);
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
+    }
+  }
+
+  /** Recorre los bloques Mode 01 y resume los PID declarados por la ECU. */
+  async function detectarPidsCompatibles() {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      !dispositivoConectado ||
+      !escrituraSeleccionada ||
+      !notificacionSeleccionada
+    ) {
+      return;
+    }
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    const bloques: BloquePidsInterpretado[] = [];
+    let comandoActual: string | null = '0100';
+    try {
+      while (comandoActual) {
+        const respuesta = await ejecutarComando(comandoActual);
+        if (!respuesta) {
+          return;
+        }
+        const bloque = interpretarBloquePids(
+          comandoActual,
+          respuesta.textoAscii,
+        );
+        bloques.push(bloque);
+        agregarRegistro(
+          'informacion',
+          `${bloque.comando}: máscara ${bloque.mascaraHexadecimal}; ${bloque.pidsDeclarados.length} PID declarados en el bloque.`,
+        );
+        comandoActual = bloque.siguienteComando;
+      }
+
+      const deteccion = consolidarDeteccionPids(bloques);
+      const resultado: ResultadoJsonObd = {
+        fecha: new Date().toISOString(),
+        dispositivo: {
+          nombre: mostrarNombreDispositivo(dispositivoConectado),
+          identificador: dispositivoConectado.id,
+        },
+        comando: bloques.map(bloque => bloque.comando).join(' -> '),
+        respuestaCruda: bloques
+          .map(bloque => `${bloque.comando}: ${bloque.respuestaCruda}`)
+          .join('\n'),
+        datoTraducido: deteccion,
+        unidad: 'PID Mode 01',
+        erroresComunicacion: [],
+      };
+      establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
+      agregarRegistro(
+        'exito',
+        `Detección terminada: ${deteccion.cantidadPidsSoportados} PID de datos; ${deteccion.cantidadInterpretables} ya interpretables y ${deteccion.cantidadPendientes} pendientes.`,
+      );
+    } catch (capturado) {
+      const mensaje = convertirAError(capturado).message;
+      const resultado: ResultadoJsonObd = {
+        fecha: new Date().toISOString(),
+        dispositivo: {
+          nombre: mostrarNombreDispositivo(dispositivoConectado),
+          identificador: dispositivoConectado.id,
+        },
+        comando: bloques.map(bloque => bloque.comando).join(' -> ') || '0100',
+        respuestaCruda:
+          bloques.length > 0
+            ? bloques
+                .map(bloque => `${bloque.comando}: ${bloque.respuestaCruda}`)
+                .join('\n')
+            : null,
+        datoTraducido: null,
+        unidad: null,
+        erroresComunicacion: [mensaje],
+      };
+      establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
+      agregarRegistro('error', `Detección de PID: ${mensaje}`);
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
+    }
+  }
+
+  async function olvidarEscaner(id: string) {
+    if (bloqueoComando.current || bloqueoConexion.current) {
+      return;
+    }
+    bloqueoComando.current = true;
+    establecerGuardadoEnCurso(true);
+    try {
+      await escaneres.olvidar(id);
+      if (dispositivoConectado?.id === id) {
+        establecerMensajeVerificacion(
+          'Registro local olvidado. La conexión actual sigue disponible.',
+        );
+      }
+    } catch (capturado) {
+      agregarRegistro(
+        'error',
+        `No se pudo olvidar el escáner: ${convertirAError(capturado).message}`,
+      );
+    } finally {
+      bloqueoComando.current = false;
+      establecerGuardadoEnCurso(false);
     }
   }
 
@@ -619,6 +999,8 @@ export function PantallaEscanerObd() {
     agregarRegistro('error', error.message);
   }
 
+  const interfazOcupada = conexionEnCurso || comandoEnCurso || guardadoEnCurso;
+
   return (
     <ScrollView contentContainerStyle={estilos.contenedor}>
       <Text style={estilos.titulo}>Demo ELM327 BLE</Text>
@@ -640,50 +1022,36 @@ export function PantallaEscanerObd() {
           <BotonAccion
             etiqueta="Permisos / comprobar"
             onPress={() => prepararBluetooth()}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="Buscar BLE"
             onPress={() => iniciarEscaneo()}
-            disabled={estadoConexion === 'buscando'}
+            disabled={estadoConexion === 'buscando' || interfazOcupada}
           />
           <BotonAccion
             etiqueta="Detener"
             onPress={detenerEscaneo}
-            disabled={estadoConexion !== 'buscando'}
+            disabled={estadoConexion !== 'buscando' || interfazOcupada}
           />
           <BotonAccion
             etiqueta="Desconectar"
             onPress={() => desconectar()}
-            disabled={!dispositivoConectado}
+            disabled={!dispositivoConectado || interfazOcupada}
             peligro
           />
         </View>
-        {dispositivos.length === 0 ? (
-          <Text style={estilos.vacio}>
-            No hay dispositivos encontrados todavía.
-          </Text>
-        ) : (
-          dispositivos.map(dispositivo => (
-            <Pressable
-              accessibilityRole="button"
-              key={dispositivo.id}
-              onPress={() => conectar(dispositivo)}
-              style={[
-                estilos.tarjetaDispositivo,
-                idDispositivoSeleccionado === dispositivo.id &&
-                  estilos.tarjetaSeleccionada,
-              ]}
-            >
-              <Text style={estilos.nombreDispositivo}>
-                {mostrarNombreDispositivo(dispositivo)}
-              </Text>
-              <Text style={estilos.monoespaciado}>{dispositivo.id}</Text>
-              <Text style={estilos.secundario}>
-                RSSI: {dispositivo.rssi ?? 'sin dato'} dBm
-              </Text>
-            </Pressable>
-          ))
-        )}
+        <SelectorEscaneres
+          dispositivos={dispositivos}
+          guardados={escaneres.guardados}
+          seleccionado={idDispositivoSeleccionado}
+          ocupado={interfazOcupada}
+          buscando={estadoConexion === 'buscando'}
+          cargandoGuardados={escaneres.cargando}
+          errorGuardados={escaneres.error}
+          alConectar={dispositivo => conectar(dispositivo)}
+          alOlvidar={id => olvidarEscaner(id)}
+        />
       </Seccion>
 
       <Seccion titulo={`2. GATT (${caracteristicas.length})`}>
@@ -740,6 +1108,25 @@ export function PantallaEscanerObd() {
             claveSuscripcion === claveNotificacion
           }
         />
+        <Text style={estilos.ayuda}>{mensajeVerificacion}</Text>
+        <BotonAccion
+          etiqueta="Detectar canales automáticamente · ATI"
+          onPress={() => detectarCanalesAutomaticamente()}
+          disabled={
+            interfazOcupada || escaneres.cargando || !dispositivoConectado
+          }
+        />
+        <BotonAccion
+          etiqueta="Verificar selección manual · ATI"
+          onPress={() => verificarYGuardar()}
+          disabled={
+            interfazOcupada ||
+            escaneres.cargando ||
+            !dispositivoConectado ||
+            !escrituraSeleccionada ||
+            !notificacionSeleccionada
+          }
+        />
       </Seccion>
 
       <Seccion titulo="4. Comandos ELM327">
@@ -751,37 +1138,47 @@ export function PantallaEscanerObd() {
           <BotonAccion
             etiqueta="ATI"
             onPress={() => ejecutarComandos(['ATI'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="ATZ"
             onPress={() => ejecutarComandos(['ATZ'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="Cabeceras ON · ATH1"
             onPress={() => ejecutarComandos(['ATH1'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="Inicializar ELM327"
             onPress={() => ejecutarComandos(COMANDOS_INICIALIZACION)}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="RPM · 010C"
             onPress={() => ejecutarComandos(['010C'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="Temperatura · 0105"
             onPress={() => ejecutarComandos(['0105'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
           />
           <BotonAccion
             etiqueta="DTC almacenados · 03"
             onPress={() => ejecutarComandos(['03'])}
-            disabled={comandoEnCurso}
+            disabled={interfazOcupada}
+          />
+          <BotonAccion
+            etiqueta="Detectar PID compatibles"
+            onPress={() => detectarPidsCompatibles()}
+            disabled={
+              interfazOcupada ||
+              !dispositivoConectado ||
+              !escrituraSeleccionada ||
+              !notificacionSeleccionada
+            }
           />
         </View>
         <Text style={estilos.etiqueta}>Velocidad del flujo</Text>
