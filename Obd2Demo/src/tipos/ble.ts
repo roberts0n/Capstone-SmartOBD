@@ -62,7 +62,13 @@ export interface RespuestaElm {
 // Resultado de interpretar una respuesta OBD. El valor crudo se conserva por
 // separado en ResultadoJsonObd incluso cuando la traduccion falla.
 export interface TraduccionObd {
-  valor: number | string | string[] | ResultadoDeteccionPids | null;
+  valor:
+    | number
+    | string
+    | string[]
+    | Record<string, unknown>
+    | ResultadoDeteccionPids
+    | null;
   unidad: string | null;
   error: string | null;
 }
@@ -92,7 +98,13 @@ export interface ResultadoJsonObd {
   } | null;
   comando: string;
   respuestaCruda: string | null;
-  datoTraducido: number | string | string[] | ResultadoDeteccionPids | null;
+  datoTraducido:
+    | number
+    | string
+    | string[]
+    | Record<string, unknown>
+    | ResultadoDeteccionPids
+    | null;
   unidad: string | null;
   erroresComunicacion: string[];
 }

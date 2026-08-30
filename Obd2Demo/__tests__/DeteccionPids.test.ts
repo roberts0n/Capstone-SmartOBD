@@ -28,9 +28,14 @@ describe('deteccion de PID Mode 01', () => {
     const resultado = consolidarDeteccionPids([primero, segundo]);
 
     expect(resultado.pidsSoportados).toEqual(['0101', '0105', '010C', '0121']);
-    expect(resultado.pidsInterpretables).toEqual(['0105', '010C']);
+    expect(resultado.pidsInterpretables).toEqual([
+      '0101',
+      '0105',
+      '010C',
+      '0121',
+    ]);
     expect(resultado.cantidadPidsSoportados).toBe(4);
-    expect(resultado.cantidadPendientes).toBe(2);
+    expect(resultado.cantidadPendientes).toBe(0);
   });
 
   test('distingue NO DATA de una mascara valida', () => {

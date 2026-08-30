@@ -1,8 +1,8 @@
 /* eslint-disable no-bitwise */
 import type { BloquePidsDetectado, ResultadoDeteccionPids } from '../tipos/ble';
+import { esPidMode01Interpretable } from './CatalogoPidsMode01';
 
 const BASES_VALIDAS = [0x00, 0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0];
-const PIDS_INTERPRETABLES = new Set(['0105', '010C']);
 const MENSAJES_SIN_RESPUESTA = [
   'NO DATA',
   'UNABLE TO CONNECT',
@@ -90,11 +90,9 @@ export function consolidarDeteccionPids(
         .filter(comando => !esPidContinuacion(comando)),
     ),
   ].sort();
-  const pidsInterpretables = pidsSoportados.filter(pid =>
-    PIDS_INTERPRETABLES.has(pid),
-  );
+  const pidsInterpretables = pidsSoportados.filter(esPidMode01Interpretable);
   const pidsPendientes = pidsSoportados.filter(
-    pid => !PIDS_INTERPRETABLES.has(pid),
+    pid => !esPidMode01Interpretable(pid),
   );
 
   return {

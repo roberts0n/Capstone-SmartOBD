@@ -33,6 +33,7 @@ import {
   type DiagnosticoLineaObd,
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
+import { obtenerDefinicionPidMode01 } from '../obd/CatalogoPidsMode01';
 import {
   consolidarDeteccionPids,
   interpretarBloquePids,
@@ -131,6 +132,7 @@ export function PantallaEscanerObd() {
     useState<MetricasFlujoObd | null>(null);
   const [ultimoAnalisis, establecerUltimoAnalisis] =
     useState<AnalisisRespuestaObd | null>(null);
+  const [pidsDetectados, establecerPidsDetectados] = useState<string[]>([]);
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
 
   // las suscripciones y el contador no necesitan provocar renderizados.
@@ -320,6 +322,7 @@ export function PantallaEscanerObd() {
       establecerCaracteristicas([]);
       establecerClaveEscritura(null);
       establecerClaveNotificacion(null);
+      establecerPidsDetectados([]);
       if (dispositivoConectado) {
         suscripcionDesconexion.current?.remove();
         suscripcionDesconexion.current = null;
@@ -384,6 +387,7 @@ export function PantallaEscanerObd() {
           establecerCaracteristicas([]);
           establecerClaveEscritura(null);
           establecerClaveNotificacion(null);
+          establecerPidsDetectados([]);
           establecerEstadoConexion('desconectado');
           agregarRegistro(
             error ? 'error' : 'informacion',
@@ -421,6 +425,7 @@ export function PantallaEscanerObd() {
       establecerCaracteristicas([]);
       establecerClaveEscritura(null);
       establecerClaveNotificacion(null);
+      establecerPidsDetectados([]);
       establecerEstadoConexion('desconectado');
       agregarRegistro('informacion', 'Conexión cerrada por el usuario.');
     } catch (capturado) {
@@ -796,6 +801,7 @@ export function PantallaEscanerObd() {
     }
     bloqueoComando.current = true;
     establecerComandoEnCurso(true);
+    establecerPidsDetectados([]);
     const bloques: BloquePidsInterpretado[] = [];
     let comandoActual: string | null = '0100';
     try {
@@ -817,6 +823,7 @@ export function PantallaEscanerObd() {
       }
 
       const deteccion = consolidarDeteccionPids(bloques);
+      establecerPidsDetectados(deteccion.pidsInterpretables);
       const resultado: ResultadoJsonObd = {
         fecha: new Date().toISOString(),
         dispositivo: {
@@ -1286,6 +1293,29 @@ export function PantallaEscanerObd() {
             }
           />
         </View>
+        <Text style={estilos.etiqueta}>PID traducibles detectados</Text>
+        {pidsDetectados.length > 0 ? (
+          <View style={estilos.filaBotones}>
+            {pidsDetectados
+              .filter(pid => pid !== '0105' && pid !== '010C')
+              .map(pid => {
+                const definicion = obtenerDefinicionPidMode01(pid);
+                return (
+                  <BotonAccion
+                    key={pid}
+                    etiqueta={`${definicion?.nombre ?? 'PID'} · ${pid}`}
+                    onPress={() => ejecutarComandos([pid])}
+                    disabled={interfazOcupada}
+                  />
+                );
+              })}
+          </View>
+        ) : (
+          <Text style={estilos.vacio}>
+            Ejecuta “Detectar PID compatibles” para mostrar los comandos que
+            este vehículo declara y que la app ya puede traducir.
+          </Text>
+        )}
         <Text style={estilos.etiqueta}>Velocidad del flujo</Text>
         {ultimasMetricas ? (
           <View style={estilos.tarjetaMetricas}>

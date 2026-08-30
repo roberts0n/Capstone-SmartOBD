@@ -12,6 +12,7 @@ import {
   base64ABytes,
 } from './AcumuladorRespuestaObd';
 import { analizarRespuestaObd } from './AnalisisRespuestaObd';
+import { traducirPidMode01 } from './CatalogoPidsMode01';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // Solo se permite un comando pendiente. Su promesa se resuelve cuando el
@@ -188,10 +189,7 @@ export class ServicioElm327 {
   }
 }
 
-/**
- * Traduce solamente los comandos OBD requeridos por la demo.
- * Siempre se mantiene la respuesta cruda fuera de esta funcion.
- */
+/** Traduce comandos OBD sin reemplazar la respuesta cruda del resultado. */
 export function traducirRespuestaObd(
   comando: string,
   respuestaCruda: string,
@@ -215,58 +213,12 @@ export function traducirRespuestaObd(
     );
   }
 
-  const bytes = extraerBytesHexadecimales(respuestaCruda);
-
-  if (comandoNormalizado === '010C') {
-    // Respuesta esperada: 41 0C A B. Formula: ((A * 256) + B) / 4.
-    const indice = buscarSecuencia(bytes, [0x41, 0x0c]);
-    if (indice < 0 || bytes.length < indice + 4) {
-      return crearErrorTraduccion('No se encontró una respuesta válida 41 0C.');
-    }
-    return {
-      valor: (bytes[indice + 2] * 256 + bytes[indice + 3]) / 4,
-      unidad: 'rpm',
-      error: null,
-    };
-  }
-
-  if (comandoNormalizado === '0105') {
-    // Respuesta esperada: 41 05 A. Formula: A - 40 grados Celsius.
-    const indice = buscarSecuencia(bytes, [0x41, 0x05]);
-    if (indice < 0 || bytes.length < indice + 3) {
-      return crearErrorTraduccion('No se encontró una respuesta válida 41 05.');
-    }
-    return { valor: bytes[indice + 2] - 40, unidad: '°C', error: null };
+  const traduccionPid = traducirPidMode01(comandoNormalizado, respuestaCruda);
+  if (traduccionPid) {
+    return traduccionPid;
   }
 
   return { valor: respuestaCruda.trim(), unidad: null, error: null };
-}
-
-// Acepta respuestas con espacios ("41 0C 0C 5C") y sin espacios
-// ("410C0C5C"). Tambien tolera que ELM327 repita el comando enviado.
-function extraerBytesHexadecimales(respuesta: string): number[] {
-  const secuencias =
-    respuesta.toUpperCase().match(/[0-9A-F]{2}(?:\s*[0-9A-F]{2})+/g) ?? [];
-  return secuencias.flatMap(secuencia => {
-    const compacta = secuencia.replace(/\s/g, '');
-    const bytes: number[] = [];
-    for (let indice = 0; indice + 1 < compacta.length; indice += 2) {
-      bytes.push(Number.parseInt(compacta.slice(indice, indice + 2), 16));
-    }
-    return bytes;
-  });
-}
-
-/** Busca la posicion de una cabecera como 41 0C dentro de todos los bytes. */
-function buscarSecuencia(
-  valores: readonly number[],
-  esperados: readonly number[],
-): number {
-  return valores.findIndex((_, indice) =>
-    esperados.every(
-      (valor, desplazamiento) => valores[indice + desplazamiento] === valor,
-    ),
-  );
 }
 
 function crearErrorTraduccion(mensaje: string): TraduccionObd {
