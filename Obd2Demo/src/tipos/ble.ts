@@ -57,6 +57,15 @@ export interface RespuestaElm {
   textoAscii: string;
   bytes: number[];
   metricasRecepcion: MetricasRecepcionElm;
+  fragmentos?: FragmentoRecepcionElm[];
+}
+
+export interface FragmentoRecepcionElm {
+  fecha: string;
+  marcaTiempoMs: number;
+  base64: string;
+  textoAscii: string;
+  bytes: number[];
 }
 
 // Resultado de interpretar una respuesta OBD. El valor crudo se conserva por

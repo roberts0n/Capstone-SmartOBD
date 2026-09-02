@@ -5,6 +5,7 @@ import type {
   MetricasRecepcionElm,
   RespuestaElm,
   TraduccionObd,
+  FragmentoRecepcionElm,
 } from '../tipos/ble';
 import {
   AcumuladorRespuestaObd,
@@ -22,6 +23,15 @@ interface ComandoPendiente {
   rechazar: (error: Error) => void;
   temporizador: ReturnType<typeof setTimeout>;
   metricasRecepcion: MetricasRecepcionElm;
+  fragmentos: FragmentoRecepcionElm[];
+}
+
+/** Adjunta evidencia parcial tambien cuando falta el prompt o se corta BLE. */
+export class ErrorCapturaElm extends Error {
+  constructor(mensaje: string, public readonly captura: RespuestaElm) {
+    super(mensaje);
+    this.name = 'ErrorCapturaElm';
+  }
 }
 
 export interface ManejadoresNotificacionElm {
@@ -39,6 +49,7 @@ export class ServicioElm327 {
   private suscripcionNotificacion: Subscription | null = null;
   private readonly acumuladorRespuesta = new AcumuladorRespuestaObd();
   private comandoPendiente: ComandoPendiente | null = null;
+  private esperandoPromptTardio = false;
 
   constructor(private readonly servicioBle: ServicioBle) {}
 
@@ -57,6 +68,7 @@ export class ServicioElm327 {
       caracteristica,
       (error, valorBase64) => {
         if (error) {
+          this.esperandoPromptTardio = true;
           const errorNotificacion = new Error(error.message);
           manejadores.alOcurrirError(errorNotificacion);
           this.rechazarPendiente(errorNotificacion);
@@ -71,6 +83,13 @@ export class ServicioElm327 {
           const textoAscii = String.fromCharCode(...bytes);
           const pendienteActual = this.comandoPendiente;
           if (pendienteActual) {
+            pendienteActual.fragmentos.push({
+              fecha: new Date().toISOString(),
+              marcaTiempoMs: obtenerTiempoMs(),
+              base64: valorBase64,
+              textoAscii,
+              bytes,
+            });
             pendienteActual.metricasRecepcion.primerFragmentoMs ??=
               obtenerTiempoMs();
             pendienteActual.metricasRecepcion.cantidadFragmentos += 1;
@@ -78,6 +97,13 @@ export class ServicioElm327 {
           }
           manejadores.alRecibirFragmento(textoAscii, bytes);
           this.acumuladorRespuesta.agregarBase64(valorBase64);
+          if (
+            !this.comandoPendiente &&
+            this.acumuladorRespuesta.estaCompleta()
+          ) {
+            this.esperandoPromptTardio = false;
+            this.acumuladorRespuesta.consumir();
+          }
           // La promesa del comando no termina hasta recibir el prompt completo.
           if (
             this.comandoPendiente &&
@@ -89,6 +115,7 @@ export class ServicioElm327 {
             const respuesta: RespuestaElm = {
               ...respuestaAcumulada,
               metricasRecepcion: pendiente.metricasRecepcion,
+              fragmentos: pendiente.fragmentos,
             };
             this.comandoPendiente = null;
             clearTimeout(pendiente.temporizador);
@@ -106,6 +133,11 @@ export class ServicioElm327 {
   /** Permite a la pantalla comprobar si RX esta preparado. */
   estaSuscrito(): boolean {
     return this.suscripcionNotificacion !== null;
+  }
+
+  /** No asignar la respuesta tardia de un comando al siguiente. */
+  estaSincronizado(): boolean {
+    return !this.esperandoPromptTardio;
   }
 
   /**
@@ -126,6 +158,11 @@ export class ServicioElm327 {
     if (this.comandoPendiente) {
       throw new Error('Ya existe un comando ELM327 pendiente.');
     }
+    if (this.esperandoPromptTardio) {
+      throw new Error(
+        'Falta el prompt del comando anterior. Reconecta el escaner antes de continuar.',
+      );
+    }
 
     const comandoNormalizado = comando.trim().toUpperCase();
     this.acumuladorRespuesta.reiniciar();
@@ -141,8 +178,8 @@ export class ServicioElm327 {
     // o si el adaptador deja de responder.
     const promesaRespuesta = new Promise<RespuestaElm>((resolver, rechazar) => {
       const temporizador = setTimeout(() => {
-        this.comandoPendiente = null;
-        rechazar(
+        this.esperandoPromptTardio = true;
+        this.rechazarPendiente(
           new Error(
             `Tiempo agotado esperando el prompt > para ${comandoNormalizado}.`,
           ),
@@ -153,20 +190,27 @@ export class ServicioElm327 {
         rechazar,
         temporizador,
         metricasRecepcion,
+        fragmentos: [],
       };
     });
-
-    try {
-      await this.servicioBle.escribir(
+    // La promesa de RX ya tiene un consumidor aunque la escritura BLE demore.
+    // Evita rechazos sin manejar y permite resolver por timeout de extremo a extremo.
+    this.servicioBle
+      .escribir(
         idDispositivo,
         caracteristicaEscritura,
         asciiABase64(`${comandoNormalizado}\r`),
-      );
-      metricasRecepcion.escrituraBleCompletaMs = obtenerTiempoMs();
-    } catch (capturado) {
-      this.rechazarPendiente(convertirAError(capturado));
-      throw capturado;
-    }
+      )
+      .then(() => {
+        metricasRecepcion.escrituraBleCompletaMs = obtenerTiempoMs();
+      })
+      .catch(capturado => {
+        // Una escritura anterior no debe rechazar un comando posterior.
+        if (this.comandoPendiente?.metricasRecepcion === metricasRecepcion) {
+          this.esperandoPromptTardio = true;
+          this.rechazarPendiente(convertirAError(capturado));
+        }
+      });
     return promesaRespuesta;
   }
 
@@ -174,8 +218,9 @@ export class ServicioElm327 {
   cancelarSuscripcion(): void {
     this.suscripcionNotificacion?.remove();
     this.suscripcionNotificacion = null;
-    this.acumuladorRespuesta.reiniciar();
     this.rechazarPendiente(new Error('Suscripción ELM327 cancelada.'));
+    this.acumuladorRespuesta.reiniciar();
+    this.esperandoPromptTardio = false;
   }
 
   private rechazarPendiente(error: Error): void {
@@ -185,7 +230,13 @@ export class ServicioElm327 {
     const pendiente = this.comandoPendiente;
     this.comandoPendiente = null;
     clearTimeout(pendiente.temporizador);
-    pendiente.rechazar(error);
+    pendiente.rechazar(
+      new ErrorCapturaElm(error.message, {
+        ...this.acumuladorRespuesta.consumir(),
+        metricasRecepcion: pendiente.metricasRecepcion,
+        fragmentos: pendiente.fragmentos,
+      }),
+    );
   }
 }
 

@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -15,6 +16,9 @@ import {
 } from 'react-native';
 import { State, type Subscription } from 'react-native-ble-plx';
 import { SelectorEscaneres } from '../componentes/SelectorEscaneres';
+import { PanelPruebaDtc } from '../componentes/PanelPruebaDtc';
+import { usePruebaDtc } from '../informes/usarPruebaDtc';
+import { version as versionAplicacion } from '../../package.json';
 import {
   esBluetoothNoDisponible,
   esBluetoothUtilizable,
@@ -88,6 +92,7 @@ export function PantallaEscanerObd() {
   const [servicioBle] = useState(() => new ServicioBle());
   const [servicioElm] = useState(() => new ServicioElm327(servicioBle));
   const escaneres = useEscaneresGuardados();
+  const pruebaDtc = usePruebaDtc();
   const [mensajeVerificacion, establecerMensajeVerificacion] = useState(
     'Sin verificar en esta conexión.',
   );
@@ -542,6 +547,72 @@ export function PantallaEscanerObd() {
     } finally {
       bloqueoComando.current = false;
       establecerComandoEnCurso(false);
+    }
+  }
+
+  /** Comparte el bloqueo ELM existente para que ningun boton intercale comandos. */
+  async function iniciarPruebaCompletaDtc() {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      !dispositivoConectado ||
+      !escrituraSeleccionada ||
+      !notificacionSeleccionada ||
+      pruebaDtc.cargando
+    ) {
+      return;
+    }
+    if (!servicioElm.estaSuscrito() && !suscribirseANotificaciones()) {
+      return;
+    }
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    // El lote tiene su propio informe; no mostrar una captura individual anterior.
+    establecerResultadoJsonVisible(null);
+    establecerUltimoAnalisis(null);
+    establecerUltimasMetricas(null);
+    const version = versionConexion.current;
+    try {
+      await pruebaDtc.iniciar({
+        dispositivo: dispositivoConectado,
+        escritura: escrituraSeleccionada,
+        notificacion: notificacionSeleccionada,
+        versionAplicacion,
+        conectado: () =>
+          version === versionConexion.current && servicioElm.estaSuscrito(),
+        sincronizado: () => servicioElm.estaSincronizado(),
+        enviar: comando => {
+          agregarRegistro('tx', `Prueba DTC TX: ${comando}`);
+          return servicioElm.enviarComando(
+            dispositivoConectado.id,
+            escrituraSeleccionada,
+            comando,
+          );
+        },
+      });
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
+    }
+  }
+
+  function solicitarPruebaDtc() {
+    if (pruebaDtc.informe) {
+      Alert.alert(
+        'Nueva prueba DTC',
+        'Se reemplazará el último borrador local. Guarda su JSON antes de continuar si quieres conservarlo.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Nueva prueba',
+            onPress: () => {
+              iniciarPruebaCompletaDtc().catch(informarError);
+            },
+          },
+        ],
+      );
+    } else {
+      iniciarPruebaCompletaDtc().catch(informarError);
     }
   }
 
@@ -1101,7 +1172,8 @@ export function PantallaEscanerObd() {
     agregarRegistro('error', error.message);
   }
 
-  const interfazOcupada = conexionEnCurso || comandoEnCurso || guardadoEnCurso;
+  const interfazOcupada =
+    conexionEnCurso || comandoEnCurso || guardadoEnCurso || pruebaDtc.guardando;
 
   return (
     <ScrollView contentContainerStyle={estilos.contenedor}>
@@ -1268,7 +1340,7 @@ export function PantallaEscanerObd() {
             disabled={interfazOcupada}
           />
           <BotonAccion
-            etiqueta="DTC almacenados · 03"
+            etiqueta="DTC 03 · lector anterior"
             onPress={() => ejecutarComandos(['03'])}
             disabled={interfazOcupada}
           />
@@ -1293,6 +1365,27 @@ export function PantallaEscanerObd() {
             }
           />
         </View>
+        <PanelPruebaDtc
+          informe={pruebaDtc.informe}
+          progreso={pruebaDtc.progreso}
+          notas={pruebaDtc.notas}
+          cargando={pruebaDtc.cargando}
+          ejecutando={pruebaDtc.ejecutando}
+          guardando={pruebaDtc.guardando}
+          error={pruebaDtc.error}
+          alCambiarNotas={pruebaDtc.establecerNotas}
+          alIniciar={solicitarPruebaDtc}
+          alDetener={pruebaDtc.detener}
+          alGuardar={() => {
+            pruebaDtc.guardar().catch(informarError);
+          }}
+          deshabilitado={
+            interfazOcupada ||
+            !dispositivoConectado ||
+            !escrituraSeleccionada ||
+            !notificacionSeleccionada
+          }
+        />
         <Text style={estilos.etiqueta}>PID traducibles detectados</Text>
         {pidsDetectados.length > 0 ? (
           <View style={estilos.filaBotones}>

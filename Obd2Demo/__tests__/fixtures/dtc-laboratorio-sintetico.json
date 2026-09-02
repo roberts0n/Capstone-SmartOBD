@@ -1,0 +1,33 @@
+{
+  "versionEsquema": 1,
+  "versionPrueba": "fixture-sintetico-no-es-una-sesion-real",
+  "capturas": [
+    {
+      "numero": 1,
+      "fase": "sin-cabeceras",
+      "comando": "03",
+      "contexto": { "protocolo": "A6", "cabeceras": false },
+      "respuesta": { "textoAscii": "03\r43 00 \r43 00 \r\r>" },
+      "error": null,
+      "nota": "Texto transcrito de la foto. El protocolo A6 es una SUPOSICION exclusiva de este fixture."
+    },
+    {
+      "numero": 2,
+      "fase": "sin-cabeceras",
+      "comando": "07",
+      "contexto": { "protocolo": "A6", "cabeceras": false },
+      "respuesta": { "textoAscii": "47 01 01 04\r>" },
+      "error": null,
+      "nota": "Ejemplo totalmente sintetico: un P0104 pendiente."
+    },
+    {
+      "numero": 3,
+      "fase": "con-cabeceras",
+      "comando": "07",
+      "contexto": { "protocolo": "A6", "cabeceras": true },
+      "respuesta": { "textoAscii": "7E8 04 47 01 01 04 00 00 00\r>" },
+      "error": null,
+      "nota": "Ejemplo totalmente sintetico con cabecera y PCI."
+    }
+  ]
+}
