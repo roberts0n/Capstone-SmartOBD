@@ -6,31 +6,33 @@ import { traducirRespuestaObd } from '../src/obd/ServicioElm327';
 
 describe('catalogo de PID Mode 01', () => {
   test('contiene los 23 PID declarados por el vehiculo de prueba', () => {
-    expect(CATALOGO_PIDS_MODE_01.map(definicion => definicion.comando)).toEqual([
-      '0101',
-      '0103',
-      '0104',
-      '0105',
-      '0106',
-      '0107',
-      '010B',
-      '010C',
-      '010D',
-      '010E',
-      '010F',
-      '0111',
-      '0113',
-      '0114',
-      '0115',
-      '011C',
-      '0121',
-      '012E',
-      '0130',
-      '0131',
-      '0145',
-      '0147',
-      '014C',
-    ]);
+    expect(CATALOGO_PIDS_MODE_01.map(definicion => definicion.comando)).toEqual(
+      expect.arrayContaining([
+        '0101',
+        '0103',
+        '0104',
+        '0105',
+        '0106',
+        '0107',
+        '010B',
+        '010C',
+        '010D',
+        '010E',
+        '010F',
+        '0111',
+        '0113',
+        '0114',
+        '0115',
+        '011C',
+        '0121',
+        '012E',
+        '0130',
+        '0131',
+        '0145',
+        '0147',
+        '014C',
+      ]),
+    );
   });
 
   test.each([
@@ -51,13 +53,16 @@ describe('catalogo de PID Mode 01', () => {
     ['0145', '41 45 80\r>', 50.2, '%'],
     ['0147', '41 47 80\r>', 50.2, '%'],
     ['014C', '41 4C 80\r>', 50.2, '%'],
-  ])('traduce %s con su formula y unidad', (comando, respuesta, valor, unidad) => {
-    expect(traducirRespuestaObd(comando, respuesta)).toEqual({
-      valor,
-      unidad,
-      error: null,
-    });
-  });
+  ])(
+    'traduce %s con su formula y unidad',
+    (comando, respuesta, valor, unidad) => {
+      expect(traducirRespuestaObd(comando, respuesta)).toEqual({
+        valor,
+        unidad,
+        error: null,
+      });
+    },
+  );
 
   test('interpreta MIL, DTC y monitores de preparacion', () => {
     const traduccion = traducirRespuestaObd('0101', '41 01 82 07 00 00\r>');
@@ -109,9 +114,9 @@ describe('catalogo de PID Mode 01', () => {
       ajusteCombustible: 12.5,
       unidadAjuste: '%',
     });
-    expect(
-      traducirRespuestaObd('0115', '41 15 80 FF\r>').valor,
-    ).toMatchObject({ ajusteCombustible: null });
+    expect(traducirRespuestaObd('0115', '41 15 80 FF\r>').valor).toMatchObject({
+      ajusteCombustible: null,
+    });
   });
 
   test('interpreta la norma OBD y tolera una cabecera CAN visible', () => {

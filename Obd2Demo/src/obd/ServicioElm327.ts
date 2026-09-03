@@ -14,6 +14,7 @@ import {
 } from './AcumuladorRespuestaObd';
 import { analizarRespuestaObd } from './AnalisisRespuestaObd';
 import { traducirPidMode01 } from './CatalogoPidsMode01';
+import type { ContextoLecturaMode01 } from './CatalogoPidsMode01';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // Solo se permite un comando pendiente. Su promesa se resuelve cuando el
@@ -244,6 +245,7 @@ export class ServicioElm327 {
 export function traducirRespuestaObd(
   comando: string,
   respuestaCruda: string,
+  contextoMode01?: ContextoLecturaMode01,
 ): TraduccionObd {
   const comandoNormalizado = comando.trim().toUpperCase();
 
@@ -264,7 +266,11 @@ export function traducirRespuestaObd(
     );
   }
 
-  const traduccionPid = traducirPidMode01(comandoNormalizado, respuestaCruda);
+  const traduccionPid = traducirPidMode01(
+    comandoNormalizado,
+    respuestaCruda,
+    contextoMode01,
+  );
   if (traduccionPid) {
     return traduccionPid;
   }

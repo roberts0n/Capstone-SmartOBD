@@ -37,7 +37,12 @@ import {
   type DiagnosticoLineaObd,
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
-import { obtenerDefinicionPidMode01 } from '../obd/CatalogoPidsMode01';
+import {
+  obtenerConsultasConfiguracion,
+  traducirPidMode01,
+} from '../obd/CatalogoPidsMode01';
+import { PanelPidsCompatibles } from '../componentes/PanelPidsCompatibles';
+import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
 import {
   consolidarDeteccionPids,
   interpretarBloquePids,
@@ -137,7 +142,12 @@ export function PantallaEscanerObd() {
     useState<MetricasFlujoObd | null>(null);
   const [ultimoAnalisis, establecerUltimoAnalisis] =
     useState<AnalisisRespuestaObd | null>(null);
-  const [pidsDetectados, establecerPidsDetectados] = useState<string[]>([]);
+  const {
+    deteccion: deteccionPids,
+    contexto: contextoPids,
+    limpiar: limpiarPids,
+    establecer: establecerCatalogoVehiculo,
+  } = useCatalogoVehiculo();
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
 
   // las suscripciones y el contador no necesitan provocar renderizados.
@@ -175,6 +185,7 @@ export function PantallaEscanerObd() {
         versionConexion.current += 1;
         establecerMensajeVerificacion('Sin verificar en esta conexión.');
         establecerEstadoConexion('bluetooth-no-disponible');
+        limpiarPids();
       }
     });
 
@@ -185,7 +196,7 @@ export function PantallaEscanerObd() {
       servicioElm.cancelarSuscripcion();
       servicioBle.destruir().catch(() => undefined);
     };
-  }, [servicioBle, servicioElm]);
+  }, [servicioBle, servicioElm, limpiarPids]);
 
   // GATT no indica cual canal pertenece a ELM327. Se muestran como candidatos
   // todas las caracteristicas que tecnicamente permiten TX o RX.
@@ -317,6 +328,7 @@ export function PantallaEscanerObd() {
     establecerConexionEnCurso(true);
     const version = ++versionConexion.current;
     try {
+      limpiarPids();
       if (!(await prepararBluetooth())) {
         return;
       }
@@ -327,7 +339,6 @@ export function PantallaEscanerObd() {
       establecerCaracteristicas([]);
       establecerClaveEscritura(null);
       establecerClaveNotificacion(null);
-      establecerPidsDetectados([]);
       if (dispositivoConectado) {
         suscripcionDesconexion.current?.remove();
         suscripcionDesconexion.current = null;
@@ -392,7 +403,7 @@ export function PantallaEscanerObd() {
           establecerCaracteristicas([]);
           establecerClaveEscritura(null);
           establecerClaveNotificacion(null);
-          establecerPidsDetectados([]);
+          limpiarPids();
           establecerEstadoConexion('desconectado');
           agregarRegistro(
             error ? 'error' : 'informacion',
@@ -420,6 +431,7 @@ export function PantallaEscanerObd() {
     establecerConexionEnCurso(true);
     versionConexion.current += 1;
     establecerMensajeVerificacion('Sin verificar en esta conexión.');
+    limpiarPids();
     try {
       servicioElm.cancelarSuscripcion();
       establecerClaveSuscripcion(null);
@@ -430,7 +442,6 @@ export function PantallaEscanerObd() {
       establecerCaracteristicas([]);
       establecerClaveEscritura(null);
       establecerClaveNotificacion(null);
-      establecerPidsDetectados([]);
       establecerEstadoConexion('desconectado');
       agregarRegistro('informacion', 'Conexión cerrada por el usuario.');
     } catch (capturado) {
@@ -638,6 +649,10 @@ export function PantallaEscanerObd() {
       return null;
     }
 
+    const version = versionConexion.current;
+    if (['ATZ', 'ATH0', 'ATH1', 'ATSP0'].includes(comando.toUpperCase())) {
+      limpiarPids();
+    }
     agregarRegistro('tx', `TX ASCII: ${comando.toUpperCase()}\\r`);
     establecerUltimasMetricas(null);
     try {
@@ -646,10 +661,17 @@ export function PantallaEscanerObd() {
         escrituraSeleccionada,
         comando,
       );
+      if (version !== versionConexion.current) {
+        return null;
+      }
       // La traduccion nunca reemplaza la respuesta cruda: ambas se guardan.
       const inicioTraduccionMs = obtenerTiempoMs();
       const analisis = analizarRespuestaObd(comando, respuesta.textoAscii);
-      const traduccion = traducirRespuestaObd(comando, respuesta.textoAscii);
+      const traduccion = traducirRespuestaObd(
+        comando,
+        respuesta.textoAscii,
+        contextoPids.current,
+      );
       const traduccionCompletaMs = obtenerTiempoMs();
       const erroresComunicacion = traduccion.error ? [traduccion.error] : [];
       const resultado: ResultadoJsonObd = {
@@ -697,6 +719,9 @@ export function PantallaEscanerObd() {
       }
       return respuesta;
     } catch (capturado) {
+      if (version !== versionConexion.current) {
+        return null;
+      }
       const error = convertirAError(capturado);
       establecerEstadoConexion('error');
       agregarRegistro('error', `${comando}: ${error.message}`);
@@ -872,13 +897,16 @@ export function PantallaEscanerObd() {
     }
     bloqueoComando.current = true;
     establecerComandoEnCurso(true);
-    establecerPidsDetectados([]);
+    limpiarPids();
+    const version = versionConexion.current;
+    const respuestasConfiguracion: Record<string, string> = {};
+    const advertenciasConfiguracion: string[] = [];
     const bloques: BloquePidsInterpretado[] = [];
     let comandoActual: string | null = '0100';
     try {
       while (comandoActual) {
         const respuesta = await ejecutarComando(comandoActual);
-        if (!respuesta) {
+        if (!respuesta || version !== versionConexion.current) {
           return;
         }
         const bloque = interpretarBloquePids(
@@ -894,20 +922,42 @@ export function PantallaEscanerObd() {
       }
 
       const deteccion = consolidarDeteccionPids(bloques);
-      establecerPidsDetectados(deteccion.pidsInterpretables);
+      for (const comando of obtenerConsultasConfiguracion(
+        deteccion.pidsSoportados,
+      )) {
+        const respuesta = await ejecutarComando(comando);
+        if (!respuesta || version !== versionConexion.current) {
+          return;
+        }
+        respuestasConfiguracion[comando] = respuesta.textoAscii;
+        const validacion = traducirPidMode01(comando, respuesta.textoAscii);
+        if (validacion?.error) {
+          advertenciasConfiguracion.push(validacion.error);
+        }
+      }
+      if (version !== versionConexion.current) {
+        return;
+      }
+      establecerCatalogoVehiculo(deteccion, respuestasConfiguracion);
       const resultado: ResultadoJsonObd = {
         fecha: new Date().toISOString(),
         dispositivo: {
           nombre: mostrarNombreDispositivo(dispositivoConectado),
           identificador: dispositivoConectado.id,
         },
-        comando: bloques.map(bloque => bloque.comando).join(' -> '),
-        respuestaCruda: bloques
-          .map(bloque => `${bloque.comando}: ${bloque.respuestaCruda}`)
-          .join('\n'),
+        comando: [
+          ...bloques.map(bloque => bloque.comando),
+          ...Object.keys(respuestasConfiguracion),
+        ].join(' -> '),
+        respuestaCruda: [
+          ...bloques.map(bloque => `${bloque.comando}: ${bloque.respuestaCruda}`),
+          ...Object.entries(respuestasConfiguracion).map(
+            ([comando, cruda]) => `${comando}: ${cruda}`,
+          ),
+        ].join('\n'),
         datoTraducido: deteccion,
         unidad: 'PID Mode 01',
-        erroresComunicacion: [],
+        erroresComunicacion: advertenciasConfiguracion,
       };
       establecerResultadoJsonVisible(JSON.stringify(resultado, null, 2));
       agregarRegistro(
@@ -915,6 +965,9 @@ export function PantallaEscanerObd() {
         `Detección terminada: ${deteccion.cantidadPidsSoportados} PID de datos; ${deteccion.cantidadInterpretables} ya interpretables y ${deteccion.cantidadPendientes} pendientes.`,
       );
     } catch (capturado) {
+      if (version !== versionConexion.current) {
+        return;
+      }
       const mensaje = convertirAError(capturado).message;
       const resultado: ResultadoJsonObd = {
         fecha: new Date().toISOString(),
@@ -1330,16 +1383,6 @@ export function PantallaEscanerObd() {
             disabled={interfazOcupada}
           />
           <BotonAccion
-            etiqueta="RPM · 010C"
-            onPress={() => ejecutarComandos(['010C'])}
-            disabled={interfazOcupada}
-          />
-          <BotonAccion
-            etiqueta="Temperatura · 0105"
-            onPress={() => ejecutarComandos(['0105'])}
-            disabled={interfazOcupada}
-          />
-          <BotonAccion
             etiqueta="DTC 03 · lector anterior"
             onPress={() => ejecutarComandos(['03'])}
             disabled={interfazOcupada}
@@ -1386,29 +1429,16 @@ export function PantallaEscanerObd() {
             !notificacionSeleccionada
           }
         />
-        <Text style={estilos.etiqueta}>PID traducibles detectados</Text>
-        {pidsDetectados.length > 0 ? (
-          <View style={estilos.filaBotones}>
-            {pidsDetectados
-              .filter(pid => pid !== '0105' && pid !== '010C')
-              .map(pid => {
-                const definicion = obtenerDefinicionPidMode01(pid);
-                return (
-                  <BotonAccion
-                    key={pid}
-                    etiqueta={`${definicion?.nombre ?? 'PID'} · ${pid}`}
-                    onPress={() => ejecutarComandos([pid])}
-                    disabled={interfazOcupada}
-                  />
-                );
-              })}
-          </View>
-        ) : (
-          <Text style={estilos.vacio}>
-            Ejecuta “Detectar PID compatibles” para mostrar los comandos que
-            este vehículo declara y que la app ya puede traducir.
-          </Text>
-        )}
+        <PanelPidsCompatibles
+          deteccion={deteccionPids}
+          deshabilitado={
+            interfazOcupada ||
+            !dispositivoConectado ||
+            !escrituraSeleccionada ||
+            !notificacionSeleccionada
+          }
+          alConsultar={comando => ejecutarComandos([comando])}
+        />
         <Text style={estilos.etiqueta}>Velocidad del flujo</Text>
         {ultimasMetricas ? (
           <View style={estilos.tarjetaMetricas}>
