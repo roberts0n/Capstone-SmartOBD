@@ -4,7 +4,7 @@ import { guardarInformeDtc } from '../src/informes/guardarInformeDtc';
 import type { InformePruebaDtc } from '../src/obd/dtc/PruebaDtc';
 
 const informe = {
-  versionEsquema: 1,
+  versionEsquema: 2,
   versionPrueba: 'test',
   versionAplicacion: 'test',
   inicio: '2026-09-02T00:00:00.000Z',
@@ -14,6 +14,11 @@ const informe = {
   canales: {},
   condiciones: '',
   advertencias: [],
+  resumen: {
+    cantidadCodigosUnicos: 0,
+    codigosUnicos: [],
+    categorias: { '03': null, '07': null, '0A': null },
+  },
   capturas: [],
 } as unknown as InformePruebaDtc;
 
@@ -33,6 +38,47 @@ describe('persistencia y exportacion DTC', () => {
     const r = await new RepositorioInformeDtc(almacenamiento).recuperar();
     expect(r?.estado).toBe('interrumpida');
     expect(r?.fin).toBeNull();
+  });
+  test('migra borrador anterior conservando solo el resultado corregido', async () => {
+    const anterior = {
+      ...informe,
+      versionEsquema: 1,
+      resumen: undefined,
+      capturas: [
+        {
+          numero: 1,
+          fase: 'con-cabeceras',
+          comando: '07',
+          fecha: '2026-09-02T00:00:00.000Z',
+          contexto: { protocolo: 'A6', cabeceras: true },
+          respuesta: null,
+          error: null,
+          comparacion: {
+            original: { codigos: ['P007E'] },
+            porLineas: { codigos: ['P0243'] },
+            corregido: {
+              comando: '07',
+              categoria: 'Pendientes',
+              estado: 'con-codigos',
+              codigos: ['P0104'],
+              mensajes: [],
+              advertencias: [],
+            },
+          },
+        },
+      ],
+    };
+    const almacenamiento = {
+      getItem: jest.fn().mockResolvedValue(JSON.stringify(anterior)),
+      setItem: jest.fn(),
+    };
+    const recuperado = await new RepositorioInformeDtc(
+      almacenamiento,
+    ).recuperar();
+    expect(recuperado?.versionEsquema).toBe(2);
+    expect(recuperado?.resumen.codigosUnicos).toEqual(['P0104']);
+    expect(JSON.stringify(recuperado)).not.toContain('P007E');
+    expect(JSON.stringify(recuperado)).not.toContain('P0243');
   });
   test('JSON corrupto no se borra', async () => {
     const almacenamiento = {

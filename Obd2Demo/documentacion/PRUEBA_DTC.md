@@ -1,7 +1,8 @@
-# Prueba completa DTC: guia para el taller
+# Lectura completa DTC: guia para el taller
 
-Esta herramienta temporal permite aprovechar una visita al taller y reanalizar
-las respuestas despues, sin el vehiculo. No sustituye la validacion con hardware.
+Esta herramienta consulta en una sola operacion las tres categorias DTC genericas
+y conserva las respuestas para revisarlas despues. No sustituye la validacion con
+hardware ni el criterio de un tecnico.
 
 ## Antes de salir
 
@@ -12,9 +13,8 @@ las respuestas despues, sin el vehiculo. No sustituye la validacion con hardware
    .\gradlew.bat assembleRelease
    ```
    Resultado: `android/app/build/outputs/apk/release/app-release.apk`.
-3. En la pantalla tecnica, localizar **Prueba completa de DTC** dentro de
-   **4. Comandos ELM327**. El boton antiguo se llama **DTC 03 · lector anterior**:
-   ese boton conserva deliberadamente la implementacion anterior.
+3. En la pantalla tecnica, localizar **Lectura completa de DTC** dentro de
+   **4. Comandos ELM327**.
 4. Si hay un informe de una prueba anterior, guardarlo antes de iniciar otra.
    El borrador interno conserva solamente el ultimo lote.
 
@@ -28,11 +28,11 @@ las respuestas despues, sin el vehiculo. No sustituye la validacion con hardware
 4. Conectar el escaner y verificar los canales mediante ATI como de costumbre.
 5. En el campo de notas, indicar vehiculo sin datos personales innecesarios,
    motor encendido/apagado y el resultado de la app de referencia.
-6. Pulsar **Ejecutar prueba completa DTC** y esperar. Se consulta:
+6. Pulsar **Leer todos los DTC** y esperar. Se consulta:
    - ATI, ajustes E0/L0/S1/CAF1 y cabeceras desactivadas.
    - 0101, ATDP y ATDPN para registrar estado y protocolo.
-   - 03 (almacenados), 07 (pendientes), 0A (permanentes).
-   - ATH1, seguido de 0101/03/07/0A con cabeceras.
+   - ATH1 para identificar la ECU. Si el adaptador no lo acepta, se usa ATH0.
+   - 03 (almacenados), 07 (pendientes), 0A (permanentes), una vez cada uno.
    - ATH0 al finalizar, si la comunicacion permite hacerlo.
 7. Pulsar **Guardar informe JSON** aunque aparezcan errores.
 8. Elegir **Descargas** u otra carpeta local y confirmar Guardar en Android.
@@ -48,12 +48,13 @@ el adaptador con ATZ.
 
 ## Como leer el resultado
 
-- **Corregido:** usa protocolo registrado, contador CAN y estructura del mensaje.
-- **Original · EXPERIMENTAL:** replica el algoritmo del commit `cfdce32`. Puede
-  inventar DTC al unir lineas. Nunca tomar esos codigos como diagnostico.
-- **Por lineas · referencia anterior:** conserva el analisis previo al laboratorio.
-- Los dos metodos historicos solo interpretan 03: para 07/0A muestran `no-aplica`.
-- **Inspeccion cruda:** permite ver las respuestas, protocolo, ECU y errores.
+- **Resultado JSON:** usa el mismo formato visual que los otros comandos. Dentro
+  de `datoTraducido` separa confirmados, pendientes y permanentes, y deduplica
+  los codigos para el total general.
+- **ECU:** queda incluida dentro de cada categoria cuando ATH1 esta disponible.
+- **Inspeccion cruda:** conserva respuestas, protocolo, contexto y errores.
+- Solo existe un interprete DTC autorizado. Los metodos historicos que confundian
+  cabeceras, longitud o servicio con codigos fueron eliminados.
 
 Estados del interprete corregido:
 
@@ -81,7 +82,7 @@ El boton Detener espera a que termine el comando actual (hasta su timeout).
 
 Version de esquema y de la prueba, inicio/fin, escaner, canales GATT, notas,
 comandos, fases, contexto de protocolo/cabeceras, bytes, ASCII, fragmentos BLE,
-marcas de tiempo, metricas, errores y comparacion de interpretes. Los separadores
+marcas de tiempo, metricas, errores y resultado por categoria. Los separadores
 originales se conservan escapados como `\r` y `\n`; JSON.parse los recupera.
 
 No se consulta VIN automaticamente. El identificador BLE y cualquier dato escrito

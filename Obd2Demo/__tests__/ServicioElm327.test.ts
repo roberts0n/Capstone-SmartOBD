@@ -36,34 +36,19 @@ describe('traducción OBD2', () => {
     });
   });
 
-  test('traduce DTC sin inventar descripciones', () => {
-    expect(traducirRespuestaObd('03', '43 01 33 00 00\r>').valor).toEqual([
-      'P0133',
-    ]);
-  });
+  test.each(['03', '07', '0A'])(
+    'deriva %s al lector DTC que conoce protocolo y cabeceras',
+    comando => {
+      expect(traducirRespuestaObd(comando, '43 01 01 04\r>')).toMatchObject({
+        valor: null,
+        unidad: null,
+        error: expect.stringContaining('Leer todos los DTC'),
+      });
+    },
+  );
 
-  test('no combina el final de una linea con la cabecera de la siguiente', () => {
-    const respuestaRealista = '4300\r43001F\r>';
-
-    expect(traducirRespuestaObd('03', respuestaRealista)).toEqual({
-      valor: ['P001F'],
-      unidad: 'DTC',
-      error: null,
-    });
-  });
-
-  test('elimina DTC repetidos por respuestas de varias ECU', () => {
-    expect(traducirRespuestaObd('03', '03\r43001F\r43001F\r>').valor).toEqual([
-      'P001F',
-    ]);
-  });
-
-  test('traduce una respuesta CAN con cabecera visible', () => {
+  test('el analizador crudo aun muestra cabeceras sin diagnosticar', () => {
     const respuestaConCabecera = '7E8 06 43 00 1F 00 00 00 00\r>';
-
-    expect(traducirRespuestaObd('03', respuestaConCabecera).valor).toEqual([
-      'P001F',
-    ]);
     expect(
       analizarRespuestaObd('03', respuestaConCabecera).lineas[0].cabecera,
     ).toBe('7E8');

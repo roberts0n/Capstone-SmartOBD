@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import type { CapturaPruebaDtc, InformePruebaDtc } from '../obd/dtc/PruebaDtc';
+import {
+  construirResultadoJsonDtc,
+  type CapturaPruebaDtc,
+  type InformePruebaDtc,
+} from '../obd/dtc/PruebaDtc';
 
 interface Propiedades {
   informe: InformePruebaDtc | null;
@@ -21,10 +25,10 @@ interface Propiedades {
 export function PanelPruebaDtc(p: Propiedades) {
   return (
     <View style={estilos.panel}>
-      <Text style={estilos.titulo}>Prueba completa de DTC</Text>
+      <Text style={estilos.titulo}>Lectura completa de DTC</Text>
       <Text>
-        Consulta 0101, 03, 07 y 0A, con y sin cabeceras. No borra fallas.
-        Comparación sobre las mismas capturas.
+        Un solo proceso consulta confirmados (03), pendientes (07) y permanentes
+        (0A). No borra fallas.
       </Text>
       <TextInput
         accessibilityLabel="Condiciones de la prueba DTC"
@@ -38,7 +42,7 @@ export function PanelPruebaDtc(p: Propiedades) {
       />
       <Boton
         texto={
-          p.ejecutando ? 'Prueba en curso…' : 'Ejecutar prueba completa DTC'
+          p.ejecutando ? 'Lectura en curso…' : 'Leer todos los DTC'
         }
         accion={p.alIniciar}
         deshabilitado={
@@ -57,32 +61,10 @@ export function PanelPruebaDtc(p: Propiedades) {
       {p.error && <Text style={estilos.advertencia}>{p.error}</Text>}
       {p.informe && (
         <>
-          <Text>
-            Captura: {p.informe.inicio}
-            {'\n'}Escáner:{' '}
-            {p.informe.dispositivo.nombre ?? p.informe.dispositivo.id}
+          <Text style={estilos.subtitulo}>Resultado JSON</Text>
+          <Text selectable style={estilos.json}>
+            {JSON.stringify(construirResultadoJsonDtc(p.informe), null, 2)}
           </Text>
-          <Text>
-            Estado del lote: {p.informe.estado}. {p.informe.capturas.length}{' '}
-            comandos registrados.
-          </Text>
-          <Text style={estilos.advertencia}>
-            “Completada” significa que terminó el lote, no que todas las
-            consultas sean válidas. El método original puede inventar códigos.
-          </Text>
-          {p.informe.advertencias.map((mensaje, i) => (
-            <Text key={i} style={estilos.ayuda}>
-              • {mensaje}
-            </Text>
-          ))}
-          {p.informe.capturas
-            .filter(c => c.comparacion)
-            .map(c => (
-              <Comparacion
-                key={`${p.informe?.inicio}-${c.numero}`}
-                captura={c}
-              />
-            ))}
           <Inspeccion capturas={p.informe.capturas} />
           <Boton
             texto={p.guardando ? 'Guardando…' : 'Guardar informe JSON'}
@@ -96,42 +78,6 @@ export function PanelPruebaDtc(p: Propiedades) {
             ingresadas.
           </Text>
         </>
-      )}
-    </View>
-  );
-}
-
-function Comparacion({ captura }: { captura: CapturaPruebaDtc }) {
-  const comparacion = captura.comparacion;
-  if (!comparacion) {
-    return null;
-  }
-  const lineas = [
-    ['Corregido', comparacion.corregido],
-    ['Original · EXPERIMENTAL', comparacion.original],
-    ['Por líneas · referencia anterior', comparacion.porLineas],
-  ] as const;
-  return (
-    <View style={estilos.captura}>
-      <Text style={estilos.subtitulo}>
-        {captura.comando} · {comparacion.corregido.categoria} · {captura.fase}
-      </Text>
-      {lineas.map(([nombre, resultado]) => (
-        <View key={nombre} style={estilos.metodo}>
-          <Text style={estilos.subtitulo}>{nombre}</Text>
-          <Text>Estado: {resultado.estado}</Text>
-          <Text>
-            Códigos producidos: {resultado.codigos.join(', ') || '[]'}
-          </Text>
-          {resultado.advertencias.map((mensaje, i) => (
-            <Text key={i} style={estilos.advertencia}>
-              {mensaje}
-            </Text>
-          ))}
-        </View>
-      ))}
-      {captura.error && (
-        <Text style={estilos.advertencia}>{captura.error}</Text>
       )}
     </View>
   );
@@ -161,7 +107,7 @@ function Inspeccion({ capturas }: { capturas: CapturaPruebaDtc[] }) {
                   contexto: c.contexto,
                   respuestaCruda: c.respuesta?.textoAscii ?? null,
                   error: c.error,
-                  ecu: c.comparacion?.corregido.mensajes,
+                  resultadoDtc: c.resultadoDtc,
                 },
                 null,
                 2,
@@ -241,6 +187,14 @@ const estilos = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
   },
-  metodo: { marginVertical: 6 },
+  json: {
+    backgroundColor: '#EDF2F7',
+    color: '#102A43',
+    borderRadius: 8,
+    padding: 10,
+    marginVertical: 8,
+    fontFamily: 'monospace',
+    fontSize: 12,
+  },
   mono: { fontFamily: 'monospace', color: '#102A43', fontSize: 12 },
 });

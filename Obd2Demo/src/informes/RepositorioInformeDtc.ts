@@ -1,12 +1,18 @@
-import type { InformePruebaDtc } from '../obd/dtc/PruebaDtc';
+import {
+  construirResumenDtc,
+  VERSION_PRUEBA_DTC,
+  type CapturaPruebaDtc,
+  type InformePruebaDtc,
+} from '../obd/dtc/PruebaDtc';
 
 interface Almacenamiento {
   getItem: (clave: string) => Promise<string | null>;
   setItem: (clave: string, valor: string) => Promise<void>;
 }
+
 const CLAVE = 'ultima-prueba-dtc-v1';
 
-/** Conserva el ultimo lote, no un historial ilimitado de muestras. */
+/** Conserva el ultimo informe, no un historial ilimitado de lecturas. */
 export class RepositorioInformeDtc {
   constructor(private readonly almacenamiento: Almacenamiento) {}
 
@@ -19,51 +25,9 @@ export class RepositorioInformeDtc {
     if (texto === null) {
       return null;
     }
-    const datos = JSON.parse(texto) as InformePruebaDtc;
-    if (
-      !datos ||
-      datos.versionEsquema !== 1 ||
-      !Array.isArray(datos.capturas) ||
-      !Array.isArray(datos.advertencias) ||
-      !datos.advertencias.every(valor => typeof valor === 'string') ||
-      typeof datos.inicio !== 'string' ||
-      !Number.isFinite(Date.parse(datos.inicio)) ||
-      ![
-        'en-curso',
-        'completada',
-        'parcial',
-        'cancelada',
-        'interrumpida',
-      ].includes(datos.estado) ||
-      !datos.dispositivo ||
-      !datos.canales ||
-      !datos.capturas.every(
-        captura =>
-          captura &&
-          typeof captura.comando === 'string' &&
-          typeof captura.numero === 'number' &&
-          typeof captura.fase === 'string' &&
-          captura.contexto &&
-          (captura.respuesta === null ||
-            (captura.respuesta &&
-              typeof captura.respuesta.textoAscii === 'string')) &&
-          (captura.comparacion === null ||
-            (captura.comparacion &&
-              [
-                captura.comparacion.original,
-                captura.comparacion.porLineas,
-                captura.comparacion.corregido,
-              ].every(
-                metodo =>
-                  metodo &&
-                  typeof metodo.estado === 'string' &&
-                  Array.isArray(metodo.codigos) &&
-                  metodo.codigos.every(codigo => typeof codigo === 'string') &&
-                  Array.isArray(metodo.advertencias) &&
-                  metodo.advertencias.every(aviso => typeof aviso === 'string'),
-              ))),
-      )
-    ) {
+    const leido: unknown = JSON.parse(texto);
+    const datos = migrarInformeAnterior(leido);
+    if (!esInformeValido(datos)) {
       throw new Error(
         'El borrador DTC no tiene un formato reconocido. Se conserva sin modificar.',
       );
@@ -74,10 +38,104 @@ export class RepositorioInformeDtc {
         estado: 'interrumpida',
         advertencias: [
           ...datos.advertencias,
-          'La app se cerro durante la prueba. Este es el ultimo avance guardado.',
+          'La app se cerro durante la lectura. Este es el ultimo avance guardado.',
         ],
       };
     }
     return datos;
   }
+}
+
+function migrarInformeAnterior(valor: unknown): unknown {
+  if (!esObjeto(valor) || valor.versionEsquema !== 1) {
+    return valor;
+  }
+  if (!Array.isArray(valor.capturas)) {
+    return valor;
+  }
+  const capturas = valor.capturas.map(captura => {
+    if (!esObjeto(captura)) {
+      return captura;
+    }
+    const comparacion = esObjeto(captura.comparacion)
+      ? captura.comparacion
+      : null;
+    const resto = { ...captura };
+    delete resto.comparacion;
+    return {
+      ...resto,
+      resultadoDtc: comparacion?.corregido ?? null,
+    };
+  }) as CapturaPruebaDtc[];
+  const advertencias = Array.isArray(valor.advertencias)
+    ? valor.advertencias.filter(
+        aviso =>
+          typeof aviso === 'string' &&
+          !/original|por lineas|histor/i.test(aviso),
+      )
+    : [];
+  return {
+    ...valor,
+    versionEsquema: 2,
+    versionPrueba: VERSION_PRUEBA_DTC,
+    capturas,
+    resumen: construirResumenDtc(capturas),
+    advertencias: [
+      ...advertencias,
+      'Borrador anterior migrado: se conservaron solo el interprete corregido y las respuestas crudas.',
+    ],
+  };
+}
+
+function esInformeValido(valor: unknown): valor is InformePruebaDtc {
+  if (!esObjeto(valor)) {
+    return false;
+  }
+  return (
+    valor.versionEsquema === 2 &&
+    Array.isArray(valor.capturas) &&
+    Array.isArray(valor.advertencias) &&
+    valor.advertencias.every(aviso => typeof aviso === 'string') &&
+    typeof valor.inicio === 'string' &&
+    Number.isFinite(Date.parse(valor.inicio)) &&
+    typeof valor.estado === 'string' &&
+    ['en-curso', 'completada', 'parcial', 'cancelada', 'interrumpida'].includes(
+      valor.estado,
+    ) &&
+    esObjeto(valor.dispositivo) &&
+    esObjeto(valor.canales) &&
+    esObjeto(valor.resumen) &&
+    valor.capturas.every(esCapturaValida)
+  );
+}
+
+function esCapturaValida(valor: unknown): boolean {
+  if (!esObjeto(valor)) {
+    return false;
+  }
+  return (
+    typeof valor.comando === 'string' &&
+    typeof valor.numero === 'number' &&
+    typeof valor.fase === 'string' &&
+    esObjeto(valor.contexto) &&
+    (valor.respuesta === null ||
+      (esObjeto(valor.respuesta) &&
+        typeof valor.respuesta.textoAscii === 'string')) &&
+    (valor.resultadoDtc === null || esResultadoDtcValido(valor.resultadoDtc))
+  );
+}
+
+function esResultadoDtcValido(valor: unknown): boolean {
+  return (
+    esObjeto(valor) &&
+    typeof valor.estado === 'string' &&
+    Array.isArray(valor.codigos) &&
+    valor.codigos.every(codigo => typeof codigo === 'string') &&
+    Array.isArray(valor.advertencias) &&
+    valor.advertencias.every(aviso => typeof aviso === 'string')
+  );
+}
+
+function esObjeto(valor: unknown): valor is Record<string, unknown> {
+  return typeof valor === 'object' && valor !== null;
 }

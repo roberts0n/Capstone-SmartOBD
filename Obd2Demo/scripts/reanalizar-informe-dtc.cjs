@@ -23,16 +23,12 @@ try {
   const informe = JSON.parse(fs.readFileSync(archivo, 'utf8'));
   if (
     !informe ||
-    informe.versionEsquema !== 1 ||
+    ![1, 2].includes(informe.versionEsquema) ||
     !Array.isArray(informe.capturas)
   ) {
     throw new Error('Informe DTC no reconocido.');
   }
-  const { compararDtc } = require(path.join(
-    raiz,
-    'src/obd/dtc/CompararDtc.ts',
-  ));
-  const { esComandoDtc } = require(path.join(
+  const { esComandoDtc, interpretarDtc } = require(path.join(
     raiz,
     'src/obd/dtc/InterpretarDtc.ts',
   ));
@@ -56,8 +52,10 @@ try {
         fase: captura.fase,
         errorTransporte: captura.error,
         resultadoGuardado:
-          (captura.comparacion && captura.comparacion.corregido) || null,
-        reanalisis: compararDtc(
+          captura.resultadoDtc ||
+          (captura.comparacion && captura.comparacion.corregido) ||
+          null,
+        reanalisis: interpretarDtc(
           captura.comando,
           captura.respuesta.textoAscii,
           captura.contexto,

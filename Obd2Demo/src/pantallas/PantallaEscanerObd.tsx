@@ -1383,11 +1383,6 @@ export function PantallaEscanerObd() {
             disabled={interfazOcupada}
           />
           <BotonAccion
-            etiqueta="DTC 03 · lector anterior"
-            onPress={() => ejecutarComandos(['03'])}
-            disabled={interfazOcupada}
-          />
-          <BotonAccion
             etiqueta="Detectar PID compatibles"
             onPress={() => detectarPidsCompatibles()}
             disabled={

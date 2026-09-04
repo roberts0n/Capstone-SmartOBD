@@ -4,14 +4,19 @@ import type {
   RespuestaElm,
 } from '../../tipos/ble';
 import { ErrorCapturaElm } from '../ServicioElm327';
-import { compararDtc, type ComparacionDtc } from './CompararDtc';
 import {
+  CATEGORIAS_DTC,
   esComandoDtc,
+  interpretarDtc,
   numeroProtocolo,
+  type ComandoDtc,
   type ContextoDtc,
+  type EstadoDtc,
+  type ResultadoDtc,
 } from './InterpretarDtc';
 
-export const VERSION_PRUEBA_DTC = 'dtc-lab-2026-09-02-v1';
+export const VERSION_PRUEBA_DTC = 'lector-dtc-2026-09-03-v2';
+
 export interface CapturaPruebaDtc {
   numero: number;
   fase: string;
@@ -20,10 +25,46 @@ export interface CapturaPruebaDtc {
   contexto: ContextoDtc;
   respuesta: RespuestaElm | null;
   error: string | null;
-  comparacion: ComparacionDtc | null;
+  resultadoDtc: ResultadoDtc | null;
 }
+
+export interface ResumenLecturaDtc {
+  cantidadCodigosUnicos: number;
+  codigosUnicos: string[];
+  categorias: Record<ComandoDtc, ResultadoDtc | null>;
+}
+
+interface CategoriaDtcVisible {
+  estado: EstadoDtc | 'no-consultado';
+  codigos: string[];
+  ecu: Array<{
+    identificador: string | null;
+    estado: EstadoDtc;
+    codigos: string[];
+  }>;
+}
+
+export interface ResultadoJsonDtc {
+  fecha: string;
+  dispositivo: {
+    nombre: string | null;
+    identificador: string;
+  };
+  comando: '03 -> 07 -> 0A';
+  respuestaCruda: null;
+  datoTraducido: {
+    cantidadCodigosUnicos: number;
+    codigosUnicos: string[];
+    confirmados: CategoriaDtcVisible;
+    pendientes: CategoriaDtcVisible;
+    permanentes: CategoriaDtcVisible;
+  };
+  unidad: 'DTC';
+  erroresComunicacion: string[];
+}
+
 export interface InformePruebaDtc {
-  versionEsquema: 1;
+  versionEsquema: 2;
   versionPrueba: string;
   versionAplicacion: string;
   inicio: string;
@@ -36,8 +77,10 @@ export interface InformePruebaDtc {
   };
   condiciones: string;
   advertencias: string[];
+  resumen: ResumenLecturaDtc;
   capturas: CapturaPruebaDtc[];
 }
+
 export interface OpcionesPruebaDtc {
   dispositivo: InformacionDispositivoBle;
   escritura: InformacionCaracteristicaGatt;
@@ -52,17 +95,88 @@ export interface OpcionesPruebaDtc {
   alProgresar: (informe: InformePruebaDtc, mensaje: string) => void;
 }
 
+export function construirResumenDtc(
+  capturas: CapturaPruebaDtc[],
+): ResumenLecturaDtc {
+  const categorias: ResumenLecturaDtc['categorias'] = {
+    '03': null,
+    '07': null,
+    '0A': null,
+  };
+  for (const captura of capturas) {
+    if (esComandoDtc(captura.comando) && captura.resultadoDtc) {
+      categorias[captura.comando] = captura.resultadoDtc;
+    }
+  }
+  const codigosUnicos = [
+    ...new Set(
+      Object.values(categorias).flatMap(resultado => resultado?.codigos ?? []),
+    ),
+  ];
+  return {
+    cantidadCodigosUnicos: codigosUnicos.length,
+    codigosUnicos,
+    categorias,
+  };
+}
+
+/** Produce el JSON breve de interfaz; las respuestas completas quedan en capturas. */
+export function construirResultadoJsonDtc(
+  informe: InformePruebaDtc,
+): ResultadoJsonDtc {
+  const simplificar = (resultado: ResultadoDtc | null): CategoriaDtcVisible => ({
+    estado: resultado?.estado ?? 'no-consultado',
+    codigos: resultado?.codigos ?? [],
+    ecu:
+      resultado?.mensajes.map(mensaje => ({
+        identificador: mensaje.ecu,
+        estado: mensaje.estado,
+        codigos: mensaje.codigos,
+      })) ?? [],
+  });
+  const errores = informe.capturas.flatMap(captura =>
+    captura.error ? [`${captura.comando}: ${captura.error}`] : [],
+  );
+  for (const resultado of Object.values(informe.resumen.categorias)) {
+    if (resultado) {
+      errores.push(...resultado.advertencias);
+    }
+  }
+  if (informe.estado !== 'completada' && informe.estado !== 'en-curso') {
+    errores.unshift(`Lectura ${informe.estado}; revisar inspeccion cruda.`);
+  }
+  return {
+    fecha: informe.fin ?? informe.inicio,
+    dispositivo: {
+      nombre: informe.dispositivo.nombre,
+      identificador: informe.dispositivo.id,
+    },
+    comando: '03 -> 07 -> 0A',
+    // Es una operacion compuesta: la evidencia cruda vive por captura.
+    respuestaCruda: null,
+    datoTraducido: {
+      cantidadCodigosUnicos: informe.resumen.cantidadCodigosUnicos,
+      codigosUnicos: informe.resumen.codigosUnicos,
+      confirmados: simplificar(informe.resumen.categorias['03']),
+      pendientes: simplificar(informe.resumen.categorias['07']),
+      permanentes: simplificar(informe.resumen.categorias['0A']),
+    },
+    unidad: 'DTC',
+    erroresComunicacion: [...new Set(errores)],
+  };
+}
+
 /** Copia JSON evita que React o un guardado diferido observen un array mutable. */
 function instantanea(informe: InformePruebaDtc): InformePruebaDtc {
   return JSON.parse(JSON.stringify(informe)) as InformePruebaDtc;
 }
 
-/** Lote acotado de solo lectura vehicular. Nunca envia 04 ni controles de actuadores. */
+/** Lee las tres categorias DTC genericas. Nunca envia 04 ni controla actuadores. */
 export async function ejecutarPruebaDtc(
   opciones: OpcionesPruebaDtc,
 ): Promise<InformePruebaDtc> {
   const informe: InformePruebaDtc = {
-    versionEsquema: 1,
+    versionEsquema: 2,
     versionPrueba: VERSION_PRUEBA_DTC,
     versionAplicacion: opciones.versionAplicacion,
     inicio: new Date().toISOString(),
@@ -78,10 +192,12 @@ export async function ejecutarPruebaDtc(
     },
     condiciones: opciones.condiciones,
     advertencias: [
-      'Original y por lineas son referencias historicas, no diagnosticos.',
-      'No se consulta VIN. El informe contiene identificador BLE y notas ingresadas; revisar antes de compartir.',
-      'La prueba termina intentando ATH0. Otros ajustes de formato quedan en E0/L0/S1/CAF1.',
+      '03, 07 y 0A son categorias independientes: confirmados, pendientes y permanentes.',
+      'NO DATA no se presenta como una lista vacia ni como ausencia confirmada de DTC.',
+      'No se consulta VIN. Revisar identificador BLE y notas antes de compartir.',
+      'La lectura termina intentando ATH0. Otros ajustes quedan en E0/L0/S1/CAF1.',
     ],
+    resumen: construirResumenDtc([]),
     capturas: [],
   };
   const contexto: ContextoDtc = { protocolo: null, cabeceras: null };
@@ -91,6 +207,7 @@ export async function ejecutarPruebaDtc(
   let formatoPreparado = false;
 
   async function publicar(mensaje: string) {
+    informe.resumen = construirResumenDtc(informe.capturas);
     const copia = instantanea(informe);
     opciones.alProgresar(copia, mensaje);
     try {
@@ -127,7 +244,7 @@ export async function ejecutarPruebaDtc(
       contexto: { ...contexto },
       respuesta: null,
       error: null,
-      comparacion: null,
+      resultadoDtc: null,
     };
     try {
       captura.respuesta = await opciones.enviar(comando);
@@ -138,23 +255,25 @@ export async function ejecutarPruebaDtc(
       huboError = true;
     }
     if (esComandoDtc(comando) && captura.respuesta) {
-      captura.comparacion = compararDtc(
+      captura.resultadoDtc = interpretarDtc(
         comando,
         captura.respuesta.textoAscii,
         captura.contexto,
       );
     }
     informe.capturas.push(captura);
-    // Guardar evidencia ANTES de decidir continuar: tambien vale la respuesta invalida.
     await publicar(`${fase}: ${comando} registrado`);
     return captura;
   }
 
-  async function ajustar(comando: string, limpieza = false): Promise<boolean> {
+  async function ajustar(
+    comando: string,
+    opcionesAjuste: { limpieza?: boolean; opcional?: boolean } = {},
+  ): Promise<boolean> {
     const captura = await consultar(
       comando,
-      limpieza ? 'restauracion' : 'configuracion',
-      limpieza,
+      opcionesAjuste.limpieza ? 'restauracion' : 'configuracion',
+      opcionesAjuste.limpieza,
     );
     const ok = Boolean(
       captura &&
@@ -164,18 +283,22 @@ export async function ejecutarPruebaDtc(
         ),
     );
     if (!ok && captura) {
-      huboError = true;
+      if (!opcionesAjuste.opcional) {
+        huboError = true;
+      }
       informe.advertencias.push(
-        `${comando} no confirmo OK; no asumir ese ajuste.`,
+        opcionesAjuste.opcional
+          ? `${comando} no confirmo OK; se usara el formato alternativo.`
+          : `${comando} no confirmo OK; no asumir ese ajuste.`,
       );
     }
     return ok;
   }
 
-  await publicar('Preparando prueba DTC');
+  await publicar('Preparando lectura DTC');
   try {
     await consultar('ATI', 'identificacion');
-    // No ATZ ni ATSP: conserva el protocolo elegido, sin reiniciar innecesariamente.
+    // No ATZ ni ATSP: conserva el protocolo elegido, sin reiniciarlo.
     for (const comando of ['ATE0', 'ATL0', 'ATS1']) {
       await ajustar(comando);
     }
@@ -185,41 +308,52 @@ export async function ejecutarPruebaDtc(
     if (!sinCabeceras || !formatoPreparado) {
       detener = true;
       informe.advertencias.push(
-        'Formato no confirmado; se detuvo el lote para no enviar OBD con un formato incierto.',
+        'Formato no confirmado; se detuvo para no atribuir bytes inciertos a un DTC.',
       );
     }
-    // 0101 activa la busqueda automatica antes de preguntar que protocolo quedo activo.
-    await consultar('0101', 'sin-cabeceras');
+
+    // Esta consulta activa la deteccion automatica del protocolo en ELM327.
+    await consultar('0101', 'deteccion-protocolo');
     await consultar('ATDP', 'protocolo');
     const protocolo = await consultar('ATDPN', 'protocolo');
     contexto.protocolo = protocolo?.error
       ? null
       : protocolo?.respuesta?.textoAscii ?? null;
     if (numeroProtocolo(contexto.protocolo) === null) {
+      huboError = true;
       informe.advertencias.push(
-        'No se pudo confirmar el protocolo. Las capturas se conservan, sin adivinar DTC.',
+        'No se pudo confirmar el protocolo. Las respuestas se conservan sin adivinar DTC.',
       );
     }
-    for (const comando of ['03', '07', '0A']) {
-      await consultar(comando, 'sin-cabeceras');
-    }
-    if (await ajustar('ATH1')) {
+
+    // Se prefieren cabeceras porque identifican ECU y evitan confundir PCI/DLC con DTC.
+    const usaCabeceras = await ajustar('ATH1', { opcional: true });
+    if (usaCabeceras) {
       contexto.cabeceras = true;
-      for (const comando of ['0101', '03', '07', '0A']) {
-        await consultar(comando, 'con-cabeceras');
+    } else {
+      const restaurado = await ajustar('ATH0');
+      contexto.cabeceras = restaurado ? false : null;
+      if (!restaurado) {
+        detener = true;
+      }
+    }
+    if (!detener) {
+      await consultar('0101', 'estado-general');
+      for (const comando of Object.keys(CATEGORIAS_DTC) as ComandoDtc[]) {
+        await consultar(comando, 'lectura-dtc');
       }
     }
   } catch (error) {
     huboError = true;
     detener = true;
     informe.advertencias.push(
-      `Fallo del lote: ${
+      `Fallo de la lectura: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   } finally {
     if (opciones.conectado() && opciones.sincronizado()) {
-      await ajustar('ATH0', true);
+      await ajustar('ATH0', { limpieza: true });
     } else {
       huboError = true;
       informe.advertencias.push(
@@ -228,19 +362,22 @@ export async function ejecutarPruebaDtc(
     }
     if (!opciones.sincronizado()) {
       informe.advertencias.push(
-        'Falto el prompt final. Se detuvo para no confundir una respuesta tardia con otra consulta.',
+        'Falto el prompt final. Se detuvo para no cruzar una respuesta tardia.',
       );
     }
-    const dtc = informe.capturas.filter(captura =>
-      esComandoDtc(captura.comando),
-    );
+    informe.resumen = construirResumenDtc(informe.capturas);
+    const categoriasLeidas = Object.values(informe.resumen.categorias).filter(
+      Boolean,
+    ).length;
     informe.estado = opciones.cancelado()
       ? 'cancelada'
-      : detener || huboError || dtc.length !== 6
+      : detener || huboError || categoriasLeidas !== 3
       ? 'parcial'
       : 'completada';
     informe.fin = new Date().toISOString();
-    await publicar(`Prueba ${informe.estado}. Puedes guardar el informe JSON.`);
+    await publicar(
+      `Lectura ${informe.estado}. Puedes guardar el informe JSON.`,
+    );
   }
   return instantanea(informe);
 }

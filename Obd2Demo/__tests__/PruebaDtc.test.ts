@@ -1,5 +1,6 @@
 import {
   ejecutarPruebaDtc,
+  construirResultadoJsonDtc,
   nombreInformeDtc,
   type OpcionesPruebaDtc,
 } from '../src/obd/dtc/PruebaDtc';
@@ -85,16 +86,31 @@ function preparar(): OpcionesPruebaDtc {
 }
 
 describe('lote DTC', () => {
-  test('ejecuta dos pasadas y guarda avances sin borrar DTC', async () => {
+  test('lee tres categorias, resume por estado y no borra DTC', async () => {
     const opciones = preparar();
     const informe = await ejecutarPruebaDtc(opciones);
     expect(informe.estado).toBe('completada');
-    expect(informe.capturas.filter(c => c.comparacion)).toHaveLength(6);
-    expect(
-      informe.capturas
-        .filter(c => c.comando === '07')
-        .every(c => c.comparacion?.corregido.codigos[0] === 'P0104'),
-    ).toBe(true);
+    expect(informe.capturas.filter(c => c.resultadoDtc)).toHaveLength(3);
+    expect(informe.resumen.categorias['03']?.estado).toBe('sin-codigos');
+    expect(informe.resumen.categorias['07']?.codigos).toEqual(['P0104']);
+    expect(informe.resumen.categorias['0A']?.estado).toBe('sin-datos');
+    expect(informe.resumen).toMatchObject({
+      cantidadCodigosUnicos: 1,
+      codigosUnicos: ['P0104'],
+    });
+    expect(construirResultadoJsonDtc(informe)).toMatchObject({
+      comando: '03 -> 07 -> 0A',
+      respuestaCruda: null,
+      datoTraducido: {
+        cantidadCodigosUnicos: 1,
+        codigosUnicos: ['P0104'],
+        confirmados: { estado: 'sin-codigos', codigos: [] },
+        pendientes: { estado: 'con-codigos', codigos: ['P0104'] },
+        permanentes: { estado: 'sin-datos', codigos: [] },
+      },
+      unidad: 'DTC',
+      erroresComunicacion: [],
+    });
     expect(informe.capturas.at(-1)?.comando).toBe('ATH0');
     expect(
       informe.capturas.some(c => ['04', 'ATZ', 'ATSP0'].includes(c.comando)),
@@ -122,8 +138,8 @@ describe('lote DTC', () => {
   test('NO DATA no interrumpe consultas siguientes ni equivale a cero DTC', async () => {
     const informe = await ejecutarPruebaDtc(preparar());
     const permanentes = informe.capturas.filter(c => c.comando === '0A');
-    expect(permanentes).toHaveLength(2);
-    expect(permanentes[0].comparacion?.corregido.estado).toBe('sin-datos');
+    expect(permanentes).toHaveLength(1);
+    expect(permanentes[0].resultadoDtc?.estado).toBe('sin-datos');
   });
   test('error con respuesta parcial conserva la evidencia y no cruza respuestas tardias', async () => {
     const opciones = preparar();
@@ -168,7 +184,7 @@ describe('lote DTC', () => {
       .fn()
       .mockRejectedValue(new Error('Disco lleno'));
     const informe = await ejecutarPruebaDtc(opciones);
-    expect(informe.capturas.filter(c => c.comparacion)).toHaveLength(6);
+    expect(informe.capturas.filter(c => c.resultadoDtc)).toHaveLength(3);
     expect(
       informe.advertencias.filter(a => a.includes('borrador')),
     ).toHaveLength(1);
@@ -179,8 +195,11 @@ describe('lote DTC', () => {
     opciones.enviar = cmd =>
       cmd === 'ATH1' ? Promise.resolve(respuesta('?\r>')) : enviar(cmd);
     const informe = await ejecutarPruebaDtc(opciones);
-    expect(informe.estado).toBe('parcial');
-    expect(informe.capturas.filter(c => c.comparacion)).toHaveLength(3);
+    expect(informe.estado).toBe('completada');
+    expect(informe.capturas.filter(c => c.resultadoDtc)).toHaveLength(3);
+    expect(
+      informe.capturas.find(c => c.comando === '03')?.contexto.cabeceras,
+    ).toBe(false);
   });
   test('informe serializado conserva exactamente separadores originales', async () => {
     const informe = await ejecutarPruebaDtc(preparar());

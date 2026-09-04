@@ -15,6 +15,11 @@ test('panel expone iniciar y permite exportar despues de desconectar', async () 
     dispositivo: { nombre: 'OBDII' },
     capturas: [],
     advertencias: [],
+    resumen: {
+      cantidadCodigosUnicos: 1,
+      codigosUnicos: ['P0104'],
+      categorias: { '03': null, '07': null, '0A': null },
+    },
   } as unknown as InformePruebaDtc;
   let renderizador!: TestRenderer.ReactTestRenderer;
   await act(async () => {
@@ -36,13 +41,14 @@ test('panel expone iniciar y permite exportar despues de desconectar', async () 
     );
   });
   const botonInicio = renderizador.root.findAllByProps({
-    accessibilityLabel: 'Ejecutar prueba completa DTC',
+    accessibilityLabel: 'Leer todos los DTC',
   })[0];
   const botonGuardar = renderizador.root.findAllByProps({
     accessibilityLabel: 'Guardar informe JSON',
   })[0];
   expect(botonInicio.props.disabled).toBe(true);
   expect(botonGuardar?.props.disabled).toBe(false);
+  expect(JSON.stringify(renderizador.toJSON())).toContain('Resultado JSON');
   await act(async () => {
     botonGuardar?.props.onPress();
   });

@@ -3,7 +3,6 @@ import {
   numeroProtocolo,
   type ContextoDtc,
 } from '../src/obd/dtc/InterpretarDtc';
-import { compararDtc } from '../src/obd/dtc/CompararDtc';
 
 const can: ContextoDtc = { protocolo: 'A6\r>', cabeceras: false };
 const cabeceras: ContextoDtc = { ...can, cabeceras: true };
@@ -12,14 +11,13 @@ const iso: ContextoDtc = { protocolo: '3', cabeceras: false };
 describe('DTC con protocolo conocido', () => {
   test('reproduce la foto: CAN sin almacenados no es respuesta incompleta', () => {
     const cruda = '03\r43 00 \r43 00 \r\r>';
-    const resultados = compararDtc('03', cruda, can);
-    expect(resultados.corregido).toMatchObject({
+    const resultado = interpretarDtc('03', cruda, can);
+    expect(resultado).toMatchObject({
       estado: 'sin-codigos',
       codigos: [],
     });
-    expect(resultados.original.codigos).toContain('P0043');
-    expect(resultados.porLineas.advertencias).toHaveLength(2);
-    expect(resultados.corregido.mensajes).toHaveLength(2);
+    expect(resultado.codigos).not.toContain('P0043');
+    expect(resultado.mensajes).toHaveLength(2);
   });
   test.each(['03', '07', '0A'] as const)(
     'interpreta categoria %s con contador',
@@ -30,10 +28,26 @@ describe('DTC con protocolo conocido', () => {
       ).toMatchObject({ estado: 'con-codigos', codigos: ['P0104'] });
     },
   );
-  test('no inventa soporte historico para pendientes', () => {
-    const comparacion = compararDtc('07', '47 01 01 04\r>', can);
-    expect(comparacion.original.estado).toBe('no-aplica');
-    expect(comparacion.porLineas.estado).toBe('no-aplica');
+  test('captura real separa P0104 pendiente por ECU sin codigos falsos', () => {
+    const almacenados = interpretarDtc(
+      '03',
+      '7E8 02 43 00\r7E9 02 43 00\r>',
+      cabeceras,
+    );
+    const pendientes = interpretarDtc(
+      '07',
+      '7E8 04 47 01 01 04\r7E9 02 47 00\r>',
+      cabeceras,
+    );
+    expect(almacenados).toMatchObject({ estado: 'sin-codigos', codigos: [] });
+    expect(pendientes.codigos).toEqual(['P0104']);
+    expect(pendientes.mensajes[0]).toMatchObject({
+      ecu: '7E8',
+      codigos: ['P0104'],
+    });
+    expect(pendientes.codigos).not.toEqual(
+      expect.arrayContaining(['P0043', 'P007E', 'P0243']),
+    );
   });
   test('CAN compacto y eco con espacios', () => {
     expect(interpretarDtc('03', '0 3\r43010104\r>', can).codigos).toEqual([

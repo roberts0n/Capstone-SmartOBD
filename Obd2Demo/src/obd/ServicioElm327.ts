@@ -12,7 +12,6 @@ import {
   asciiABase64,
   base64ABytes,
 } from './AcumuladorRespuestaObd';
-import { analizarRespuestaObd } from './AnalisisRespuestaObd';
 import { traducirPidMode01 } from './CatalogoPidsMode01';
 import type { ContextoLecturaMode01 } from './CatalogoPidsMode01';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
@@ -249,20 +248,9 @@ export function traducirRespuestaObd(
 ): TraduccionObd {
   const comandoNormalizado = comando.trim().toUpperCase();
 
-  if (comandoNormalizado === '03') {
-    const analisis = analizarRespuestaObd(comandoNormalizado, respuestaCruda);
-    const tieneRespuestaDtcValida = analisis.lineas.some(
-      linea =>
-        linea.tipo === 'respuesta-dtc' && linea.advertencias.length === 0,
-    );
-
-    if (analisis.codigosDtc.length > 0 || tieneRespuestaDtcValida) {
-      return { valor: analisis.codigosDtc, unidad: 'DTC', error: null };
-    }
-
+  if (['03', '07', '0A'].includes(comandoNormalizado)) {
     return crearErrorTraduccion(
-      analisis.advertencias.join(' ') ||
-        'No se encontró una respuesta DTC válida con cabecera 43.',
+      'Los DTC requieren protocolo y formato confirmados. Usa "Leer todos los DTC".',
     );
   }
 
