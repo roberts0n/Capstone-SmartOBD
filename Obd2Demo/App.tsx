@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { PantallaEscanerObd } from './src/pantallas/PantallaEscanerObd';
 import { Login } from './src/pantallas/login';
 import { Inicio } from './src/pantallas/inicio';
+import type { SesionTaller } from './src/tipos/usuarioTaller';
 
 type Ruta = 'login' | 'inicio' | 'escaner';
 
@@ -11,12 +12,16 @@ type Ruta = 'login' | 'inicio' | 'escaner';
 // este componente limitado a configurar el area segura y la barra de estado.
 function Aplicacion() {
   const [ruta, establecerRuta] = useState<Ruta>('login');
-  const [nombreUsuario, establecerNombreUsuario] = useState('Conductor');
+  const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
 
-  function ingresar(correo: string) {
-    const nombre = correo.split('@')[0].trim();
-    establecerNombreUsuario(nombre || 'Conductor');
+  function ingresar(siguienteSesion: SesionTaller) {
+    establecerSesion(siguienteSesion);
     establecerRuta('inicio');
+  }
+
+  function cerrarSesion() {
+    establecerSesion(null);
+    establecerRuta('login');
   }
 
   return (
@@ -27,19 +32,13 @@ function Aplicacion() {
         edges={['top', 'right', 'bottom', 'left']}
       >
         {ruta === 'login' && (
-          <Login
-            alIngresar={ingresar}
-            alContinuarComoInvitado={() => {
-              establecerNombreUsuario('Invitado');
-              establecerRuta('inicio');
-            }}
-          />
+          <Login alIngresar={ingresar} />
         )}
-        {ruta === 'inicio' && (
+        {ruta === 'inicio' && sesion && (
           <Inicio
-            nombreUsuario={nombreUsuario}
+            sesion={sesion}
             alAbrirEscaner={() => establecerRuta('escaner')}
-            alCerrarSesion={() => establecerRuta('login')}
+            alCerrarSesion={cerrarSesion}
           />
         )}
         {ruta === 'escaner' && <PantallaEscanerObd />}

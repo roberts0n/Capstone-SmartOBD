@@ -9,25 +9,48 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type {
+  PerfilTaller,
+  SesionTaller,
+} from '../tipos/usuarioTaller';
+
+type ModoAcceso = 'ingresar' | 'registro';
 
 interface PropiedadesLogin {
-  alIngresar: (correo: string) => void;
-  alContinuarComoInvitado?: () => void;
+  alIngresar: (sesion: SesionTaller) => void;
 }
 
-/** Pantalla de acceso visual. La autenticacion real se conecta en alIngresar. */
-export function Login({
-  alIngresar,
-  alContinuarComoInvitado,
-}: PropiedadesLogin) {
+/** Acceso orientado al personal de un taller automotriz. */
+export function Login({ alIngresar }: PropiedadesLogin) {
+  const [modo, establecerModo] = useState<ModoAcceso>('ingresar');
+  const [perfil, establecerPerfil] = useState<PerfilTaller>('recepcion');
+  const [nombre, establecerNombre] = useState('');
+  const [taller, establecerTaller] = useState('');
   const [correo, establecerCorreo] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [mostrarContrasena, establecerMostrarContrasena] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
 
-  function ingresar() {
-    const correoLimpio = correo.trim();
+  const esRegistro = modo === 'registro';
 
+  function cambiarModo(siguiente: ModoAcceso) {
+    establecerModo(siguiente);
+    establecerError(null);
+  }
+
+  function continuar() {
+    const correoLimpio = correo.trim();
+    const nombreLimpio = nombre.trim();
+    const tallerLimpio = taller.trim();
+
+    if (esRegistro && nombreLimpio.length < 2) {
+      establecerError('Escribe el nombre de la persona que usara la cuenta.');
+      return;
+    }
+    if (esRegistro && tallerLimpio.length < 2) {
+      establecerError('Escribe el nombre del taller.');
+      return;
+    }
     if (!correoLimpio || !correoLimpio.includes('@')) {
       establecerError('Ingresa un correo electronico valido.');
       return;
@@ -38,7 +61,12 @@ export function Login({
     }
 
     establecerError(null);
-    alIngresar(correoLimpio);
+    alIngresar({
+      nombre: nombreLimpio || nombreDesdeCorreo(correoLimpio),
+      correo: correoLimpio,
+      taller: tallerLimpio || 'Mi taller',
+      perfil,
+    });
   }
 
   return (
@@ -56,35 +84,88 @@ export function Login({
             <View style={[estilos.conector, estilos.conectorIzquierdo]} />
             <View style={[estilos.conector, estilos.conectorDerecho]} />
           </View>
-          <Text style={estilos.nombreMarca}>SmartOBD</Text>
+          <View>
+            <Text style={estilos.nombreMarca}>SmartOBD</Text>
+            <Text style={estilos.edicionMarca}>TALLER</Text>
+          </View>
         </View>
 
         <View style={estilos.introduccion}>
-          <Text style={estilos.sobretitulo}>DIAGNOSTICO INTELIGENTE</Text>
-          <Text style={estilos.titulo}>Tu vehiculo, explicado con claridad.</Text>
+          <Text style={estilos.sobretitulo}>OPERACION Y DIAGNOSTICO</Text>
+          <Text style={estilos.titulo}>Cada vehiculo, bajo control.</Text>
           <Text style={estilos.descripcion}>
-            Conecta tu escaner OBD-II, interpreta alertas y revisa el estado del
-            motor desde un solo lugar.
+            Recibe, diagnostica y entrega informacion clara desde una sola
+            herramienta para todo el equipo.
           </Text>
         </View>
 
         <View style={estilos.formulario}>
-          <Text style={estilos.tituloFormulario}>Iniciar sesion</Text>
+          <View style={estilos.selectorModo}>
+            <OpcionModo
+              activa={modo === 'ingresar'}
+              etiqueta="Ingresar"
+              alPresionar={() => cambiarModo('ingresar')}
+            />
+            <OpcionModo
+              activa={modo === 'registro'}
+              etiqueta="Crear cuenta"
+              alPresionar={() => cambiarModo('registro')}
+            />
+          </View>
+
+          <Text style={estilos.tituloFormulario}>
+            {esRegistro ? 'Registra tu acceso' : 'Bienvenido al taller'}
+          </Text>
           <Text style={estilos.subtituloFormulario}>
-            Accede a tus vehiculos y diagnosticos guardados.
+            {esRegistro
+              ? 'Crea el primer acceso y elige la funcion que tendras en el equipo.'
+              : 'Selecciona tu funcion e ingresa con el correo registrado.'}
           </Text>
 
-          <Text style={estilos.etiqueta}>Correo electronico</Text>
-          <TextInput
-            accessibilityLabel="Correo electronico"
-            autoCapitalize="none"
+          <Text style={estilos.etiquetaGrupo}>¿Cual es tu funcion?</Text>
+          <View style={estilos.perfiles}>
+            <TarjetaPerfil
+              activo={perfil === 'recepcion'}
+              codigo="RX"
+              titulo="Recepcion"
+              descripcion="Ingreso y seguimiento"
+              alPresionar={() => establecerPerfil('recepcion')}
+            />
+            <TarjetaPerfil
+              activo={perfil === 'mecanico'}
+              codigo="MEC"
+              titulo="Mecanico"
+              descripcion="Revision y diagnostico"
+              alPresionar={() => establecerPerfil('mecanico')}
+            />
+          </View>
+
+          {esRegistro ? (
+            <>
+              <Campo
+                etiqueta="Nombre completo"
+                valor={nombre}
+                alCambiar={establecerNombre}
+                placeholder="Nombre del integrante"
+                autoComplete="name"
+              />
+              <Campo
+                etiqueta="Nombre del taller"
+                valor={taller}
+                alCambiar={establecerTaller}
+                placeholder="Ej. Taller Central"
+                autoComplete="organization"
+              />
+            </>
+          ) : null}
+
+          <Campo
+            etiqueta="Correo electronico"
+            valor={correo}
+            alCambiar={establecerCorreo}
+            placeholder="nombre@taller.cl"
             autoComplete="email"
-            keyboardType="email-address"
-            onChangeText={establecerCorreo}
-            placeholder="nombre@correo.com"
-            placeholderTextColor="#6B6B70"
-            style={estilos.entrada}
-            value={correo}
+            teclado="email-address"
           />
 
           <Text style={estilos.etiqueta}>Contrasena</Text>
@@ -92,19 +173,19 @@ export function Login({
             <TextInput
               accessibilityLabel="Contrasena"
               autoCapitalize="none"
-              autoComplete="password"
+              autoComplete={esRegistro ? 'new-password' : 'password'}
               onChangeText={establecerContrasena}
-              onSubmitEditing={ingresar}
+              onSubmitEditing={continuar}
               placeholder="Minimo 6 caracteres"
-              placeholderTextColor="#6B6B70"
+              placeholderTextColor="#68686F"
               secureTextEntry={!mostrarContrasena}
               style={estilos.entradaContrasena}
               value={contrasena}
             />
             <Pressable
               accessibilityRole="button"
-              onPress={() => establecerMostrarContrasena(valor => !valor)}
               hitSlop={8}
+              onPress={() => establecerMostrarContrasena(valor => !valor)}
             >
               <Text style={estilos.mostrar}>
                 {mostrarContrasena ? 'Ocultar' : 'Mostrar'}
@@ -120,41 +201,119 @@ export function Login({
 
           <Pressable
             accessibilityRole="button"
-            onPress={ingresar}
+            onPress={continuar}
             style={({ pressed }) => [
               estilos.botonPrincipal,
               pressed && estilos.presionado,
             ]}
           >
-            <Text style={estilos.textoBotonPrincipal}>Continuar</Text>
+            <Text style={estilos.textoBotonPrincipal}>
+              {esRegistro ? 'Crear cuenta y continuar' : 'Entrar al taller'}
+            </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
-
-          {alContinuarComoInvitado ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={alContinuarComoInvitado}
-              style={({ pressed }) => [
-                estilos.botonSecundario,
-                pressed && estilos.presionado,
-              ]}
-            >
-              <Text style={estilos.textoBotonSecundario}>
-                Continuar como invitado
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
 
         <View style={estilos.notaSeguridad}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoSeguridad}>
-            Tus datos de diagnostico permanecen privados en este dispositivo.
+            Acceso privado para personal autorizado. Los datos del cliente y
+            del vehiculo permanecen protegidos.
           </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
+}
+
+function OpcionModo({
+  activa,
+  etiqueta,
+  alPresionar,
+}: {
+  activa: boolean;
+  etiqueta: string;
+  alPresionar: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: activa }}
+      onPress={alPresionar}
+      style={[estilos.opcionModo, activa && estilos.opcionModoActiva]}
+    >
+      <Text style={[estilos.textoModo, activa && estilos.textoModoActivo]}>
+        {etiqueta}
+      </Text>
+    </Pressable>
+  );
+}
+
+function TarjetaPerfil({
+  activo,
+  codigo,
+  titulo,
+  descripcion,
+  alPresionar,
+}: {
+  activo: boolean;
+  codigo: string;
+  titulo: string;
+  descripcion: string;
+  alPresionar: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ checked: activo }}
+      onPress={alPresionar}
+      style={[estilos.perfil, activo && estilos.perfilActivo]}
+    >
+      <Text style={[estilos.codigoPerfil, activo && estilos.codigoPerfilActivo]}>
+        {codigo}
+      </Text>
+      <Text style={estilos.tituloPerfil}>{titulo}</Text>
+      <Text style={estilos.descripcionPerfil}>{descripcion}</Text>
+    </Pressable>
+  );
+}
+
+function Campo({
+  etiqueta,
+  valor,
+  alCambiar,
+  placeholder,
+  autoComplete,
+  teclado,
+}: {
+  etiqueta: string;
+  valor: string;
+  alCambiar: (valor: string) => void;
+  placeholder: string;
+  autoComplete: 'name' | 'organization' | 'email';
+  teclado?: 'email-address';
+}) {
+  return (
+    <>
+      <Text style={estilos.etiqueta}>{etiqueta}</Text>
+      <TextInput
+        accessibilityLabel={etiqueta}
+        autoCapitalize={teclado ? 'none' : 'words'}
+        autoComplete={autoComplete}
+        keyboardType={teclado}
+        onChangeText={alCambiar}
+        placeholder={placeholder}
+        placeholderTextColor="#68686F"
+        style={estilos.entrada}
+        value={valor}
+      />
+    </>
+  );
+}
+
+function nombreDesdeCorreo(correo: string): string {
+  const base = correo.split('@')[0].replace(/[._-]+/g, ' ').trim();
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Integrante';
 }
 
 const COLORES = {
@@ -164,7 +323,6 @@ const COLORES = {
   texto: '#F4F4F5',
   secundario: '#A1A1AA',
   verde: '#10A37F',
-  verdeOscuro: '#0D765D',
   azul: '#58A6FF',
 };
 
@@ -172,15 +330,15 @@ const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: COLORES.fondo },
   contenido: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 28,
+    paddingHorizontal: 22,
+    paddingTop: 24,
     paddingBottom: 28,
   },
   marca: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logo: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#3A3A3E',
     backgroundColor: '#202023',
@@ -188,136 +346,180 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
   },
   logoCentro: {
-    width: 12,
-    height: 12,
+    width: 13,
+    height: 13,
     borderWidth: 2,
     borderColor: COLORES.verde,
     borderRadius: 4,
   },
   conector: {
     position: 'absolute',
-    width: 5,
+    width: 6,
     height: 2,
     borderRadius: 2,
     backgroundColor: COLORES.azul,
   },
   conectorIzquierdo: { left: 6 },
   conectorDerecho: { right: 6 },
-  nombreMarca: { color: COLORES.texto, fontWeight: '700', fontSize: 18 },
-  introduccion: { marginTop: 46, marginBottom: 30 },
+  nombreMarca: { color: COLORES.texto, fontWeight: '700', fontSize: 17 },
+  edicionMarca: {
+    color: COLORES.verde,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginTop: 1,
+  },
+  introduccion: { marginTop: 36, marginBottom: 24 },
   sobretitulo: {
     color: COLORES.verde,
     fontWeight: '700',
-    fontSize: 11,
-    letterSpacing: 1.5,
-    marginBottom: 12,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    marginBottom: 10,
   },
   titulo: {
     color: COLORES.texto,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 32,
+    lineHeight: 38,
     fontWeight: '700',
-    letterSpacing: -0.8,
+    letterSpacing: -0.7,
   },
   descripcion: {
     color: COLORES.secundario,
-    fontSize: 15,
-    lineHeight: 23,
-    marginTop: 14,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 12,
   },
   formulario: {
     backgroundColor: COLORES.superficie,
     borderWidth: 1,
     borderColor: COLORES.borde,
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
   },
+  selectorModo: {
+    flexDirection: 'row',
+    backgroundColor: '#101011',
+    borderRadius: 11,
+    padding: 3,
+    marginBottom: 22,
+  },
+  opcionModo: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
+  },
+  opcionModoActiva: { backgroundColor: '#29292D' },
+  textoModo: { color: '#77777E', fontWeight: '600', fontSize: 13 },
+  textoModoActivo: { color: COLORES.texto },
   tituloFormulario: { color: COLORES.texto, fontSize: 20, fontWeight: '700' },
   subtituloFormulario: {
     color: COLORES.secundario,
-    lineHeight: 20,
+    lineHeight: 19,
     marginTop: 6,
-    marginBottom: 22,
+    marginBottom: 20,
   },
+  etiquetaGrupo: {
+    color: '#D4D4D8',
+    fontWeight: '600',
+    fontSize: 13,
+    marginBottom: 9,
+  },
+  perfiles: { flexDirection: 'row', gap: 9, marginBottom: 20 },
+  perfil: {
+    flex: 1,
+    minHeight: 98,
+    backgroundColor: '#111113',
+    borderWidth: 1,
+    borderColor: COLORES.borde,
+    borderRadius: 13,
+    padding: 11,
+  },
+  perfilActivo: { borderColor: COLORES.verde, backgroundColor: '#11241F' },
+  codigoPerfil: {
+    alignSelf: 'flex-start',
+    color: '#77777E',
+    backgroundColor: '#252529',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  codigoPerfilActivo: { color: '#75E6C6', backgroundColor: '#1C4439' },
+  tituloPerfil: { color: '#EDEDEF', fontWeight: '700', fontSize: 13 },
+  descripcionPerfil: { color: '#7F7F87', fontSize: 10, lineHeight: 14, marginTop: 3 },
   etiqueta: {
     color: '#D4D4D8',
     fontWeight: '600',
     fontSize: 13,
-    marginBottom: 8,
+    marginBottom: 7,
   },
   entrada: {
-    height: 50,
+    height: 48,
     color: COLORES.texto,
     backgroundColor: '#101011',
     borderWidth: 1,
     borderColor: COLORES.borde,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    marginBottom: 18,
+    borderRadius: 11,
+    paddingHorizontal: 13,
+    fontSize: 14,
+    marginBottom: 16,
   },
   filaContrasena: {
-    height: 50,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#101011',
     borderWidth: 1,
     borderColor: COLORES.borde,
-    borderRadius: 12,
-    paddingRight: 14,
+    borderRadius: 11,
+    paddingRight: 13,
   },
   entradaContrasena: {
     flex: 1,
     color: COLORES.texto,
-    paddingHorizontal: 14,
-    fontSize: 15,
+    paddingHorizontal: 13,
+    fontSize: 14,
   },
-  mostrar: { color: COLORES.verde, fontSize: 13, fontWeight: '700' },
-  error: { color: '#FF8A80', fontSize: 13, lineHeight: 18, marginTop: 10 },
+  mostrar: { color: COLORES.verde, fontSize: 12, fontWeight: '700' },
+  error: { color: '#FF8A80', fontSize: 12, lineHeight: 18, marginTop: 10 },
   botonPrincipal: {
-    height: 52,
+    height: 51,
     backgroundColor: COLORES.verde,
     borderRadius: 12,
-    marginTop: 20,
-    paddingHorizontal: 18,
+    marginTop: 18,
+    paddingHorizontal: 17,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  textoBotonPrincipal: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  flecha: { color: '#FFFFFF', fontSize: 22 },
-  botonSecundario: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 12,
-    marginTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textoBotonSecundario: { color: '#D4D4D8', fontWeight: '600' },
-  presionado: { opacity: 0.75 },
+  textoBotonPrincipal: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  flecha: { color: '#FFFFFF', fontSize: 21 },
+  presionado: { opacity: 0.72 },
   notaSeguridad: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'center',
     gap: 8,
-    marginTop: 22,
-    paddingHorizontal: 14,
+    marginTop: 20,
+    paddingHorizontal: 12,
   },
   puntoSeguro: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: COLORES.verdeOscuro,
-    marginTop: 6,
+    backgroundColor: COLORES.verde,
+    marginTop: 5,
   },
   textoSeguridad: {
     flex: 1,
     color: '#77777E',
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 17,
   },
 });
 
