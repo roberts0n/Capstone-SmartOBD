@@ -9,48 +9,21 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type {
-  PerfilTaller,
-  SesionTaller,
-} from '../tipos/usuarioTaller';
-
-type ModoAcceso = 'ingresar' | 'registro';
-
 interface PropiedadesLogin {
-  alIngresar: (sesion: SesionTaller) => void;
+  alIngresar: (correo: string, contrasena: string) => Promise<void>;
+  mensajeSistema?: string | null;
 }
 
 /** Acceso orientado al personal de un taller automotriz. */
-export function Login({ alIngresar }: PropiedadesLogin) {
-  const [modo, establecerModo] = useState<ModoAcceso>('ingresar');
-  const [perfil, establecerPerfil] = useState<PerfilTaller>('recepcion');
-  const [nombre, establecerNombre] = useState('');
-  const [taller, establecerTaller] = useState('');
+export function Login({ alIngresar, mensajeSistema }: PropiedadesLogin) {
   const [correo, establecerCorreo] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [mostrarContrasena, establecerMostrarContrasena] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
+  const [enviando, establecerEnviando] = useState(false);
 
-  const esRegistro = modo === 'registro';
-
-  function cambiarModo(siguiente: ModoAcceso) {
-    establecerModo(siguiente);
-    establecerError(null);
-  }
-
-  function continuar() {
+  async function continuar() {
     const correoLimpio = correo.trim();
-    const nombreLimpio = nombre.trim();
-    const tallerLimpio = taller.trim();
-
-    if (esRegistro && nombreLimpio.length < 2) {
-      establecerError('Escribe el nombre de la persona que usara la cuenta.');
-      return;
-    }
-    if (esRegistro && tallerLimpio.length < 2) {
-      establecerError('Escribe el nombre del taller.');
-      return;
-    }
     if (!correoLimpio || !correoLimpio.includes('@')) {
       establecerError('Ingresa un correo electronico valido.');
       return;
@@ -61,12 +34,18 @@ export function Login({ alIngresar }: PropiedadesLogin) {
     }
 
     establecerError(null);
-    alIngresar({
-      nombre: nombreLimpio || nombreDesdeCorreo(correoLimpio),
-      correo: correoLimpio,
-      taller: tallerLimpio || 'Mi taller',
-      perfil,
-    });
+    establecerEnviando(true);
+    try {
+      await alIngresar(correoLimpio, contrasena);
+    } catch (capturado) {
+      establecerError(
+        capturado instanceof Error
+          ? capturado.message
+          : 'No fue posible iniciar sesion.',
+      );
+    } finally {
+      establecerEnviando(false);
+    }
   }
 
   return (
@@ -100,63 +79,14 @@ export function Login({ alIngresar }: PropiedadesLogin) {
         </View>
 
         <View style={estilos.formulario}>
-          <View style={estilos.selectorModo}>
-            <OpcionModo
-              activa={modo === 'ingresar'}
-              etiqueta="Ingresar"
-              alPresionar={() => cambiarModo('ingresar')}
-            />
-            <OpcionModo
-              activa={modo === 'registro'}
-              etiqueta="Crear cuenta"
-              alPresionar={() => cambiarModo('registro')}
-            />
-          </View>
-
-          <Text style={estilos.tituloFormulario}>
-            {esRegistro ? 'Registra tu acceso' : 'Bienvenido al taller'}
-          </Text>
+          <Text style={estilos.tituloFormulario}>Acceso del personal</Text>
           <Text style={estilos.subtituloFormulario}>
-            {esRegistro
-              ? 'Crea el primer acceso y elige la funcion que tendras en el equipo.'
-              : 'Selecciona tu funcion e ingresa con el correo registrado.'}
+            Ingresa con la cuenta y el rol asignados por el administrador del
+            taller.
           </Text>
 
-          <Text style={estilos.etiquetaGrupo}>¿Cual es tu funcion?</Text>
-          <View style={estilos.perfiles}>
-            <TarjetaPerfil
-              activo={perfil === 'recepcion'}
-              codigo="RX"
-              titulo="Recepcion"
-              descripcion="Ingreso y seguimiento"
-              alPresionar={() => establecerPerfil('recepcion')}
-            />
-            <TarjetaPerfil
-              activo={perfil === 'mecanico'}
-              codigo="MEC"
-              titulo="Mecanico"
-              descripcion="Revision y diagnostico"
-              alPresionar={() => establecerPerfil('mecanico')}
-            />
-          </View>
-
-          {esRegistro ? (
-            <>
-              <Campo
-                etiqueta="Nombre completo"
-                valor={nombre}
-                alCambiar={establecerNombre}
-                placeholder="Nombre del integrante"
-                autoComplete="name"
-              />
-              <Campo
-                etiqueta="Nombre del taller"
-                valor={taller}
-                alCambiar={establecerTaller}
-                placeholder="Ej. Taller Central"
-                autoComplete="organization"
-              />
-            </>
+          {mensajeSistema ? (
+            <Text style={estilos.mensajeSistema}>{mensajeSistema}</Text>
           ) : null}
 
           <Campo
@@ -173,7 +103,7 @@ export function Login({ alIngresar }: PropiedadesLogin) {
             <TextInput
               accessibilityLabel="Contrasena"
               autoCapitalize="none"
-              autoComplete={esRegistro ? 'new-password' : 'password'}
+              autoComplete="password"
               onChangeText={establecerContrasena}
               onSubmitEditing={continuar}
               placeholder="Minimo 6 caracteres"
@@ -201,14 +131,16 @@ export function Login({ alIngresar }: PropiedadesLogin) {
 
           <Pressable
             accessibilityRole="button"
+            disabled={enviando}
             onPress={continuar}
             style={({ pressed }) => [
               estilos.botonPrincipal,
               pressed && estilos.presionado,
+              enviando && estilos.botonDeshabilitado,
             ]}
           >
             <Text style={estilos.textoBotonPrincipal}>
-              {esRegistro ? 'Crear cuenta y continuar' : 'Entrar al taller'}
+              {enviando ? 'Verificando acceso...' : 'Entrar al taller'}
             </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
@@ -217,64 +149,12 @@ export function Login({ alIngresar }: PropiedadesLogin) {
         <View style={estilos.notaSeguridad}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoSeguridad}>
-            Acceso privado para personal autorizado. Los datos del cliente y
-            del vehiculo permanecen protegidos.
+            ¿Necesitas una cuenta? Solicita una invitacion al administrador del
+            taller. El rol no se elige desde esta pantalla.
           </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-function OpcionModo({
-  activa,
-  etiqueta,
-  alPresionar,
-}: {
-  activa: boolean;
-  etiqueta: string;
-  alPresionar: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: activa }}
-      onPress={alPresionar}
-      style={[estilos.opcionModo, activa && estilos.opcionModoActiva]}
-    >
-      <Text style={[estilos.textoModo, activa && estilos.textoModoActivo]}>
-        {etiqueta}
-      </Text>
-    </Pressable>
-  );
-}
-
-function TarjetaPerfil({
-  activo,
-  codigo,
-  titulo,
-  descripcion,
-  alPresionar,
-}: {
-  activo: boolean;
-  codigo: string;
-  titulo: string;
-  descripcion: string;
-  alPresionar: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ checked: activo }}
-      onPress={alPresionar}
-      style={[estilos.perfil, activo && estilos.perfilActivo]}
-    >
-      <Text style={[estilos.codigoPerfil, activo && estilos.codigoPerfilActivo]}>
-        {codigo}
-      </Text>
-      <Text style={estilos.tituloPerfil}>{titulo}</Text>
-      <Text style={estilos.descripcionPerfil}>{descripcion}</Text>
-    </Pressable>
   );
 }
 
@@ -290,7 +170,7 @@ function Campo({
   valor: string;
   alCambiar: (valor: string) => void;
   placeholder: string;
-  autoComplete: 'name' | 'organization' | 'email';
+  autoComplete: 'email';
   teclado?: 'email-address';
 }) {
   return (
@@ -309,11 +189,6 @@ function Campo({
       />
     </>
   );
-}
-
-function nombreDesdeCorreo(correo: string): string {
-  const base = correo.split('@')[0].replace(/[._-]+/g, ' ').trim();
-  return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Integrante';
 }
 
 const COLORES = {
@@ -421,6 +296,17 @@ const estilos = StyleSheet.create({
     marginTop: 6,
     marginBottom: 20,
   },
+  mensajeSistema: {
+    color: '#F4B860',
+    backgroundColor: '#292116',
+    borderWidth: 1,
+    borderColor: '#5A4522',
+    borderRadius: 10,
+    padding: 11,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
   etiquetaGrupo: {
     color: '#D4D4D8',
     fontWeight: '600',
@@ -499,6 +385,7 @@ const estilos = StyleSheet.create({
     justifyContent: 'space-between',
   },
   textoBotonPrincipal: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  botonDeshabilitado: { opacity: 0.55 },
   flecha: { color: '#FFFFFF', fontSize: 21 },
   presionado: { opacity: 0.72 },
   notaSeguridad: {

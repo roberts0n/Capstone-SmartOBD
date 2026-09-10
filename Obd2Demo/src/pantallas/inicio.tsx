@@ -22,7 +22,46 @@ interface ContenidoPerfil {
   }>;
 }
 
+const ETIQUETAS_PERFIL: Record<PerfilTaller, string> = {
+  administrador: 'Administrador',
+  recepcion: 'Recepcion',
+  mecanico: 'Mecanico',
+};
+
 const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
+  administrador: {
+    etiqueta: 'PANEL DE ADMINISTRACION',
+    titulo: 'Supervisa el taller y mantén la operación conectada.',
+    descripcion:
+      'Gestiona el acceso del equipo, consulta la actividad general y utiliza el escáner cuando sea necesario.',
+    boton: 'Abrir escáner OBD-II',
+    metricas: [
+      { etiqueta: 'Usuarios activos', valor: '1', color: '#58A6FF' },
+      { etiqueta: 'Vehículos en taller', valor: '0', color: '#10A37F' },
+      { etiqueta: 'Casos abiertos', valor: '0', color: '#F4B860' },
+      { etiqueta: 'Alertas pendientes', valor: '—', color: '#FF8A80' },
+    ],
+    acciones: [
+      {
+        codigo: 'USR',
+        titulo: 'Equipo del taller',
+        descripcion: 'Administra invitaciones, roles y accesos',
+        abreEscaner: false,
+      },
+      {
+        codigo: 'CASO',
+        titulo: 'Actividad general',
+        descripcion: 'Consulta los casos diagnósticos del taller',
+        abreEscaner: false,
+      },
+      {
+        codigo: 'OBD',
+        titulo: 'Escáner técnico',
+        descripcion: 'Accede a las herramientas BLE y OBD-II',
+        abreEscaner: true,
+      },
+    ],
+  },
   recepcion: {
     etiqueta: 'PANEL DE RECEPCION',
     titulo: 'Recibe el vehiculo y comienza con datos claros.',
@@ -126,7 +165,7 @@ export function Inicio({
         <View style={estilos.perfilActivo}>
           <View style={estilos.puntoPerfil} />
           <Text style={estilos.textoPerfil}>
-            {sesion.perfil === 'recepcion' ? 'Recepcion' : 'Mecanico'}
+            {ETIQUETAS_PERFIL[sesion.perfil]}
           </Text>
         </View>
         <View style={estilos.estadoConexion}>
