@@ -1,0 +1,131 @@
+{"kind":"deck","id":"pr/m457li","name":"Deck"}
+{"kind":"layout","layoutId":"eaef21db-931b-481a-a23a-5065b35ee835","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"07825de7-bd67-4b14-be37-7f869a18dec5","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/kzk5h0","slide":1,"title":"Diagnóstico asistido y gestión para talleres","textShapes":1}
+{"kind":"textbox","id":"sh/u9gnat8r","slide":1,"text":"Diagnóstico asistido y gestión para talleres","textPreview":"Diagnóstico asistido y gestión para talleres","textChars":44,"textLines":1,"bbox":[585,531,700,42]}
+{"kind":"image","id":"im/4za1k365","slide":1,"name":"","alt":"Diseño original de la diapositiva 1","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/kzk5h0","slide":1,"text":""}
+{"kind":"slide","id":"sl/f5fja2","slide":2,"title":"Slide 2","textShapes":0}
+{"kind":"image","id":"im/h8bu907e","slide":2,"name":"","alt":"Diseño original de la diapositiva 2","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/f5fja2","slide":2,"text":""}
+{"kind":"slide","id":"sl/7g2grs","slide":3,"title":"En muchos talleres, los antecedentes del cliente, la información del vehículo...","textShapes":5}
+{"kind":"shape","id":"sh/fap87ydc","slide":3,"bbox":[145,225,1165,125]}
+{"kind":"textbox","id":"sh/u9g7etcr","slide":3,"text":"En muchos talleres, los antecedentes del cliente, la información del vehículo y los resultados del escáner quedan separados. Esto retrasa el traspaso desde recepción al mecánico y dificulta mantener un historial claro de cada diagnóstico.","textPreview":"En muchos talleres, los antecedentes del cliente, la información del vehículo y los resultados del escáner quedan separados. Esto retrasa...","textChars":238,"textLines":1,"bbox":[155,235,1140,100]}
+{"kind":"shape","id":"sh/p0rqdsve","slide":3,"bbox":[147,376,522,351]}
+{"kind":"textbox","id":"sh/4zi94nut","slide":3,"text":"Impacto operacional","textPreview":"Impacto operacional","textChars":19,"textLines":1,"bbox":[158,388,500,42]}
+{"kind":"textbox","id":"sh/3y98bid8","slide":3,"text":"Información de clientes, vehículos y diagnósticos dispersa.\nTraspaso manual de antecedentes entre recepción y mecánicos.\nPoco seguimiento de casos, asignaciones e historial.","textPreview":"Información de clientes, vehículos y diagnósticos dispersa. | Traspaso manual de antecedentes entre recepción y mecánicos. | Poco seguimi...","textChars":173,"textLines":3,"bbox":[165,438,480,245]}
+{"kind":"shape","id":"sh/2d072dc3","slide":3,"bbox":[766,376,522,351]}
+{"kind":"textbox","id":"sh/547q1ova","slide":3,"text":"Impacto en el taller","textPreview":"Impacto en el taller","textChars":20,"textLines":1,"bbox":[780,388,490,42]}
+{"kind":"textbox","id":"sh/k3ep8jep","slide":3,"text":"Más tiempo para reunir y contextualizar antecedentes.\nDatos OBD-II difíciles de relacionar con el motivo de ingreso.\nMenor trazabilidad de decisiones y evidencias del diagnóstico.","textPreview":"Más tiempo para reunir y contextualizar antecedentes. | Datos OBD-II difíciles de relacionar con el motivo de ingreso. | Menor trazabilid...","textChars":179,"textLines":3,"bbox":[790,438,465,245]}
+{"kind":"image","id":"im/1kvexobe","slide":3,"name":"","alt":"Diseño original de la diapositiva 3","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/7g2grs","slide":3,"text":""}
+{"kind":"slide","id":"sl/pflr7i","slide":4,"title":"SmartOBD propone una aplicación Android para talleres que integra el registro...","textShapes":5}
+{"kind":"shape","id":"sh/d8ve983a","slide":4,"bbox":[118,122,1320,207]}
+{"kind":"textbox","id":"sh/s7mdg32p","slide":4,"text":"SmartOBD propone una aplicación Android para talleres que integra el registro del cliente y su vehículo, la lectura OBD-II, el apoyo del chatbot y la asignación del diagnóstico al personal del taller.","textPreview":"SmartOBD propone una aplicación Android para talleres que integra el registro del cliente y su vehículo, la lectura OBD-II, el apoyo del ...","textChars":200,"textLines":1,"bbox":[126,132,1188,82]}
+{"kind":"shape","id":"sh/3idw3yl8","slide":4,"bbox":[27,420,354,236]}
+{"kind":"textbox","id":"sh/ihkvat4n","slide":4,"text":"REGISTRO DE USUARIOS,\nCLIENTES Y VEHÍCULOS\nPARA CENTRALIZAR LOS\nANTECEDENTES DEL TALLER.","textPreview":"REGISTRO DE USUARIOS, | CLIENTES Y VEHÍCULOS | PARA CENTRALIZAR LOS | ANTECEDENTES DEL TALLER.","textChars":88,"textLines":4,"bbox":[37,430,334,215]}
+{"kind":"shape","id":"sh/5kve5o3e","slide":4,"bbox":[410,420,322,236]}
+{"kind":"textbox","id":"sh/4jmdc32t","slide":4,"text":"CONEXIÓN CON ELM327\nPARA OBTENER DATOS\nREALES DEL VEHÍCULO Y\nCÓDIGOS DE FALLA.","textPreview":"CONEXIÓN CON ELM327 | PARA OBTENER DATOS | REALES DEL VEHÍCULO Y | CÓDIGOS DE FALLA.","textChars":78,"textLines":4,"bbox":[420,430,302,215]}
+{"kind":"shape","id":"sh/nexwfilc","slide":4,"bbox":[758,420,322,236]}
+{"kind":"textbox","id":"sh/2dovmdkr","slide":4,"text":"CHATBOT DE APOYO PARA\nEXPLICAR RESULTADOS,\nPROPONER VERIFICACIONES\nY ORDENAR EL DIAGNÓSTICO.","textPreview":"CHATBOT DE APOYO PARA | EXPLICAR RESULTADOS, | PROPONER VERIFICACIONES | Y ORDENAR EL DIAGNÓSTICO.","textChars":92,"textLines":4,"bbox":[768,430,302,215]}
+{"kind":"shape","id":"sh/sret47mt","slide":4,"bbox":[1107,420,313,236]}
+{"kind":"textbox","id":"sh/tsnaxc3e","slide":4,"text":"GESTIÓN DE CASOS,\nHISTORIAL Y ASIGNACIÓN\nENTRE RECEPCIÓN Y\nMECÁNICOS.","textPreview":"GESTIÓN DE CASOS, | HISTORIAL Y ASIGNACIÓN | ENTRE RECEPCIÓN Y | MECÁNICOS.","textChars":69,"textLines":4,"bbox":[1117,430,293,215]}
+{"kind":"image","id":"im/jm9cn2do","slide":4,"name":"","alt":"Diseño original de la diapositiva 4","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/pflr7i","slide":4,"text":""}
+{"kind":"slide","id":"sl/kp0kfh","slide":5,"title":"REACT NATIVE","textShapes":5}
+{"kind":"shape","id":"sh/pgv2hc3m","slide":5,"bbox":[25,505,240,190]}
+{"kind":"textbox","id":"sh/4fml8721","slide":5,"text":"REACT NATIVE\nTYPESCRIPT\nANDROID / METRO","textPreview":"REACT NATIVE | TYPESCRIPT | ANDROID / METRO","textChars":39,"textLines":3,"bbox":[37,528,216,145]}
+{"kind":"shape","id":"sh/rixkjmls","slide":5,"bbox":[316,505,262,190]}
+{"kind":"textbox","id":"sh/qho3ahk7","slide":5,"text":"BLUETOOTH / BLE\nELM327\nCOMANDOS AT Y OBD-II","textPreview":"BLUETOOTH / BLE | ELM327 | COMANDOS AT Y OBD-II","textChars":43,"textLines":3,"bbox":[328,528,238,145]}
+{"kind":"shape","id":"sh/dkfmlc3y","slide":5,"bbox":[621,505,236,190]}
+{"kind":"textbox","id":"sh/cj6lcr2d","slide":5,"text":"LECTURAS Y DTC\nREGISTRO E HISTORIAL\nCHATBOT (PLANIFICADO)","textPreview":"LECTURAS Y DTC | REGISTRO E HISTORIAL | CHATBOT (PLANIFICADO)","textChars":57,"textLines":3,"bbox":[633,528,212,145]}
+{"kind":"shape","id":"sh/7mtk7ilo","slide":5,"bbox":[881,505,266,190]}
+{"kind":"textbox","id":"sh/6lkjyd43","slide":5,"text":"JEST / TESTS\nVALIDACIÓN DE SERVICIOS\nMANEJO DE ERRORES","textPreview":"JEST / TESTS | VALIDACIÓN DE SERVICIOS | MANEJO DE ERRORES","textChars":54,"textLines":3,"bbox":[893,528,242,145]}
+{"kind":"shape","id":"sh/87qhgrud","slide":5,"bbox":[1173,505,228,190]}
+{"kind":"textbox","id":"sh/98zypwvi","slide":5,"text":"GIT / GITHUB\nSUPABASE (PLANIFICADO)\nANDROID STUDIO / GRADLE","textPreview":"GIT / GITHUB | SUPABASE (PLANIFICADO) | ANDROID STUDIO / GRADLE","textChars":59,"textLines":3,"bbox":[1185,528,204,145]}
+{"kind":"image","id":"im/vm1wfap0","slide":5,"name":"","alt":"Diseño original de la diapositiva 5","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/kp0kfh","slide":5,"text":""}
+{"kind":"slide","id":"sl/rceqvj","slide":6,"title":"Aborda una necesidad real del taller y combina desarrollo móvil, comunicación...","textShapes":4}
+{"kind":"shape","id":"sh/6d8fetov","slide":6,"bbox":[238,248,535,127]}
+{"kind":"textbox","id":"sh/ryhg7y5g","slide":6,"text":"Aborda una necesidad real del taller y combina desarrollo móvil, comunicación con hardware, gestión de información y asistencia inteligente en un mismo sistema.","textPreview":"Aborda una necesidad real del taller y combina desarrollo móvil, comunicación con hardware, gestión de información y asistencia inteligen...","textChars":160,"textLines":1,"bbox":[238,248,535,127]}
+{"kind":"shape","id":"sh/4b6xcj6p","slide":6,"bbox":[832,248,568,127]}
+{"kind":"textbox","id":"sh/5czy5ona","slide":6,"text":"Al personal de recepción, mecánicos y administradores del taller. El cliente se beneficia mediante una atención más ordenada y con mayor trazabilidad.","textPreview":"Al personal de recepción, mecánicos y administradores del taller. El cliente se beneficia mediante una atención más ordenada y con mayor ...","textChars":150,"textLines":1,"bbox":[832,248,568,127]}
+{"kind":"shape","id":"sh/i9ofa9oz","slide":6,"bbox":[238,503,535,165]}
+{"kind":"textbox","id":"sh/jaxg3e54","slide":6,"text":"En talleres automotrices que reciben vehículos compatibles con OBD-II y necesitan centralizar antecedentes, lecturas del escáner y seguimiento del diagnóstico.","textPreview":"En talleres automotrices que reciben vehículos compatibles con OBD-II y necesitan centralizar antecedentes, lecturas del escáner y seguim...","textChars":159,"textLines":1,"bbox":[238,503,535,165]}
+{"kind":"shape","id":"sh/o7ahon69","slide":6,"bbox":[832,503,568,165]}
+{"kind":"textbox","id":"sh/p8jyh8ne","slide":6,"text":"Conecta la recepción del vehículo con el trabajo técnico. Reúne antecedentes, datos OBD-II, historial y asignaciones, con un chatbot que apoya la interpretación.","textPreview":"Conecta la recepción del vehículo con el trabajo técnico. Reúne antecedentes, datos OBD-II, historial y asignaciones, con un chatbot que ...","textChars":161,"textLines":1,"bbox":[832,503,568,165]}
+{"kind":"image","id":"im/snupg3id","slide":6,"name":"","alt":"Diseño original de la diapositiva 6","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/rceqvj","slide":6,"text":""}
+{"kind":"slide","id":"sl/8qvmk4","slide":7,"title":"BASE BLUETOOTH Y OBD-II YA FUNCIONAL.","textShapes":4}
+{"kind":"shape","id":"sh/uhorq5wn","slide":7,"bbox":[83,386,286,237]}
+{"kind":"textbox","id":"sh/vih8zad8","slide":7,"text":"BASE BLUETOOTH Y OBD-II YA FUNCIONAL.\nARQUITECTURA MODULAR CON PRUEBAS.\nDESARROLLO INCREMENTAL POR MÓDULOS.","textPreview":"BASE BLUETOOTH Y OBD-II YA FUNCIONAL. | ARQUITECTURA MODULAR CON PRUEBAS. | DESARROLLO INCREMENTAL POR MÓDULOS.","textChars":107,"textLines":3,"bbox":[97,397,258,215]}
+{"kind":"shape","id":"sh/8f6poveh","slide":7,"bbox":[413,386,286,237]}
+{"kind":"textbox","id":"sh/tgfqx0v2","slide":7,"text":"TELÉFONOS ANDROID Y ESCÁNER ELM327.\nVEHÍCULOS REALES PARA VALIDACIÓN.\nGITHUB Y PLAN GRATUITO DE SUPABASE.","textPreview":"TELÉFONOS ANDROID Y ESCÁNER ELM327. | VEHÍCULOS REALES PARA VALIDACIÓN. | GITHUB Y PLAN GRATUITO DE SUPABASE.","textChars":105,"textLines":3,"bbox":[427,397,258,215]}
+{"kind":"shape","id":"sh/6do7mlwb","slide":7,"bbox":[740,386,286,237]}
+{"kind":"textbox","id":"sh/7ex8vqdw","slide":7,"text":"PLANIFICACIÓN ORGANIZADA EN 18 SEMANAS.\nNÚCLEO OBD-II VALIDADO.\nINTEGRACIÓN PROGRESIVA DEL SISTEMA DE TALLER.","textPreview":"PLANIFICACIÓN ORGANIZADA EN 18 SEMANAS. | NÚCLEO OBD-II VALIDADO. | INTEGRACIÓN PROGRESIVA DEL SISTEMA DE TALLER.","textChars":109,"textLines":3,"bbox":[754,397,258,215]}
+{"kind":"shape","id":"sh/kr6pkvel","slide":7,"bbox":[1066,386,286,237]}
+{"kind":"textbox","id":"sh/lsfqtgvq","slide":7,"text":"COMPATIBILIDAD ENTRE ESCÁNERES Y VEHÍCULOS.\nDEPENDENCIA DE PRUEBAS EN TALLER.\nSEGURIDAD DE DATOS Y PERMISOS POR ROL.","textPreview":"COMPATIBILIDAD ENTRE ESCÁNERES Y VEHÍCULOS. | DEPENDENCIA DE PRUEBAS EN TALLER. | SEGURIDAD DE DATOS Y PERMISOS POR ROL.","textChars":116,"textLines":3,"bbox":[1080,397,258,215]}
+{"kind":"image","id":"im/cby9orid","slide":7,"name":"","alt":"Diseño original de la diapositiva 7","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/8qvmk4","slide":7,"text":""}
+{"kind":"slide","id":"sl/kq04hp","slide":8,"title":"Objetivo general","textShapes":3}
+{"kind":"shape","id":"sh/ps36l4r6","slide":8,"bbox":[630,136,780,225]}
+{"kind":"textbox","id":"sh/orupszal","slide":8,"text":"Objetivo general","textPreview":"Objetivo general","textChars":16,"textLines":1,"bbox":[650,145,720,55]}
+{"kind":"textbox","id":"sh/f2lofat4","slide":8,"text":"Diseñar e implementar una aplicación Android para talleres que centralice la recepción del vehículo y la información del diagnóstico OBD-II, mantenga su trazabilidad y apoye el análisis mediante un chatbot dirigido al personal del taller.","textPreview":"Diseñar e implementar una aplicación Android para talleres que centralice la recepción del vehículo y la información del diagnóstico OBD-...","textChars":238,"textLines":1,"bbox":[650,207,730,130]}
+{"kind":"shape","id":"sh/e1s7mpsj","slide":8,"bbox":[638,430,770,356]}
+{"kind":"textbox","id":"sh/1o36hkru","slide":8,"text":"Gestionar el acceso de administradores, recepción y mecánicos mediante roles.\nRegistrar clientes, vehículos, motivos de ingreso y casos de diagnóstico.\nConectar el escáner ELM327 para leer e interpretar información OBD-II.\nConservar evidencias e historial asociados a cada vehículo y diagnóstico.\nAsignar casos al personal mecánico y apoyar la organización del trabajo.\nIntegrar un chatbot de apoyo y validar el sistema con pruebas automatizadas y vehículos reales.","textPreview":"Gestionar el acceso de administradores, recepción y mecánicos mediante roles. | Registrar clientes, vehículos, motivos de ingreso y casos...","textChars":465,"textLines":6,"bbox":[646,438,748,336]}
+{"kind":"image","id":"im/zu5wjelo","slide":8,"name":"","alt":"Diseño original de la diapositiva 8","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/kq04hp","slide":8,"text":""}
+{"kind":"slide","id":"sl/lobueb","slide":9,"title":"SCRUM","textShapes":4}
+{"kind":"shape","id":"sh/07uxkrep","slide":9,"bbox":[124,216,504,512]}
+{"kind":"textbox","id":"sh/18nedwva","slide":9,"text":"SCRUM","textPreview":"SCRUM","textChars":5,"textLines":1,"bbox":[160,230,430,55]}
+{"kind":"textbox","id":"sh/qhcvehwn","slide":9,"text":"Desarrollo incremental por sprints.\nBacklog organizado por módulos funcionales.\nRevisión periódica del repositorio y los avances.\nPriorización según el flujo del taller y el valor para sus usuarios.\nIntegración progresiva de pantallas, servicios y backend.","textPreview":"Desarrollo incremental por sprints. | Backlog organizado por módulos funcionales. | Revisión periódica del repositorio y los avances. | P...","textChars":256,"textLines":5,"bbox":[145,326,458,335]}
+{"kind":"shape","id":"sh/rilw7md8","slide":9,"bbox":[690,216,585,512]}
+{"kind":"textbox","id":"sh/cjudg7et","slide":9,"text":"VALIDACIÓN DEL SISTEMA","textPreview":"VALIDACIÓN DEL SISTEMA","textChars":22,"textLines":1,"bbox":[730,230,495,55]}
+{"kind":"textbox","id":"sh/dk3e9cve","slide":9,"text":"Pruebas unitarias de reglas del sistema e interpretación OBD-II.\nValidación de Bluetooth y ELM327 en vehículos reales.\nPruebas de autenticación, roles y persistencia de información.\nComprobación del flujo desde recepción hasta el mecánico.\nRegistro de fallas y regresión antes de cada entrega.","textPreview":"Pruebas unitarias de reglas del sistema e interpretación OBD-II. | Validación de Bluetooth y ELM327 en vehículos reales. | Pruebas de aut...","textChars":293,"textLines":5,"bbox":[724,326,505,335]}
+{"kind":"image","id":"im/ah4v618j","slide":9,"name":"","alt":"Diseño original de la diapositiva 9","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/lobueb","slide":9,"text":""}
+{"kind":"slide","id":"sl/dolxs9","slide":10,"title":"Avance","textShapes":12}
+{"kind":"shape","id":"sh/a5cnyhgr","slide":10,"bbox":[250,295,138,98]}
+{"kind":"shape","id":"sh/v6lo7mxc","slide":10,"bbox":[390,295,319,98]}
+{"kind":"shape","id":"sh/83u5w7y1","slide":10,"bbox":[711,295,580,98]}
+{"kind":"textbox","id":"sh/94365cf6","slide":10,"text":"Avance","textPreview":"Avance","textChars":6,"textLines":1,"bbox":[260,309,118,65]}
+{"kind":"textbox","id":"sh/m1cnuxgv","slide":10,"text":"Conexión y gestión del escáner","textPreview":"Conexión y gestión del escáner","textChars":30,"textLines":1,"bbox":[405,306,289,72]}
+{"kind":"textbox","id":"sh/n2l432xg","slide":10,"text":"Búsqueda Bluetooth/BLE, selección del dispositivo y comunicación con el servicio ELM327.","textPreview":"Búsqueda Bluetooth/BLE, selección del dispositivo y comunicación con el servicio ELM327.","textChars":88,"textLines":1,"bbox":[728,303,545,78]}
+{"kind":"shape","id":"sh/0za5s7yp","slide":10,"bbox":[250,400,138,98]}
+{"kind":"shape","id":"sh/l0jm1sfa","slide":10,"bbox":[390,400,319,98]}
+{"kind":"shape","id":"sh/tcfq9sb6","slide":10,"bbox":[711,400,580,98]}
+{"kind":"textbox","id":"sh/sb6p0nul","slide":10,"text":"Avance","textPreview":"Avance","textChars":6,"textLines":1,"bbox":[260,414,118,65]}
+{"kind":"textbox","id":"sh/rad87it0","slide":10,"text":"Lectura e interpretación OBD-II","textPreview":"Lectura e interpretación OBD-II","textChars":31,"textLines":1,"bbox":[405,411,289,72]}
+{"kind":"textbox","id":"sh/6947yxcv","slide":10,"text":"Identificación del vehículo, detección de parámetros compatibles y lectura de datos y códigos de falla.","textPreview":"Identificación del vehículo, detección de parámetros compatibles y lectura de datos y códigos de falla.","textChars":103,"textLines":1,"bbox":[728,408,545,78]}
+{"kind":"shape","id":"sh/58vq5sba","slide":10,"bbox":[250,502,138,98]}
+{"kind":"shape","id":"sh/4nmpwnup","slide":10,"bbox":[390,502,319,98]}
+{"kind":"shape","id":"sh/jmd83it4","slide":10,"bbox":[711,502,580,98]}
+{"kind":"textbox","id":"sh/il47udcj","slide":10,"text":"Avance","textPreview":"Avance","textChars":6,"textLines":1,"bbox":[260,516,118,65]}
+{"kind":"textbox","id":"sh/hkvq18by","slide":10,"text":"Pruebas automatizadas","textPreview":"Pruebas automatizadas","textChars":21,"textLines":1,"bbox":[405,513,289,72]}
+{"kind":"textbox","id":"sh/wj2ps3ud","slide":10,"text":"Validación de servicios, interpretación de respuestas, manejo de errores y regresiones.","textPreview":"Validación de servicios, interpretación de respuestas, manejo de errores y regresiones.","textChars":87,"textLines":1,"bbox":[728,510,545,78]}
+{"kind":"shape","id":"sh/8n6pon29","slide":10,"bbox":[250,605,138,98]}
+{"kind":"shape","id":"sh/9ofqh8ju","slide":10,"bbox":[390,605,319,98]}
+{"kind":"shape","id":"sh/m1o7mdkj","slide":10,"bbox":[711,605,580,98]}
+{"kind":"textbox","id":"sh/n2x8fi1o","slide":10,"text":"Validación real","textPreview":"Validación real","textChars":15,"textLines":1,"bbox":[260,619,118,65]}
+{"kind":"textbox","id":"sh/0z6pk32d","slide":10,"text":"Núcleo OBD-II validado","textPreview":"Núcleo OBD-II validado","textChars":22,"textLines":1,"bbox":[405,616,289,72]}
+{"kind":"textbox","id":"sh/10fqd8jy","slide":10,"text":"Conexión, identificación, parámetros y DTC comprobados en vehículos reales. Continúa la integración del sistema de taller.","textPreview":"Conexión, identificación, parámetros y DTC comprobados en vehículos reales. Continúa la integración del sistema de taller.","textChars":122,"textLines":1,"bbox":[728,613,545,78]}
+{"kind":"image","id":"im/cjydcvel","slide":10,"name":"","alt":"Diseño original de la diapositiva 10","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/dolxs9","slide":10,"text":""}
+{"kind":"slide","id":"sl/67zn8z","slide":11,"title":"Definición y arquitectura","textShapes":6}
+{"kind":"shape","id":"sh/elonmhkb","slide":11,"bbox":[83,294,288,43]}
+{"kind":"textbox","id":"sh/fmx4vm1w","slide":11,"text":"Definición y arquitectura","textPreview":"Definición y arquitectura","textChars":25,"textLines":1,"bbox":[88,297,278,36]}
+{"kind":"shape","id":"sh/sjm5k725","slide":11,"bbox":[83,353,288,43]}
+{"kind":"textbox","id":"sh/dkvmtcjq","slide":11,"text":"Núcleo OBD-II","textPreview":"Núcleo OBD-II","textChars":13,"textLines":1,"bbox":[88,356,278,36]}
+{"kind":"shape","id":"sh/qh43ixkz","slide":11,"bbox":[83,409,288,43]}
+{"kind":"textbox","id":"sh/rid4r21k","slide":11,"text":"Usuarios y datos del taller","textPreview":"Usuarios y datos del taller","textChars":27,"textLines":1,"bbox":[88,412,278,36]}
+{"kind":"shape","id":"sh/4fmlg729","slide":11,"bbox":[83,471,288,43]}
+{"kind":"textbox","id":"sh/5gvmpsju","slide":11,"text":"Casos, asignación y chatbot","textPreview":"Casos, asignación y chatbot","textChars":27,"textLines":1,"bbox":[88,474,278,36]}
+{"kind":"shape","id":"sh/9gby9obm","slide":11,"bbox":[83,528,288,43]}
+{"kind":"textbox","id":"sh/8f2h0juh","slide":11,"text":"Integración y pruebas","textPreview":"Integración y pruebas","textChars":21,"textLines":1,"bbox":[88,531,278,36]}
+{"kind":"shape","id":"sh/7utg7etw","slide":11,"bbox":[83,584,288,43]}
+{"kind":"textbox","id":"sh/mt0zy9cb","slide":11,"text":"Validación real y cierre","textPreview":"Validación real y cierre","textChars":24,"textLines":1,"bbox":[88,587,278,36]}
+{"kind":"image","id":"im/gfi5ov6t","slide":11,"name":"","alt":"Diseño original de la diapositiva 11","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/67zn8z","slide":11,"text":""}
+{"kind":"slide","id":"sl/sbtwbw","slide":12,"title":"Slide 12","textShapes":0}
+{"kind":"image","id":"im/65kf2t8v","slide":12,"name":"","alt":"Diseño original de la diapositiva 12","bbox":[0,0,1440,810]}
+{"kind":"notes","id":"nt/sbtwbw","slide":12,"text":""}

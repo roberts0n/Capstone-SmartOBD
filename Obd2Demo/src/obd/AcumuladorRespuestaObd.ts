@@ -75,7 +75,7 @@ export class AcumuladorRespuestaObd {
     return recibidos;
   }
 
-  /** Indica si ya llego el prompt final de ELM327. */
+  /** indica si ya llego el prompt final de ELM327 */
   estaCompleta(): boolean {
     return this.bytes.includes('>'.charCodeAt(0));
   }
