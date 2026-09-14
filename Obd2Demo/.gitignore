@@ -80,3 +80,15 @@ supabase/functions/.env.*
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Artefactos privados y auxiliares
+.codex-build/
+.codex-finalizer/
+entregables/
+documentacion/
+tmp/
+*.ppt
+*.pptx
+*.doc
+*.docx
+*.pdf
