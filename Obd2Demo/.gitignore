@@ -41,6 +41,13 @@ node_modules/
 npm-debug.log
 yarn-error.log
 
+# Variables locales y secretos de Supabase
+.env
+.env.*
+!.env.example
+supabase/functions/.env
+supabase/functions/.env.*
+
 # fastlane
 #
 # It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the

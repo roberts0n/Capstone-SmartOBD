@@ -5,8 +5,11 @@ import type { PerfilTaller, SesionTaller } from '../tipos/usuarioTaller';
 interface PropiedadesInicio {
   sesion: SesionTaller;
   alAbrirEscaner: () => void;
+  alAbrirRegistro: () => void;
   alCerrarSesion?: () => void;
 }
+
+type DestinoAccion = 'escaner' | 'registro';
 
 interface ContenidoPerfil {
   etiqueta: string;
@@ -18,7 +21,7 @@ interface ContenidoPerfil {
     codigo: string;
     titulo: string;
     descripcion: string;
-    abreEscaner: boolean;
+    destino?: DestinoAccion;
   }>;
 }
 
@@ -46,19 +49,18 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
         codigo: 'USR',
         titulo: 'Equipo del taller',
         descripcion: 'Administra invitaciones, roles y accesos',
-        abreEscaner: false,
+        destino: 'registro',
       },
       {
         codigo: 'CASO',
         titulo: 'Actividad general',
         descripcion: 'Consulta los casos diagnósticos del taller',
-        abreEscaner: false,
       },
       {
         codigo: 'OBD',
         titulo: 'Escáner técnico',
         descripcion: 'Accede a las herramientas BLE y OBD-II',
-        abreEscaner: true,
+        destino: 'escaner',
       },
     ],
   },
@@ -79,19 +81,17 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
         codigo: 'OBD',
         titulo: 'Diagnostico de ingreso',
         descripcion: 'Conecta el escaner y obtiene el estado inicial',
-        abreEscaner: true,
+        destino: 'escaner',
       },
       {
         codigo: 'OT',
         titulo: 'Nueva orden de trabajo',
         descripcion: 'Registra cliente, vehiculo y motivo de ingreso',
-        abreEscaner: false,
       },
       {
         codigo: 'COLA',
         titulo: 'Vehiculos del dia',
         descripcion: 'Revisa la carga actual del taller',
-        abreEscaner: false,
       },
     ],
   },
@@ -112,19 +112,19 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
         codigo: '01',
         titulo: 'Datos en tiempo real',
         descripcion: 'Consulta RPM, temperatura y sensores compatibles',
-        abreEscaner: true,
+        destino: 'escaner',
       },
       {
         codigo: 'DTC',
         titulo: 'Codigos de falla',
         descripcion: 'Lee e interpreta las alertas almacenadas',
-        abreEscaner: true,
+        destino: 'escaner',
       },
       {
         codigo: 'VIN',
         titulo: 'Identificar vehiculo',
         descripcion: 'Consulta VIN y compatibilidad disponible',
-        abreEscaner: true,
+        destino: 'escaner',
       },
     ],
   },
@@ -133,6 +133,7 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
 export function Inicio({
   sesion,
   alAbrirEscaner,
+  alAbrirRegistro,
   alCerrarSesion,
 }: PropiedadesInicio) {
   const contenido = CONTENIDO[sesion.perfil];
@@ -219,7 +220,11 @@ export function Inicio({
             codigo={accion.codigo}
             titulo={accion.titulo}
             descripcion={accion.descripcion}
-            alPresionar={accion.abreEscaner ? alAbrirEscaner : undefined}
+            alPresionar={resolverDestino(
+              accion.destino,
+              alAbrirEscaner,
+              alAbrirRegistro,
+            )}
           />
         ))}
       </View>
@@ -238,6 +243,20 @@ export function Inicio({
       </View>
     </ScrollView>
   );
+}
+
+function resolverDestino(
+  destino: DestinoAccion | undefined,
+  alAbrirEscaner: () => void,
+  alAbrirRegistro: () => void,
+): (() => void) | undefined {
+  if (destino === 'escaner') {
+    return alAbrirEscaner;
+  }
+  if (destino === 'registro') {
+    return alAbrirRegistro;
+  }
+  return undefined;
 }
 
 function Metrica({

@@ -11,11 +11,16 @@ import {
 } from 'react-native';
 interface PropiedadesLogin {
   alIngresar: (correo: string, contrasena: string) => Promise<void>;
+  alAbrirInvitacion: () => void;
   mensajeSistema?: string | null;
 }
 
 /** Acceso orientado al personal de un taller automotriz. */
-export function Login({ alIngresar, mensajeSistema }: PropiedadesLogin) {
+export function Login({
+  alIngresar,
+  alAbrirInvitacion,
+  mensajeSistema,
+}: PropiedadesLogin) {
   const [correo, establecerCorreo] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [mostrarContrasena, establecerMostrarContrasena] = useState(false);
@@ -143,6 +148,16 @@ export function Login({ alIngresar, mensajeSistema }: PropiedadesLogin) {
               {enviando ? 'Verificando acceso...' : 'Entrar al taller'}
             </Text>
             <Text style={estilos.flecha}>→</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={alAbrirInvitacion}
+            style={estilos.botonInvitacion}
+          >
+            <Text style={estilos.textoBotonInvitacion}>
+              Tengo un código de invitación
+            </Text>
           </Pressable>
         </View>
 
@@ -338,7 +353,12 @@ const estilos = StyleSheet.create({
   },
   codigoPerfilActivo: { color: '#75E6C6', backgroundColor: '#1C4439' },
   tituloPerfil: { color: '#EDEDEF', fontWeight: '700', fontSize: 13 },
-  descripcionPerfil: { color: '#7F7F87', fontSize: 10, lineHeight: 14, marginTop: 3 },
+  descripcionPerfil: {
+    color: '#7F7F87',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 3,
+  },
   etiqueta: {
     color: '#D4D4D8',
     fontWeight: '600',
@@ -388,6 +408,12 @@ const estilos = StyleSheet.create({
   botonDeshabilitado: { opacity: 0.55 },
   flecha: { color: '#FFFFFF', fontSize: 21 },
   presionado: { opacity: 0.72 },
+  botonInvitacion: { alignItems: 'center', paddingTop: 17, paddingBottom: 2 },
+  textoBotonInvitacion: {
+    color: COLORES.verde,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   notaSeguridad: {
     flexDirection: 'row',
     alignItems: 'flex-start',

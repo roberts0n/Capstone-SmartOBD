@@ -1,17 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Linking,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { PantallaEscanerObd } from './src/pantallas/PantallaEscanerObd';
 import { Login } from './src/pantallas/login';
 import { Inicio } from './src/pantallas/inicio';
+import { Registro } from './src/pantallas/registro';
+import { ActivarCuenta } from './src/pantallas/activarCuenta';
 import {
   cerrarSesionTaller,
   iniciarSesionTaller,
   recuperarSesionTaller,
 } from './src/servicios/autenticacionTaller';
+import { invitarPersonalTaller } from './src/servicios/personalTaller';
+import {
+  activarCuentaInvitada,
+  prepararActivacionDesdeEnlace,
+  validarCodigoInvitacion,
+} from './src/servicios/activacionCuenta';
 import type { SesionTaller } from './src/tipos/usuarioTaller';
 
-type Ruta = 'login' | 'inicio' | 'escaner';
+type Ruta = 'login' | 'activar-cuenta' | 'inicio' | 'registro' | 'escaner';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
@@ -22,18 +37,45 @@ function Aplicacion() {
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
   );
+  const [invitacionPreparada, establecerInvitacionPreparada] = useState(false);
 
   useEffect(() => {
     let activa = true;
-    recuperarSesionTaller()
-      .then(sesionRecuperada => {
-        if (!activa || !sesionRecuperada) {
+    async function abrirInvitacion(url: string): Promise<boolean> {
+      try {
+        const esInvitacion = await prepararActivacionDesdeEnlace(url);
+        if (activa && esInvitacion) {
+          establecerMensajeSistema(null);
+          establecerInvitacionPreparada(true);
+          establecerRuta('activar-cuenta');
+        }
+        return esInvitacion;
+      } catch (capturado) {
+        if (activa) {
+          establecerMensajeSistema(
+            capturado instanceof Error
+              ? capturado.message
+              : 'No se pudo abrir la invitacion.',
+          );
+          establecerRuta('login');
+        }
+        return true;
+      }
+    }
+
+    async function inicializar() {
+      try {
+        const enlaceInicial = await Linking.getInitialURL();
+        if (enlaceInicial && (await abrirInvitacion(enlaceInicial))) {
           return;
         }
-        establecerSesion(sesionRecuperada);
-        establecerRuta('inicio');
-      })
-      .catch(capturado => {
+
+        const sesionRecuperada = await recuperarSesionTaller();
+        if (activa && sesionRecuperada) {
+          establecerSesion(sesionRecuperada);
+          establecerRuta('inicio');
+        }
+      } catch (capturado) {
         if (activa) {
           establecerMensajeSistema(
             capturado instanceof Error
@@ -41,15 +83,19 @@ function Aplicacion() {
               : 'No se pudo recuperar la sesion.',
           );
         }
-      })
-      .finally(() => {
-        if (activa) {
-          establecerInicializando(false);
-        }
-      });
+      } finally {
+        if (activa) establecerInicializando(false);
+      }
+    }
+
+    inicializar().catch(() => undefined);
+    const suscripcion = Linking.addEventListener('url', evento => {
+      abrirInvitacion(evento.url).catch(() => undefined);
+    });
 
     return () => {
       activa = false;
+      suscripcion.remove();
     };
   }, []);
 
@@ -66,6 +112,14 @@ function Aplicacion() {
     establecerRuta('login');
   }
 
+  async function completarActivacion(contrasena: string) {
+    const siguienteSesion = await activarCuentaInvitada(contrasena);
+    establecerSesion(siguienteSesion);
+    establecerMensajeSistema(null);
+    establecerRuta('inicio');
+    return siguienteSesion;
+  }
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor="#0D0D0E" />
@@ -80,16 +134,39 @@ function Aplicacion() {
           </View>
         )}
         {!inicializando && ruta === 'login' && (
-          <Login alIngresar={ingresar} mensajeSistema={mensajeSistema} />
+          <Login
+            alIngresar={ingresar}
+            alAbrirInvitacion={() => {
+              establecerInvitacionPreparada(false);
+              establecerRuta('activar-cuenta');
+            }}
+            mensajeSistema={mensajeSistema}
+          />
+        )}
+        {!inicializando && ruta === 'activar-cuenta' && (
+          <ActivarCuenta
+            sesionPreparada={invitacionPreparada}
+            alValidarCodigo={validarCodigoInvitacion}
+            alActivar={completarActivacion}
+          />
         )}
         {!inicializando && ruta === 'inicio' && sesion && (
           <Inicio
             sesion={sesion}
             alAbrirEscaner={() => establecerRuta('escaner')}
+            alAbrirRegistro={() => establecerRuta('registro')}
             alCerrarSesion={cerrarSesion}
           />
         )}
-        {ruta === 'escaner' && <PantallaEscanerObd />}
+        {!inicializando &&
+          ruta === 'registro' &&
+          sesion?.perfil === 'administrador' && (
+            <Registro
+              alInvitar={invitarPersonalTaller}
+              alVolver={() => establecerRuta('inicio')}
+            />
+          )}
+        {ruta === 'escaner' && sesion && <PantallaEscanerObd />}
       </SafeAreaView>
     </SafeAreaProvider>
   );

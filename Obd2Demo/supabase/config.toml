@@ -1,0 +1,9 @@
+project_id = "Obd2Demo"
+
+# Única URL que el correo de invitación puede usar para volver a la app móvil.
+# No contiene secretos; Android e iOS registran el mismo esquema.
+[auth]
+additional_redirect_urls = ["smartobd://activar-cuenta"]
+
+[functions.crear-usuario-taller]
+verify_jwt = true
