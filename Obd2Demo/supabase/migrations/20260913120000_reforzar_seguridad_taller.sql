@@ -95,6 +95,7 @@ revoke all on function public.impedir_cambio_autoria() from public, anon, authen
 -- Administracion y Recepcion conservan la actualizacion normal de casos. Un
 -- mecanico ya no puede editar toda la fila directamente.
 drop policy if exists casos_actualizar_segun_rol on public.casos_diagnosticos;
+drop policy if exists casos_actualizar_recepcion on public.casos_diagnosticos;
 create policy casos_actualizar_recepcion
 on public.casos_diagnosticos for update
 to authenticated

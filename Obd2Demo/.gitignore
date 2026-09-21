@@ -73,6 +73,12 @@ supabase/functions/.env.*
 # testing
 /coverage
 
+# pruebas locales
+/__tests__/
+/supabase/tests/
+**/*.test.*
+**/*.spec.*
+
 # Yarn
 .yarn/*
 !.yarn/patches

@@ -4,6 +4,7 @@ export interface SesionTaller {
   usuarioId: string;
   nombre: string;
   correo: string;
+  tallerId: string;
   taller: string;
   perfil: PerfilTaller;
   debeCambiarPassword: boolean;

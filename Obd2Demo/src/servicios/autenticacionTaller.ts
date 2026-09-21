@@ -97,6 +97,7 @@ async function cargarPerfil(usuario: User): Promise<SesionTaller> {
     usuarioId: perfil.id,
     nombre: perfil.nombre,
     correo: usuario.email ?? '',
+    tallerId: perfil.taller_id,
     taller: nombreTaller,
     perfil: perfil.rol,
     debeCambiarPassword: perfil.debe_cambiar_password,

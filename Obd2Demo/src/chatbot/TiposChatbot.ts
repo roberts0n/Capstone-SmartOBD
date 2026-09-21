@@ -1,14 +1,12 @@
 import type { PerfilTaller } from '../tipos/usuarioTaller';
+import type {
+  EstadoCasoDiagnostico,
+  PrioridadCasoDiagnostico,
+} from '../casos/TiposCasoDiagnostico';
 
 export type PerfilChatbot = Extract<PerfilTaller, 'recepcion' | 'mecanico'>;
 
-export type EstadoCasoChatbot =
-  | 'ingresado'
-  | 'diagnostico_inicial'
-  | 'asignado'
-  | 'en_revision'
-  | 'diagnosticado'
-  | 'cerrado';
+export type EstadoCasoChatbot = EstadoCasoDiagnostico;
 
 export type EstadoDtcChatbot = 'confirmado' | 'pendiente' | 'permanente';
 
@@ -64,7 +62,7 @@ export interface CasoEntradaChatbot extends CasoPermisosChatbot {
   vehiculoId: string;
   motivoIngreso: string;
   sintomasInformados: string | null;
-  prioridad: 'baja' | 'normal' | 'alta' | 'urgente';
+  prioridad: PrioridadCasoDiagnostico;
   fechaCreacion: string;
 }
 
