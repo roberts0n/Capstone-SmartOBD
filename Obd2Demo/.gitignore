@@ -82,6 +82,7 @@ supabase/functions/.env.*
 !.yarn/versions
 
 # Artefactos privados y auxiliares
+.codex-temp/
 .codex-build/
 .codex-finalizer/
 entregables/

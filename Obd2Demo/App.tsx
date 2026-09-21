@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   StatusBar,
   StyleSheet,
   Text,
@@ -12,21 +11,23 @@ import { PantallaEscanerObd } from './src/pantallas/PantallaEscanerObd';
 import { Login } from './src/pantallas/login';
 import { Inicio } from './src/pantallas/inicio';
 import { Registro } from './src/pantallas/registro';
-import { ActivarCuenta } from './src/pantallas/activarCuenta';
+import { CambiarContrasena } from './src/pantallas/cambiarContrasena';
+import { HerramientasRol } from './src/pantallas/herramientasRol';
+import { Cuenta } from './src/pantallas/cuenta';
+import {
+  BarraNavegacionInferior,
+  type DestinoBarra,
+} from './src/componentes/BarraNavegacionInferior';
 import {
   cerrarSesionTaller,
   iniciarSesionTaller,
   recuperarSesionTaller,
 } from './src/servicios/autenticacionTaller';
-import { invitarPersonalTaller } from './src/servicios/personalTaller';
-import {
-  activarCuentaInvitada,
-  prepararActivacionDesdeEnlace,
-  validarCodigoInvitacion,
-} from './src/servicios/activacionCuenta';
+import { registrarPersonalTaller } from './src/servicios/personalTaller';
+import { cambiarContrasenaInicial } from './src/servicios/cambioContrasena';
 import type { SesionTaller } from './src/tipos/usuarioTaller';
 
-type Ruta = 'login' | 'activar-cuenta' | 'inicio' | 'registro' | 'escaner';
+type Ruta = DestinoBarra | 'login';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
@@ -37,39 +38,10 @@ function Aplicacion() {
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
   );
-  const [invitacionPreparada, establecerInvitacionPreparada] = useState(false);
-
   useEffect(() => {
     let activa = true;
-    async function abrirInvitacion(url: string): Promise<boolean> {
-      try {
-        const esInvitacion = await prepararActivacionDesdeEnlace(url);
-        if (activa && esInvitacion) {
-          establecerMensajeSistema(null);
-          establecerInvitacionPreparada(true);
-          establecerRuta('activar-cuenta');
-        }
-        return esInvitacion;
-      } catch (capturado) {
-        if (activa) {
-          establecerMensajeSistema(
-            capturado instanceof Error
-              ? capturado.message
-              : 'No se pudo abrir la invitacion.',
-          );
-          establecerRuta('login');
-        }
-        return true;
-      }
-    }
-
     async function inicializar() {
       try {
-        const enlaceInicial = await Linking.getInitialURL();
-        if (enlaceInicial && (await abrirInvitacion(enlaceInicial))) {
-          return;
-        }
-
         const sesionRecuperada = await recuperarSesionTaller();
         if (activa && sesionRecuperada) {
           establecerSesion(sesionRecuperada);
@@ -89,13 +61,8 @@ function Aplicacion() {
     }
 
     inicializar().catch(() => undefined);
-    const suscripcion = Linking.addEventListener('url', evento => {
-      abrirInvitacion(evento.url).catch(() => undefined);
-    });
-
     return () => {
       activa = false;
-      suscripcion.remove();
     };
   }, []);
 
@@ -112,13 +79,24 @@ function Aplicacion() {
     establecerRuta('login');
   }
 
-  async function completarActivacion(contrasena: string) {
-    const siguienteSesion = await activarCuentaInvitada(contrasena);
+  async function completarCambio(contrasena: string) {
+    const siguienteSesion = await cambiarContrasenaInicial(contrasena);
     establecerSesion(siguienteSesion);
     establecerMensajeSistema(null);
     establecerRuta('inicio');
     return siguienteSesion;
   }
+
+  function navegar(destino: DestinoBarra) {
+    if (!sesion || sesion.debeCambiarPassword) return;
+    if (destino === 'registro' && sesion.perfil !== 'administrador') return;
+    if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
+    establecerRuta(destino);
+  }
+
+  const mostrarBarra =
+    !inicializando && Boolean(sesion) && !sesion?.debeCambiarPassword;
+  const destinoActivo: DestinoBarra = ruta === 'login' ? 'inicio' : ruta;
 
   return (
     <SafeAreaProvider>
@@ -133,40 +111,58 @@ function Aplicacion() {
             <Text style={estilos.textoCargando}>Recuperando sesion...</Text>
           </View>
         )}
-        {!inicializando && ruta === 'login' && (
+        {!inicializando && !sesion && (
           <Login
             alIngresar={ingresar}
-            alAbrirInvitacion={() => {
-              establecerInvitacionPreparada(false);
-              establecerRuta('activar-cuenta');
-            }}
             mensajeSistema={mensajeSistema}
           />
         )}
-        {!inicializando && ruta === 'activar-cuenta' && (
-          <ActivarCuenta
-            sesionPreparada={invitacionPreparada}
-            alValidarCodigo={validarCodigoInvitacion}
-            alActivar={completarActivacion}
+        {!inicializando && sesion?.debeCambiarPassword && (
+          <CambiarContrasena
+            alCambiar={completarCambio}
+            alCerrarSesion={cerrarSesion}
           />
         )}
-        {!inicializando && ruta === 'inicio' && sesion && (
+        {!inicializando && !sesion?.debeCambiarPassword && ruta === 'inicio' && sesion && (
           <Inicio
             sesion={sesion}
             alAbrirEscaner={() => establecerRuta('escaner')}
             alAbrirRegistro={() => establecerRuta('registro')}
-            alCerrarSesion={cerrarSesion}
+            alAbrirCuenta={() => establecerRuta('cuenta')}
           />
         )}
         {!inicializando &&
+          ruta === 'herramientas' &&
+          sesion &&
+          !sesion.debeCambiarPassword &&
+          sesion.perfil !== 'administrador' && (
+            <HerramientasRol
+              sesion={sesion}
+              alAbrirEscaner={() => establecerRuta('escaner')}
+            />
+          )}
+        {!inicializando &&
           ruta === 'registro' &&
+          !sesion?.debeCambiarPassword &&
           sesion?.perfil === 'administrador' && (
             <Registro
-              alInvitar={invitarPersonalTaller}
+              alRegistrar={registrarPersonalTaller}
               alVolver={() => establecerRuta('inicio')}
             />
           )}
-        {ruta === 'escaner' && sesion && <PantallaEscanerObd />}
+        {!inicializando && ruta === 'escaner' && sesion &&
+          !sesion.debeCambiarPassword && <PantallaEscanerObd />}
+        {!inicializando && ruta === 'cuenta' && sesion &&
+          !sesion.debeCambiarPassword && (
+            <Cuenta sesion={sesion} alCerrarSesion={cerrarSesion} />
+          )}
+        {mostrarBarra && sesion ? (
+          <BarraNavegacionInferior
+            perfil={sesion.perfil}
+            destinoActivo={destinoActivo}
+            alNavegar={navegar}
+          />
+        ) : null}
       </SafeAreaView>
     </SafeAreaProvider>
   );

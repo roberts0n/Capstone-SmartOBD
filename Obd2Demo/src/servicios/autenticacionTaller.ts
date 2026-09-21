@@ -4,10 +4,11 @@ import { supabase } from './clienteSupabase';
 
 interface PerfilConsultado {
   id: string;
+  taller_id: string;
   nombre: string;
   rol: string;
   activo: boolean;
-  talleres: { nombre: string } | Array<{ nombre: string }> | null;
+  debe_cambiar_password: boolean;
 }
 
 export async function iniciarSesionTaller(
@@ -41,7 +42,12 @@ export async function recuperarSesionTaller(): Promise<SesionTaller | null> {
     return null;
   }
 
-  return cargarPerfil(data.session.user);
+  try {
+    return await cargarPerfil(data.session.user);
+  } catch (errorPerfil) {
+    await supabase.auth.signOut().catch(() => undefined);
+    throw errorPerfil;
+  }
 }
 
 export async function cerrarSesionTaller(): Promise<void> {
@@ -54,7 +60,7 @@ export async function cerrarSesionTaller(): Promise<void> {
 async function cargarPerfil(usuario: User): Promise<SesionTaller> {
   const { data, error } = await supabase
     .from('perfiles')
-    .select('id, nombre, rol, activo, talleres!inner(nombre)')
+    .select('id, taller_id, nombre, rol, activo, debe_cambiar_password')
     .eq('id', usuario.id)
     .single();
 
@@ -66,25 +72,34 @@ async function cargarPerfil(usuario: User): Promise<SesionTaller> {
 
   const perfil = data as unknown as PerfilConsultado;
   if (!perfil.activo) {
-    throw new Error('Tu acceso al taller se encuentra desactivado.');
+    throw new Error(
+      'Tu cuenta se encuentra desactivada. Contacta al administrador.',
+    );
   }
   if (!esPerfilTaller(perfil.rol)) {
     throw new Error('Tu cuenta tiene un rol que SmartOBD no reconoce.');
   }
 
-  const relacionTaller = Array.isArray(perfil.talleres)
-    ? perfil.talleres[0]
-    : perfil.talleres;
-  if (!relacionTaller?.nombre) {
-    throw new Error('No se encontro el taller asociado a tu cuenta.');
+  let nombreTaller = '';
+  if (!perfil.debe_cambiar_password) {
+    const { data: taller, error: errorTaller } = await supabase
+      .from('talleres')
+      .select('nombre')
+      .eq('id', perfil.taller_id)
+      .single();
+    if (errorTaller || !taller?.nombre) {
+      throw new Error('No se encontro el taller asociado a tu cuenta.');
+    }
+    nombreTaller = taller.nombre;
   }
 
   return {
     usuarioId: perfil.id,
     nombre: perfil.nombre,
     correo: usuario.email ?? '',
-    taller: relacionTaller.nombre,
+    taller: nombreTaller,
     perfil: perfil.rol,
+    debeCambiarPassword: perfil.debe_cambiar_password,
   };
 }
 

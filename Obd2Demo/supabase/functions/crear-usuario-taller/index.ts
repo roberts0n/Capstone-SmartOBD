@@ -1,12 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 
-type RolInvitable = 'recepcion' | 'mecanico';
+type RolRegistrable = 'recepcion' | 'mecanico';
 
-interface SolicitudInvitacion {
+interface SolicitudRegistro {
   nombre?: unknown;
   correo?: unknown;
   rol?: unknown;
   especialidad?: unknown;
+  contrasenaTemporal?: unknown;
 }
 
 const CABECERAS_CORS = {
@@ -57,20 +58,24 @@ Deno.serve(async solicitud => {
 
     const { data: perfil, error: errorPerfil } = await clienteUsuario
       .from('perfiles')
-      .select('taller_id, rol, activo')
+      .select('taller_id, rol, activo, debe_cambiar_password')
       .eq('id', usuario.id)
       .single();
 
-    if (
-      errorPerfil ||
-      !perfil ||
-      !perfil.activo ||
-      perfil.rol !== 'administrador'
-    ) {
-      return responderError('Solo Administracion puede invitar personal.', 403);
+    if (errorPerfil || !perfil) {
+      return responderError('No tienes permisos para registrar personal.', 403);
+    }
+    if (!perfil.activo) {
+      return responderError('Tu cuenta se encuentra desactivada.', 403);
+    }
+    if (perfil.debe_cambiar_password) {
+      return responderError('Primero debes cambiar tu contrasena temporal.', 403);
+    }
+    if (perfil.rol !== 'administrador' || !perfil.taller_id) {
+      return responderError('No tienes permisos para registrar personal.', 403);
     }
 
-    const entrada = (await solicitud.json()) as SolicitudInvitacion;
+    const entrada = (await solicitud.json()) as SolicitudRegistro;
     let datos: ReturnType<typeof validarEntrada>;
     try {
       datos = validarEntrada(entrada);
@@ -84,29 +89,19 @@ Deno.serve(async solicitud => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // El plan gratuito no permite personalizar el correo predeterminado. En
-    // vez de depender de un enlace que algunos correos consumen al revisarlo,
-    // generamos un OTP para que Administracion lo entregue al trabajador.
-    const { data: invitacion, error: errorInvitacion } =
-      await clienteAdministrador.auth.admin.generateLink({
-        type: 'invite',
+    // Confirmar administrativamente el correo permite acceder de inmediato con
+    // la contrasena temporal, sin enviar enlaces ni modificar Auth global.
+    const { data: creado, error: errorCrear } =
+      await clienteAdministrador.auth.admin.createUser({
         email: datos.correo,
-        options: {
-          data: { nombre: datos.nombre },
-          redirectTo:
-            Deno.env.get('URL_REDIRECCION_INVITACION') ??
-            'smartobd://activar-cuenta',
-        },
+        password: datos.contrasenaTemporal,
+        email_confirm: true,
+        user_metadata: { nombre: datos.nombre },
       });
 
-    if (
-      errorInvitacion ||
-      !invitacion.user ||
-      !invitacion.properties?.email_otp
-    ) {
-      console.error('No se pudo crear la invitacion:', errorInvitacion);
+    if (errorCrear || !creado.user) {
       return responderError(
-        traducirErrorInvitacion(errorInvitacion?.message),
+        traducirErrorCreacion(errorCrear?.message),
         400,
       );
     }
@@ -114,42 +109,44 @@ Deno.serve(async solicitud => {
     const { error: errorInsertarPerfil } = await clienteAdministrador
       .from('perfiles')
       .insert({
-        id: invitacion.user.id,
+        id: creado.user.id,
         taller_id: perfil.taller_id,
         nombre: datos.nombre,
         rol: datos.rol,
         especialidad: datos.especialidad,
+        activo: true,
+        debe_cambiar_password: true,
       });
 
     if (errorInsertarPerfil) {
-      console.error('No se pudo crear el perfil:', errorInsertarPerfil);
-
       // Auth y Postgres son servicios distintos. Si falla el perfil, eliminamos
       // el usuario recien creado para no dejar una cuenta incompleta.
-      await clienteAdministrador.auth.admin.deleteUser(invitacion.user.id);
+      const { error: errorEliminar } =
+        await clienteAdministrador.auth.admin.deleteUser(creado.user.id);
+      if (errorEliminar) {
+        console.error('No se pudo revertir el usuario Auth:', errorEliminar);
+      }
       return responderError('No se pudo guardar el perfil del taller.', 500);
     }
 
     return responderJson(
       {
-        mensaje:
-          `Codigo temporal: ${invitacion.properties.email_otp}. ` +
-          `Entregalo solamente a ${datos.correo}.`,
-        usuarioId: invitacion.user.id,
+        mensaje: 'Cuenta creada. Entrega las credenciales al trabajador de forma segura.',
+        usuarioId: creado.user.id,
       },
       201,
     );
-  } catch (error) {
-    console.error('Error inesperado al invitar personal:', error);
-    return responderError('No se pudo procesar la invitacion.', 500);
+  } catch {
+    return responderError('No fue posible crear la cuenta. Intentalo nuevamente.', 500);
   }
 });
 
-function validarEntrada(entrada: SolicitudInvitacion): {
+function validarEntrada(entrada: SolicitudRegistro): {
   nombre: string;
   correo: string;
-  rol: RolInvitable;
+  rol: RolRegistrable;
   especialidad: string | null;
+  contrasenaTemporal: string;
 } {
   const nombre =
     typeof entrada.nombre === 'string' ? entrada.nombre.trim() : '';
@@ -159,6 +156,10 @@ function validarEntrada(entrada: SolicitudInvitacion): {
       : '';
   const especialidad =
     typeof entrada.especialidad === 'string' ? entrada.especialidad.trim() : '';
+  const contrasenaTemporal =
+    typeof entrada.contrasenaTemporal === 'string'
+      ? entrada.contrasenaTemporal
+      : '';
 
   if (nombre.length < 2 || nombre.length > 120) {
     throw new Error('Nombre invalido');
@@ -166,22 +167,26 @@ function validarEntrada(entrada: SolicitudInvitacion): {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) || correo.length > 254) {
     throw new Error('Correo invalido');
   }
-  if (!esRolInvitable(entrada.rol)) {
+  if (!esRolRegistrable(entrada.rol)) {
     throw new Error('Rol invalido');
   }
   if (especialidad.length > 120) {
     throw new Error('Especialidad invalida');
+  }
+  if (contrasenaTemporal.length < 8) {
+    throw new Error('Contrasena invalida');
   }
 
   return {
     nombre,
     correo,
     rol: entrada.rol,
-    especialidad: especialidad || null,
+    especialidad: entrada.rol === 'mecanico' ? especialidad || null : null,
+    contrasenaTemporal,
   };
 }
 
-function esRolInvitable(valor: unknown): valor is RolInvitable {
+function esRolRegistrable(valor: unknown): valor is RolRegistrable {
   return valor === 'recepcion' || valor === 'mecanico';
 }
 
@@ -205,15 +210,15 @@ function exigirVariable(nombre: string): string {
   return valor;
 }
 
-function traducirErrorInvitacion(mensaje?: string): string {
+function traducirErrorCreacion(mensaje?: string): string {
   const texto = mensaje?.toLowerCase() ?? '';
   if (texto.includes('already') || texto.includes('registered')) {
-    return 'Ya existe una cuenta con ese correo.';
+    return 'Ya existe una cuenta registrada con este correo.';
   }
   if (texto.includes('rate') || texto.includes('limit')) {
-    return 'Se enviaron demasiadas invitaciones. Intenta mas tarde.';
+    return 'No fue posible crear la cuenta. Intentalo mas tarde.';
   }
-  return 'No se pudo enviar la invitacion al correo indicado.';
+  return 'No fue posible crear la cuenta. Intentalo nuevamente.';
 }
 
 function responderError(error: string, estado: number): Response {

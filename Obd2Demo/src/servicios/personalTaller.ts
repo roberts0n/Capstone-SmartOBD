@@ -1,37 +1,38 @@
 import type { PerfilTaller } from '../tipos/usuarioTaller';
 import { supabase } from './clienteSupabase';
 
-export type RolPersonalInvitable = Exclude<PerfilTaller, 'administrador'>;
+export type RolPersonalRegistrable = Exclude<PerfilTaller, 'administrador'>;
 
-export interface InvitacionPersonal {
+export interface NuevoPersonal {
   nombre: string;
   correo: string;
-  rol: RolPersonalInvitable;
+  rol: RolPersonalRegistrable;
   especialidad?: string;
+  contrasenaTemporal: string;
 }
 
-interface RespuestaInvitacion {
+interface RespuestaRegistro {
   mensaje?: string;
 }
 
 /**
- * Solicita al backend que invite a una persona al taller.
+ * Solicita al backend que cree una cuenta corporativa del taller.
  * La aplicacion nunca crea usuarios con una clave secreta: esa operacion queda
  * dentro de la Edge Function protegida.
  */
-export async function invitarPersonalTaller(
-  invitacion: InvitacionPersonal,
+export async function registrarPersonalTaller(
+  personal: NuevoPersonal,
 ): Promise<string> {
-  const { data, error } = await supabase.functions.invoke<RespuestaInvitacion>(
+  const { data, error } = await supabase.functions.invoke<RespuestaRegistro>(
     'crear-usuario-taller',
-    { body: invitacion },
+    { body: personal },
   );
 
   if (error) {
     throw new Error(await obtenerMensajeFuncion(error));
   }
 
-  return data?.mensaje ?? 'Invitacion enviada correctamente.';
+  return data?.mensaje ?? 'Cuenta corporativa creada correctamente.';
 }
 
 async function obtenerMensajeFuncion(error: unknown): Promise<string> {
@@ -49,5 +50,5 @@ async function obtenerMensajeFuncion(error: unknown): Promise<string> {
     }
   }
 
-  return 'No se pudo enviar la invitacion. Intenta nuevamente.';
+  return 'No fue posible crear la cuenta. Intenta nuevamente.';
 }

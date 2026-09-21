@@ -1,4 +1,4 @@
-import { invitarPersonalTaller } from '../src/servicios/personalTaller';
+import { registrarPersonalTaller } from '../src/servicios/personalTaller';
 
 const mockInvocarFuncion = jest.fn();
 
@@ -15,24 +15,25 @@ describe('personal del taller', () => {
     mockInvocarFuncion.mockReset();
   });
 
-  test('envia la invitacion a la Edge Function', async () => {
+  test('envia la cuenta corporativa a la Edge Function', async () => {
     mockInvocarFuncion.mockResolvedValue({
-      data: { mensaje: 'Invitacion enviada a tecnico@taller.cl.' },
+      data: { mensaje: 'Cuenta creada.' },
       error: null,
     });
 
-    const invitacion = {
+    const personal = {
       nombre: 'Tecnico de prueba',
       correo: 'tecnico@taller.cl',
       rol: 'mecanico' as const,
       especialidad: 'Electricidad',
+      contrasenaTemporal: 'SmartOBD123',
     };
 
-    await expect(invitarPersonalTaller(invitacion)).resolves.toBe(
-      'Invitacion enviada a tecnico@taller.cl.',
+    await expect(registrarPersonalTaller(personal)).resolves.toBe(
+      'Cuenta creada.',
     );
     expect(mockInvocarFuncion).toHaveBeenCalledWith('crear-usuario-taller', {
-      body: invitacion,
+      body: personal,
     });
   });
 
@@ -43,11 +44,12 @@ describe('personal del taller', () => {
     });
 
     await expect(
-      invitarPersonalTaller({
+      registrarPersonalTaller({
         nombre: 'Recepcion de prueba',
         correo: 'recepcion@taller.cl',
         rol: 'recepcion',
+        contrasenaTemporal: 'SmartOBD123',
       }),
-    ).rejects.toThrow('No se pudo enviar la invitacion. Intenta nuevamente.');
+    ).rejects.toThrow('No fue posible crear la cuenta. Intenta nuevamente.');
   });
 });

@@ -11,14 +11,12 @@ import {
 } from 'react-native';
 interface PropiedadesLogin {
   alIngresar: (correo: string, contrasena: string) => Promise<void>;
-  alAbrirInvitacion: () => void;
   mensajeSistema?: string | null;
 }
 
 /** Acceso orientado al personal de un taller automotriz. */
 export function Login({
   alIngresar,
-  alAbrirInvitacion,
   mensajeSistema,
 }: PropiedadesLogin) {
   const [correo, establecerCorreo] = useState('');
@@ -28,7 +26,7 @@ export function Login({
   const [enviando, establecerEnviando] = useState(false);
 
   async function continuar() {
-    const correoLimpio = correo.trim();
+    const correoLimpio = correo.trim().toLowerCase();
     if (!correoLimpio || !correoLimpio.includes('@')) {
       establecerError('Ingresa un correo electronico valido.');
       return;
@@ -95,10 +93,10 @@ export function Login({
           ) : null}
 
           <Campo
-            etiqueta="Correo electronico"
+            etiqueta="Correo corporativo"
             valor={correo}
             alCambiar={establecerCorreo}
-            placeholder="nombre@taller.cl"
+            placeholder="nombre@smartobd.com"
             autoComplete="email"
             teclado="email-address"
           />
@@ -150,22 +148,13 @@ export function Login({
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={alAbrirInvitacion}
-            style={estilos.botonInvitacion}
-          >
-            <Text style={estilos.textoBotonInvitacion}>
-              Tengo un código de invitación
-            </Text>
-          </Pressable>
         </View>
 
         <View style={estilos.notaSeguridad}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoSeguridad}>
-            ¿Necesitas una cuenta? Solicita una invitacion al administrador del
-            taller. El rol no se elige desde esta pantalla.
+            ¿Necesitas una cuenta? Solicita al administrador del taller tus
+            credenciales corporativas. El rol no se elige desde esta pantalla.
           </Text>
         </View>
       </ScrollView>

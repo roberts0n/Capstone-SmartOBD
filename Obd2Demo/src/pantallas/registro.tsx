@@ -10,26 +10,28 @@ import {
   View,
 } from 'react-native';
 import type {
-  InvitacionPersonal,
-  RolPersonalInvitable,
+  NuevoPersonal,
+  RolPersonalRegistrable,
 } from '../servicios/personalTaller';
 
 interface PropiedadesRegistro {
-  alInvitar: (invitacion: InvitacionPersonal) => Promise<string>;
+  alRegistrar: (personal: NuevoPersonal) => Promise<string>;
   alVolver: () => void;
 }
 
-/** Formulario privado para que Administracion invite personal al taller. */
-export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
+/** Formulario privado para que Administración cree cuentas del taller. */
+export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
   const [nombre, establecerNombre] = useState('');
   const [correo, establecerCorreo] = useState('');
   const [especialidad, establecerEspecialidad] = useState('');
-  const [rol, establecerRol] = useState<RolPersonalInvitable>('recepcion');
+  const [rol, establecerRol] = useState<RolPersonalRegistrable>('recepcion');
+  const [contrasenaTemporal, establecerContrasenaTemporal] = useState('');
+  const [confirmacion, establecerConfirmacion] = useState('');
   const [enviando, establecerEnviando] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
   const [exito, establecerExito] = useState<string | null>(null);
 
-  async function enviarInvitacion() {
+  async function registrarPersonal() {
     const nombreLimpio = nombre.trim();
     const correoLimpio = correo.trim().toLowerCase();
 
@@ -37,8 +39,20 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
       establecerError('Ingresa el nombre de la persona.');
       return;
     }
-    if (!correoLimpio.includes('@') || !correoLimpio.includes('.')) {
-      establecerError('Ingresa un correo electronico valido.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoLimpio)) {
+      establecerError('Ingresa un correo corporativo valido.');
+      return;
+    }
+    if (rol !== 'recepcion' && rol !== 'mecanico') {
+      establecerError('Selecciona un rol permitido.');
+      return;
+    }
+    if (contrasenaTemporal.length < 8) {
+      establecerError('La contrasena temporal debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (contrasenaTemporal !== confirmacion) {
+      establecerError('Las contrasenas no coinciden.');
       return;
     }
 
@@ -47,22 +61,26 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
     establecerEnviando(true);
 
     try {
-      const mensaje = await alInvitar({
+      const mensaje = await alRegistrar({
         nombre: nombreLimpio,
         correo: correoLimpio,
         rol,
-        especialidad: especialidad.trim() || undefined,
+        especialidad:
+          rol === 'mecanico' ? especialidad.trim() || undefined : undefined,
+        contrasenaTemporal,
       });
       establecerExito(mensaje);
       establecerNombre('');
       establecerCorreo('');
       establecerEspecialidad('');
       establecerRol('recepcion');
+      establecerContrasenaTemporal('');
+      establecerConfirmacion('');
     } catch (capturado) {
       establecerError(
         capturado instanceof Error
           ? capturado.message
-          : 'No se pudo enviar la invitacion.',
+          : 'No fue posible crear la cuenta.',
       );
     } finally {
       establecerEnviando(false);
@@ -89,15 +107,15 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
           </Pressable>
           <View style={estilos.titulosCabecera}>
             <Text style={estilos.sobretitulo}>ADMINISTRACION</Text>
-            <Text style={estilos.titulo}>Invitar personal</Text>
+            <Text style={estilos.titulo}>Registrar personal</Text>
           </View>
         </View>
 
         <View style={estilos.aviso}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoAviso}>
-            SmartOBD generara un codigo temporal. Entregalo solamente a la
-            persona invitada; ella creara su propia contrasena.
+            Entrega el correo corporativo y la contrasena temporal solamente al
+            trabajador. En su primer acceso debera cambiarla.
           </Text>
         </View>
 
@@ -110,10 +128,10 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
             autoComplete="name"
           />
           <Campo
-            etiqueta="Correo electronico"
+            etiqueta="Correo corporativo"
             valor={correo}
             alCambiar={establecerCorreo}
-            placeholder="maria@taller.cl"
+            placeholder="maria@smartobd.com"
             autoComplete="email"
             teclado="email-address"
           />
@@ -134,12 +152,31 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
             />
           </View>
 
+          {rol === 'mecanico' ? (
+            <Campo
+              etiqueta="Especialidad (opcional)"
+              valor={especialidad}
+              alCambiar={establecerEspecialidad}
+              placeholder="Ej. Electricidad automotriz"
+              autoComplete="off"
+            />
+          ) : null}
+
           <Campo
-            etiqueta="Especialidad (opcional)"
-            valor={especialidad}
-            alCambiar={establecerEspecialidad}
-            placeholder="Ej. Electricidad automotriz"
-            autoComplete="off"
+            etiqueta="Contrasena temporal"
+            valor={contrasenaTemporal}
+            alCambiar={establecerContrasenaTemporal}
+            placeholder="Minimo 8 caracteres"
+            autoComplete="new-password"
+            segura
+          />
+          <Campo
+            etiqueta="Confirmar contrasena temporal"
+            valor={confirmacion}
+            alCambiar={establecerConfirmacion}
+            placeholder="Repite la contrasena"
+            autoComplete="new-password"
+            segura
           />
 
           {error ? (
@@ -149,7 +186,7 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
           ) : null}
           {exito ? (
             <View accessibilityRole="alert" style={estilos.cajaExito}>
-              <Text style={estilos.tituloExito}>Invitacion creada</Text>
+              <Text style={estilos.tituloExito}>Cuenta creada</Text>
               <Text selectable style={estilos.exito}>
                 {exito}
               </Text>
@@ -159,7 +196,7 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
           <Pressable
             accessibilityRole="button"
             disabled={enviando}
-            onPress={enviarInvitacion}
+            onPress={registrarPersonal}
             style={({ pressed }) => [
               estilos.boton,
               pressed && estilos.presionado,
@@ -167,7 +204,7 @@ export function Registro({ alInvitar, alVolver }: PropiedadesRegistro) {
             ]}
           >
             <Text style={estilos.textoBoton}>
-              {enviando ? 'Enviando invitacion...' : 'Enviar invitacion'}
+              {enviando ? 'Creando cuenta...' : 'Registrar personal'}
             </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
@@ -184,25 +221,28 @@ function Campo({
   placeholder,
   autoComplete,
   teclado,
+  segura,
 }: {
   etiqueta: string;
   valor: string;
   alCambiar: (valor: string) => void;
   placeholder: string;
-  autoComplete: 'name' | 'email' | 'off';
+  autoComplete: 'name' | 'email' | 'off' | 'new-password';
   teclado?: 'email-address';
+  segura?: boolean;
 }) {
   return (
     <View style={estilos.grupoCampo}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
       <TextInput
         accessibilityLabel={etiqueta}
-        autoCapitalize={teclado ? 'none' : 'words'}
+        autoCapitalize={teclado || segura ? 'none' : 'words'}
         autoComplete={autoComplete}
         keyboardType={teclado}
         onChangeText={alCambiar}
         placeholder={placeholder}
         placeholderTextColor="#68686F"
+        secureTextEntry={segura}
         style={estilos.entrada}
         value={valor}
       />

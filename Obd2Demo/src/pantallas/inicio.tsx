@@ -6,7 +6,7 @@ interface PropiedadesInicio {
   sesion: SesionTaller;
   alAbrirEscaner: () => void;
   alAbrirRegistro: () => void;
-  alCerrarSesion?: () => void;
+  alAbrirCuenta: () => void;
 }
 
 type DestinoAccion = 'escaner' | 'registro';
@@ -48,7 +48,7 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
       {
         codigo: 'USR',
         titulo: 'Equipo del taller',
-        descripcion: 'Administra invitaciones, roles y accesos',
+        descripcion: 'Registra personal y administra sus accesos',
         destino: 'registro',
       },
       {
@@ -134,7 +134,7 @@ export function Inicio({
   sesion,
   alAbrirEscaner,
   alAbrirRegistro,
-  alCerrarSesion,
+  alAbrirCuenta,
 }: PropiedadesInicio) {
   const contenido = CONTENIDO[sesion.perfil];
 
@@ -148,18 +148,16 @@ export function Inicio({
           <Text style={estilos.taller}>{sesion.taller}</Text>
           <Text style={estilos.saludo}>Hola, {sesion.nombre}</Text>
         </View>
-        {alCerrarSesion ? (
-          <Pressable
-            accessibilityLabel="Cerrar sesion"
-            accessibilityRole="button"
-            onPress={alCerrarSesion}
-            style={estilos.avatar}
-          >
-            <Text style={estilos.inicial}>
-              {sesion.nombre.charAt(0).toUpperCase()}
-            </Text>
-          </Pressable>
-        ) : null}
+        <Pressable
+          accessibilityLabel="Abrir cuenta"
+          accessibilityRole="button"
+          onPress={alAbrirCuenta}
+          style={estilos.avatar}
+        >
+          <Text style={estilos.inicial}>
+            {sesion.nombre.charAt(0).toUpperCase()}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={estilos.filaEstados}>
