@@ -13,6 +13,10 @@ interface FilaMecanico {
   especialidad: string | null;
 }
 
+interface FilaAsignacionActiva {
+  mecanico_id: string;
+}
+
 export async function listarMecanicosActivos(): Promise<MecanicoAsignable[]> {
   const { data, error } = await supabase
     .from('perfiles')
@@ -30,6 +34,28 @@ export async function listarMecanicosActivos(): Promise<MecanicoAsignable[]> {
     nombre: fila.nombre,
     especialidad: fila.especialidad,
   }));
+}
+
+export async function obtenerMecanicoResponsableCaso(
+  casoId: string,
+): Promise<string | null> {
+  const identificador = casoId.trim();
+  if (!identificador) {
+    throw new Error('Se necesita el identificador del caso.');
+  }
+
+  const { data, error } = await supabase
+    .from('asignaciones')
+    .select('mecanico_id')
+    .eq('caso_id', identificador)
+    .eq('estado', 'activa')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error('No se pudo consultar al mecanico responsable del caso.');
+  }
+
+  return data ? (data as FilaAsignacionActiva).mecanico_id : null;
 }
 
 export async function asignarMecanicoCaso(

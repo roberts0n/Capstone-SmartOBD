@@ -8,14 +8,13 @@ interface FilaCliente {
   nombre: string;
   telefono: string | null;
   correo: string | null;
-  observaciones: string | null;
   creado_por: string;
   creado_en: string;
   actualizado_en: string;
 }
 
 const CAMPOS_CLIENTE =
-  'id, taller_id, nombre, telefono, correo, observaciones, creado_por, creado_en, actualizado_en';
+  'id, taller_id, nombre, telefono, correo, creado_por, creado_en, actualizado_en';
 
 export async function crearCliente(
   entrada: NuevoClienteTaller,
@@ -40,7 +39,6 @@ export async function crearCliente(
       nombre,
       telefono: textoOpcional(entrada.telefono),
       correo,
-      observaciones: textoOpcional(entrada.observaciones),
       creado_por: sesion.usuarioId,
     })
     .select(CAMPOS_CLIENTE)
@@ -111,7 +109,6 @@ function convertirCliente(fila: FilaCliente): ClienteTaller {
     nombre: fila.nombre,
     telefono: fila.telefono,
     correo: fila.correo,
-    observaciones: fila.observaciones,
     creadoPor: fila.creado_por,
     creadoEn: fila.creado_en,
     actualizadoEn: fila.actualizado_en,

@@ -1,4 +1,5 @@
 import { obtenerCasoDiagnostico } from '../casos/ServicioCasosDiagnostico';
+import { obtenerMecanicoResponsableCaso } from '../casos/ServicioAsignaciones';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import { supabase } from '../servicios/clienteSupabase';
 import { obtenerPermisoChatbot } from './PermisosChatbot';
@@ -102,13 +103,21 @@ async function cargarPermiso(casoId: string, sesion: SesionTaller) {
     throw new Error('El caso no existe o no esta disponible para tu cuenta.');
   }
 
+  const mecanicoResponsableId = await obtenerMecanicoResponsableCaso(casoId);
+
   return obtenerPermisoChatbot(
     {
       usuarioId: sesion.usuarioId,
       tallerId: sesion.tallerId,
       perfil: sesion.perfil,
     },
-    caso,
+    {
+      id: caso.id,
+      tallerId: caso.tallerId,
+      estado: caso.estado,
+      recepcionResponsableId: caso.recepcionResponsableId,
+      mecanicoResponsableId,
+    },
   );
 }
 

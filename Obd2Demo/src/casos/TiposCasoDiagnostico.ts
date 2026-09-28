@@ -20,8 +20,7 @@ export interface CasoDiagnostico {
   sintomasInformados: string | null;
   estado: EstadoCasoDiagnostico;
   prioridad: PrioridadCasoDiagnostico;
-  recepcionId: string;
-  mecanicoAsignadoId: string | null;
+  recepcionResponsableId: string;
   conclusionTecnica: string | null;
   creadoEn: string;
   actualizadoEn: string;

@@ -28,8 +28,8 @@ export interface CasoPermisosChatbot {
   id: string;
   tallerId: string;
   estado: EstadoCasoChatbot;
-  recepcionId: string;
-  mecanicoAsignadoId: string | null;
+  recepcionResponsableId: string;
+  mecanicoResponsableId: string | null;
 }
 
 export interface PermisoChatbot {
@@ -44,7 +44,6 @@ export interface ClienteEntradaChatbot {
   nombre: string;
   telefono: string | null;
   correo: string | null;
-  observaciones: string | null;
 }
 
 export interface VehiculoEntradaChatbot {
@@ -56,6 +55,7 @@ export interface VehiculoEntradaChatbot {
   anio: number | null;
   combustible: string | null;
   vinEscaneado: string | null;
+  antecedentesVehiculo: string | null;
 }
 
 export interface CasoEntradaChatbot extends CasoPermisosChatbot {
@@ -113,6 +113,7 @@ export interface VehiculoChatbot {
   anio: number | null;
   combustible: string | null;
   vin: string | null;
+  antecedentesVehiculo: string | null;
 }
 
 export interface CasoChatbot {

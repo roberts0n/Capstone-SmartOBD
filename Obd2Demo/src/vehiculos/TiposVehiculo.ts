@@ -8,7 +8,7 @@ export interface VehiculoTaller {
   modelo: string | null;
   anio: number | null;
   combustible: string | null;
-  observaciones: string | null;
+  antecedentesVehiculo: string | null;
   creadoPor: string;
   creadoEn: string;
   actualizadoEn: string;
@@ -22,5 +22,5 @@ export interface NuevoVehiculoTaller {
   modelo?: string | null;
   anio?: number | null;
   combustible?: string | null;
-  observaciones?: string | null;
+  antecedentesVehiculo?: string | null;
 }

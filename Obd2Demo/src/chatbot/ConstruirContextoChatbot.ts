@@ -23,6 +23,9 @@ export function construirContextoChatbot(
       anio: entrada.vehiculo.anio,
       combustible: textoOpcional(entrada.vehiculo.combustible),
       vin: textoOpcional(entrada.vehiculo.vinEscaneado)?.toUpperCase() ?? null,
+      antecedentesVehiculo: textoOpcional(
+        entrada.vehiculo.antecedentesVehiculo,
+      ),
     },
     caso: {
       id: entrada.caso.id,
