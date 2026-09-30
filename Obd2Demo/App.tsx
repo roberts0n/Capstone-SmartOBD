@@ -15,6 +15,13 @@ import { CambiarContrasena } from './src/pantallas/cambiarContrasena';
 import { HerramientasRol } from './src/pantallas/herramientasRol';
 import { Cuenta } from './src/pantallas/cuenta';
 import {
+  NuevaOrdenTrabajo,
+  type BorradorOrdenTrabajo,
+} from './src/pantallas/nuevaOrdenTrabajo';
+import { AsignarMecanico } from './src/pantallas/asignarMecanico';
+import { RegistrarClienteVehiculo } from './src/pantallas/registrarClienteVehiculo';
+import { CasosAsignados } from './src/pantallas/casosAsignados';
+import {
   BarraNavegacionInferior,
   type DestinoBarra,
 } from './src/componentes/BarraNavegacionInferior';
@@ -27,13 +34,21 @@ import { registrarPersonalTaller } from './src/servicios/personalTaller';
 import { cambiarContrasenaInicial } from './src/servicios/cambioContrasena';
 import type { SesionTaller } from './src/tipos/usuarioTaller';
 
-type Ruta = DestinoBarra | 'login';
+type Ruta =
+  | DestinoBarra
+  | 'login'
+  | 'nueva_orden'
+  | 'asignar_mecanico'
+  | 'registrar_cliente'
+  | 'casos_asignados';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
 function Aplicacion() {
   const [ruta, establecerRuta] = useState<Ruta>('login');
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
+  const [borradorOrden, establecerBorradorOrden] =
+    useState<BorradorOrdenTrabajo | null>(null);
   const [inicializando, establecerInicializando] = useState(true);
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
@@ -76,6 +91,7 @@ function Aplicacion() {
   async function cerrarSesion() {
     await cerrarSesionTaller();
     establecerSesion(null);
+    establecerBorradorOrden(null);
     establecerRuta('login');
   }
 
@@ -91,12 +107,21 @@ function Aplicacion() {
     if (!sesion || sesion.debeCambiarPassword) return;
     if (destino === 'registro' && sesion.perfil !== 'administrador') return;
     if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
+    establecerBorradorOrden(null);
     establecerRuta(destino);
   }
 
   const mostrarBarra =
     !inicializando && Boolean(sesion) && !sesion?.debeCambiarPassword;
-  const destinoActivo: DestinoBarra = ruta === 'login' ? 'inicio' : ruta;
+  const destinoActivo: DestinoBarra =
+    ruta === 'nueva_orden' ||
+    ruta === 'asignar_mecanico' ||
+    ruta === 'registrar_cliente' ||
+    ruta === 'casos_asignados'
+      ? 'herramientas'
+      : ruta === 'login'
+        ? 'inicio'
+        : ruta;
 
   return (
     <SafeAreaProvider>
@@ -139,7 +164,55 @@ function Aplicacion() {
             <HerramientasRol
               sesion={sesion}
               alAbrirEscaner={() => establecerRuta('escaner')}
+              alAbrirNuevaOrden={() => establecerRuta('nueva_orden')}
+              alAbrirRegistroCliente={() => establecerRuta('registrar_cliente')}
+              alAbrirCasosAsignados={() => establecerRuta('casos_asignados')}
             />
+          )}
+        {!inicializando &&
+          ruta === 'nueva_orden' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <NuevaOrdenTrabajo
+              alVolver={() => establecerRuta('herramientas')}
+              alContinuar={borrador => {
+                establecerBorradorOrden(borrador);
+                establecerRuta('asignar_mecanico');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'asignar_mecanico' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword &&
+          borradorOrden && (
+            <AsignarMecanico
+              sesion={sesion}
+              orden={borradorOrden}
+              alVolver={() => {
+                establecerBorradorOrden(null);
+                establecerRuta('herramientas');
+              }}
+              alCompletar={() => {
+                establecerBorradorOrden(null);
+                establecerRuta('casos_asignados');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'registrar_cliente' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <RegistrarClienteVehiculo
+              sesion={sesion}
+              alVolver={() => establecerRuta('herramientas')}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'casos_asignados' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <CasosAsignados alVolver={() => establecerRuta('herramientas')} />
           )}
         {!inicializando &&
           ruta === 'registro' &&

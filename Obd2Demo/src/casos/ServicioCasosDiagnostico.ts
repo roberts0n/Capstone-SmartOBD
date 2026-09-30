@@ -17,13 +17,14 @@ interface FilaCasoDiagnostico {
   prioridad: PrioridadCasoDiagnostico;
   recepcion_responsable_id: string;
   conclusion_tecnica: string | null;
+  kilometraje_ingreso: number | null;
   creado_en: string;
   actualizado_en: string;
   cerrado_en: string | null;
 }
 
 const CAMPOS_CASO =
-  'id, taller_id, vehiculo_id, motivo_ingreso, sintomas_informados, estado, prioridad, recepcion_responsable_id, conclusion_tecnica, creado_en, actualizado_en, cerrado_en';
+  'id, taller_id, vehiculo_id, motivo_ingreso, sintomas_informados, estado, prioridad, recepcion_responsable_id, conclusion_tecnica, kilometraje_ingreso, creado_en, actualizado_en, cerrado_en';
 
 export async function crearCasoDiagnostico(
   entrada: NuevoCasoDiagnostico,
@@ -40,6 +41,7 @@ export async function crearCasoDiagnostico(
       motivo_ingreso: entrada.motivoIngreso.trim(),
       sintomas_informados: sintomas,
       prioridad: entrada.prioridad ?? 'normal',
+      kilometraje_ingreso: entrada.kilometrajeIngreso,
       recepcion_responsable_id: sesion.usuarioId,
     })
     .select(CAMPOS_CASO)
@@ -88,6 +90,9 @@ function validarCreacion(
   if (entrada.motivoIngreso.trim().length < 3) {
     throw new Error('El motivo de ingreso debe tener al menos 3 caracteres.');
   }
+  if (!Number.isInteger(entrada.kilometrajeIngreso) || entrada.kilometrajeIngreso < 0) {
+    throw new Error('Ingresa un kilometraje valido.');
+  }
 }
 
 function convertirCaso(fila: FilaCasoDiagnostico): CasoDiagnostico {
@@ -101,6 +106,7 @@ function convertirCaso(fila: FilaCasoDiagnostico): CasoDiagnostico {
     prioridad: fila.prioridad,
     recepcionResponsableId: fila.recepcion_responsable_id,
     conclusionTecnica: fila.conclusion_tecnica,
+    kilometrajeIngreso: fila.kilometraje_ingreso,
     creadoEn: fila.creado_en,
     actualizadoEn: fila.actualizado_en,
     cerradoEn: fila.cerrado_en,

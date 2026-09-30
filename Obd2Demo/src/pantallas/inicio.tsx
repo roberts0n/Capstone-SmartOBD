@@ -16,6 +16,9 @@ interface ContenidoPerfil {
   titulo: string;
   descripcion: string;
   boton: string;
+  destinoPrincipal: DestinoAccion;
+  tituloNota: string;
+  textoNota: string;
   metricas: Array<{ etiqueta: string; valor: string; color: string }>;
   acciones: Array<{
     codigo: string;
@@ -27,83 +30,95 @@ interface ContenidoPerfil {
 
 const ETIQUETAS_PERFIL: Record<PerfilTaller, string> = {
   administrador: 'Administrador',
-  recepcion: 'Recepcion',
-  mecanico: 'Mecanico',
+  recepcion: 'Recepción',
+  mecanico: 'Mecánico',
 };
 
 const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
   administrador: {
-    etiqueta: 'PANEL DE ADMINISTRACION',
-    titulo: 'Supervisa el taller y mantén la operación conectada.',
+    etiqueta: 'Resumen del taller',
+    titulo: '¿Qué necesitas revisar hoy?',
     descripcion:
-      'Gestiona el acceso del equipo, consulta la actividad general y utiliza el escáner cuando sea necesario.',
-    boton: 'Abrir escáner OBD-II',
+      'Revisa el movimiento del taller, incorpora personal y consulta el trabajo de recepción y mecánica desde un solo lugar.',
+    boton: 'Agregar integrante',
+    destinoPrincipal: 'registro',
+    tituloNota: 'Administración del taller',
+    textoNota:
+      'Puedes crear cuentas para recepción y mecánica desde Personal. Cada integrante recibirá un acceso asociado a este taller.',
     metricas: [
-      { etiqueta: 'Usuarios activos', valor: '1', color: '#58A6FF' },
-      { etiqueta: 'Vehículos en taller', valor: '0', color: '#10A37F' },
-      { etiqueta: 'Casos abiertos', valor: '0', color: '#F4B860' },
-      { etiqueta: 'Alertas pendientes', valor: '—', color: '#FF8A80' },
+      { etiqueta: 'Personal activo', valor: '1', color: '#58A6FF' },
+      { etiqueta: 'Vehículos ingresados', valor: '0', color: '#10A37F' },
+      { etiqueta: 'Trabajos en curso', valor: '0', color: '#F4B860' },
+      { etiqueta: 'Pendientes', valor: '—', color: '#FF8A80' },
     ],
     acciones: [
       {
         codigo: 'USR',
-        titulo: 'Equipo del taller',
-        descripcion: 'Registra personal y administra sus accesos',
+        titulo: 'Personal',
+        descripcion: 'Agrega a alguien al equipo y define su rol',
         destino: 'registro',
       },
       {
         codigo: 'CASO',
-        titulo: 'Actividad general',
-        descripcion: 'Consulta los casos diagnósticos del taller',
+        titulo: 'Trabajos del taller',
+        descripcion: 'Revisa los ingresos y el avance de cada vehículo',
       },
       {
         codigo: 'OBD',
-        titulo: 'Escáner técnico',
-        descripcion: 'Accede a las herramientas BLE y OBD-II',
+        titulo: 'Escáner OBD-II',
+        descripcion: 'Conecta un vehículo cuando necesites hacer una revisión',
         destino: 'escaner',
       },
     ],
   },
   recepcion: {
-    etiqueta: 'PANEL DE RECEPCION',
-    titulo: 'Recibe el vehiculo y comienza con datos claros.',
+    etiqueta: 'Recepción',
+    titulo: 'Prepara el próximo ingreso',
     descripcion:
-      'Registra el ingreso, conecta el adaptador y entrega al mecanico un diagnostico inicial.',
-    boton: 'Iniciar revision con escaner',
+      'Registra quién llega, qué problema presenta el vehículo y deja el caso preparado para el mecánico.',
+    boton: 'Revisar con el escáner',
+    destinoPrincipal: 'escaner',
+    tituloNota: 'Antes de registrar un vehículo',
+    textoNota:
+      'Confirma los datos del cliente, la patente y el motivo de ingreso. Si harás una lectura OBD, deja el contacto encendido.',
     metricas: [
-      { etiqueta: 'Vehiculos en espera', valor: '0', color: '#58A6FF' },
-      { etiqueta: 'En diagnostico', valor: '0', color: '#10A37F' },
+      { etiqueta: 'Vehículos en espera', valor: '0', color: '#58A6FF' },
+      { etiqueta: 'En diagnóstico', valor: '0', color: '#10A37F' },
       { etiqueta: 'Listos para entrega', valor: '0', color: '#F4B860' },
       { etiqueta: 'Alertas detectadas', valor: '—', color: '#FF8A80' },
     ],
     acciones: [
       {
         codigo: 'OBD',
-        titulo: 'Diagnostico de ingreso',
-        descripcion: 'Conecta el escaner y obtiene el estado inicial',
+        titulo: 'Diagnóstico de ingreso',
+        descripcion: 'Haz una lectura inicial antes de asignar el trabajo',
         destino: 'escaner',
       },
       {
         codigo: 'OT',
         titulo: 'Nueva orden de trabajo',
-        descripcion: 'Registra cliente, vehiculo y motivo de ingreso',
+        descripcion: 'Guarda los datos del cliente, vehículo y motivo de ingreso',
       },
       {
         codigo: 'COLA',
-        titulo: 'Vehiculos del dia',
-        descripcion: 'Revisa la carga actual del taller',
+        titulo: 'Vehículos del día',
+        descripcion: 'Consulta los vehículos que llegaron durante la jornada',
       },
     ],
   },
   mecanico: {
-    etiqueta: 'PANEL DEL MECANICO',
-    titulo: 'Diagnostica con precision, repara con confianza.',
+    etiqueta: 'Área de mecánica',
+    titulo: 'Revisa tus trabajos pendientes',
     descripcion:
-      'Accede al ELM327, revisa codigos DTC y consulta los parametros disponibles del motor.',
-    boton: 'Conectar escaner OBD-II',
+      'Consulta los vehículos asignados y usa el escáner cuando necesites comprobar una falla o revisar datos del motor.',
+    boton: 'Conectar el escáner',
+    destinoPrincipal: 'escaner',
+    tituloNota: 'Antes de conectar el escáner',
+    textoNota:
+      'Verifica que el adaptador ELM327 esté instalado y que el contacto del vehículo esté encendido. El motor puede permanecer detenido.',
     metricas: [
-      { etiqueta: 'Ordenes asignadas', valor: '0', color: '#58A6FF' },
-      { etiqueta: 'En diagnostico', valor: '0', color: '#10A37F' },
+      { etiqueta: 'Órdenes asignadas', valor: '0', color: '#58A6FF' },
+      { etiqueta: 'En diagnóstico', valor: '0', color: '#10A37F' },
       { etiqueta: 'DTC pendientes', valor: '—', color: '#FF8A80' },
       { etiqueta: 'Informes guardados', valor: '0', color: '#F4B860' },
     ],
@@ -111,19 +126,19 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
       {
         codigo: '01',
         titulo: 'Datos en tiempo real',
-        descripcion: 'Consulta RPM, temperatura y sensores compatibles',
+        descripcion: 'Revisa RPM, temperatura y otros sensores disponibles',
         destino: 'escaner',
       },
       {
         codigo: 'DTC',
-        titulo: 'Codigos de falla',
-        descripcion: 'Lee e interpreta las alertas almacenadas',
+        titulo: 'Códigos de falla',
+        descripcion: 'Consulta las fallas registradas por el vehículo',
         destino: 'escaner',
       },
       {
         codigo: 'VIN',
-        titulo: 'Identificar vehiculo',
-        descripcion: 'Consulta VIN y compatibilidad disponible',
+        titulo: 'Identificar vehículo',
+        descripcion: 'Comprueba el VIN y los datos disponibles del vehículo',
         destino: 'escaner',
       },
     ],
@@ -185,7 +200,11 @@ export function Inicio({
         <Text style={estilos.descripcionPrincipal}>{contenido.descripcion}</Text>
         <Pressable
           accessibilityRole="button"
-          onPress={alAbrirEscaner}
+          onPress={resolverDestino(
+            contenido.destinoPrincipal,
+            alAbrirEscaner,
+            alAbrirRegistro,
+          )}
           style={({ pressed }) => [
             estilos.botonEscaner,
             pressed && estilos.presionado,
@@ -198,7 +217,7 @@ export function Inicio({
       </View>
 
       <View style={estilos.cabeceraSeccion}>
-        <Text style={estilos.tituloSeccion}>Actividad del taller</Text>
+        <Text style={estilos.tituloSeccion}>Resumen de hoy</Text>
         <Text style={estilos.textoAuxiliar}>Hoy</Text>
       </View>
       <View style={estilos.cuadriculaMetricas}>
@@ -208,8 +227,7 @@ export function Inicio({
       </View>
 
       <View style={estilos.cabeceraSeccion}>
-        <Text style={estilos.tituloSeccion}>Herramientas</Text>
-        <Text style={estilos.textoAuxiliar}>SmartOBD</Text>
+        <Text style={estilos.tituloSeccion}>Accesos rápidos</Text>
       </View>
       <View style={estilos.listaAcciones}>
         {contenido.acciones.map(accion => (
@@ -228,16 +246,8 @@ export function Inicio({
       </View>
 
       <View style={estilos.nota}>
-        <Text style={estilos.tituloNota}>
-          {sesion.perfil === 'recepcion'
-            ? 'Antes de recibir el vehiculo'
-            : 'Antes de iniciar el diagnostico'}
-        </Text>
-        <Text style={estilos.textoNota}>
-          Confirma los datos del cliente, enciende el contacto y conecta el
-          adaptador ELM327. El motor puede permanecer detenido para la deteccion
-          inicial.
-        </Text>
+        <Text style={estilos.tituloNota}>{contenido.tituloNota}</Text>
+        <Text style={estilos.textoNota}>{contenido.textoNota}</Text>
       </View>
     </ScrollView>
   );
@@ -308,7 +318,7 @@ function Accion({
       {alPresionar ? (
         <Text style={estilos.flechaAccion}>›</Text>
       ) : (
-        <Text style={estilos.pendiente}>PROX.</Text>
+        <Text style={estilos.pendiente}>Pronto</Text>
       )}
     </Pressable>
   );
@@ -328,7 +338,6 @@ const estilos = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1.2,
-    textTransform: 'uppercase',
     marginBottom: 5,
   },
   saludo: { color: '#F4F4F5', fontSize: 25, fontWeight: '700' },
