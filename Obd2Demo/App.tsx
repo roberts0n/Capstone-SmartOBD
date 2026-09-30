@@ -26,12 +26,17 @@ import {
 import { registrarPersonalTaller } from './src/servicios/personalTaller';
 import { cambiarContrasenaInicial } from './src/servicios/cambioContrasena';
 import type { SesionTaller } from './src/tipos/usuarioTaller';
+import {
+  ProveedorEscanerObd,
+  useSesionEscanerObd,
+} from './src/escaner/ContextoEscanerObd';
 
 type Ruta = DestinoBarra | 'login';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
-function Aplicacion() {
+function ContenidoAplicacion() {
+  const sesionEscaner = useSesionEscanerObd();
   const [ruta, establecerRuta] = useState<Ruta>('login');
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
   const [inicializando, establecerInicializando] = useState(true);
@@ -74,6 +79,8 @@ function Aplicacion() {
   }
 
   async function cerrarSesion() {
+    // al salir cierro tambien el enlace con el auto para no dejar una sesion ajena activa
+    await sesionEscaner.desconectar().catch(() => undefined);
     await cerrarSesionTaller();
     establecerSesion(null);
     establecerRuta('login');
@@ -99,7 +106,7 @@ function Aplicacion() {
   const destinoActivo: DestinoBarra = ruta === 'login' ? 'inicio' : ruta;
 
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar barStyle="light-content" backgroundColor="#0D0D0E" />
       <SafeAreaView
         style={estilos.contenedor}
@@ -164,6 +171,17 @@ function Aplicacion() {
           />
         ) : null}
       </SafeAreaView>
+    </>
+  );
+}
+
+// mantengo una sola sesion del escaner mientras el trabajador recorre la app
+function Aplicacion() {
+  return (
+    <SafeAreaProvider>
+      <ProveedorEscanerObd>
+        <ContenidoAplicacion />
+      </ProveedorEscanerObd>
     </SafeAreaProvider>
   );
 }

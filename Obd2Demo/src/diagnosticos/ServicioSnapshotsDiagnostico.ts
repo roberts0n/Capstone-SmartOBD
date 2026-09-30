@@ -233,7 +233,7 @@ function normalizarCodigoDtc(
   codigo: NuevoCodigoDtcSnapshot,
 ): Required<NuevoCodigoDtcSnapshot> {
   const codigoNormalizado = codigo.codigo.trim().toUpperCase();
-  const ecu = codigo.ecu?.trim().toUpperCase() || null;
+  const ecu = codigo.ecu?.replace(/\s+/g, '').trim().toUpperCase() || null;
 
   if (!/^[PCBU][0-3][0-9A-F]{3}$/.test(codigoNormalizado)) {
     throw new Error(`El codigo DTC ${codigo.codigo} no es valido.`);
