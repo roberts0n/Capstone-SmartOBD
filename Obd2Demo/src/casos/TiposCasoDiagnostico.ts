@@ -22,7 +22,6 @@ export interface CasoDiagnostico {
   prioridad: PrioridadCasoDiagnostico;
   recepcionResponsableId: string;
   conclusionTecnica: string | null;
-  kilometrajeIngreso: number | null;
   creadoEn: string;
   actualizadoEn: string;
   cerradoEn: string | null;
@@ -33,5 +32,4 @@ export interface NuevoCasoDiagnostico {
   motivoIngreso: string;
   sintomasInformados?: string | null;
   prioridad?: PrioridadCasoDiagnostico;
-  kilometrajeIngreso: number;
 }

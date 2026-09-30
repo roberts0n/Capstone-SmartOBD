@@ -23,7 +23,6 @@ interface Propiedades {
 export interface BorradorOrdenTrabajo {
   cliente: ClienteTaller;
   vehiculo: VehiculoTaller;
-  kilometraje: number;
   motivoIngreso: string;
 }
 
@@ -33,7 +32,6 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
   const [vehiculos, establecerVehiculos] = useState<VehiculoTaller[]>([]);
   const [vehiculo, establecerVehiculo] = useState<VehiculoTaller | null>(null);
-  const [kilometraje, establecerKilometraje] = useState('');
   const [motivo, establecerMotivo] = useState('');
   const [cargandoClientes, establecerCargandoClientes] = useState(true);
   const [cargandoVehiculos, establecerCargandoVehiculos] = useState(false);
@@ -109,11 +107,6 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
       establecerError('Selecciona uno de los vehículos del cliente.');
       return;
     }
-    const kilometrajeNumero = Number(kilometraje.replace(/\D/g, ''));
-    if (!kilometraje.trim() || !Number.isInteger(kilometrajeNumero) || kilometrajeNumero < 0) {
-      establecerError('Ingresa un kilometraje válido.');
-      return;
-    }
     if (motivo.trim().length < 3) {
       establecerError('Describe brevemente el motivo de ingreso.');
       return;
@@ -122,7 +115,6 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
     alContinuar({
       cliente,
       vehiculo,
-      kilometraje: kilometrajeNumero,
       motivoIngreso: motivo.trim(),
     });
   }
@@ -232,14 +224,6 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
           </View>
         ) : null}
 
-        <CampoCompleto
-          etiqueta="Kilometraje"
-          valor={kilometraje}
-          alCambiar={establecerKilometraje}
-          placeholder="Kilometraje actual del vehículo"
-          numerico
-        />
-
         <Text style={estilos.etiqueta}>Motivo de ingreso</Text>
         <TextInput
           accessibilityLabel="Motivo de ingreso"
@@ -285,29 +269,6 @@ function Cabecera({ alVolver }: { alVolver: () => void }) {
   );
 }
 
-function CampoCompleto({ etiqueta, valor, alCambiar, placeholder, numerico }: {
-  etiqueta: string;
-  valor: string;
-  alCambiar: (texto: string) => void;
-  placeholder: string;
-  numerico?: boolean;
-}) {
-  return (
-    <View style={estilos.campoCompleto}>
-      <Text style={estilos.etiqueta}>{etiqueta}</Text>
-      <TextInput
-        accessibilityLabel={etiqueta}
-        keyboardType={numerico ? 'number-pad' : 'default'}
-        onChangeText={alCambiar}
-        placeholder={placeholder}
-        placeholderTextColor="#77777F"
-        style={estilos.entradaCompleta}
-        value={valor}
-      />
-    </View>
-  );
-}
-
 const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
@@ -341,8 +302,6 @@ const estilos = StyleSheet.create({
   patenteVehiculo: { color: '#8F8F97', fontSize: 11, marginTop: 4 },
   radio: { width: 17, height: 17, borderRadius: 9, borderWidth: 2, borderColor: '#45454B' },
   radioActivo: { borderWidth: 5, borderColor: '#13C296', backgroundColor: '#CFFFF2' },
-  campoCompleto: { marginTop: 18 },
-  entradaCompleta: { height: 50, color: '#F4F4F5', backgroundColor: '#18181A', borderWidth: 1, borderColor: '#2D2D31', borderRadius: 12, paddingHorizontal: 13, fontSize: 13 },
   areaTexto: { minHeight: 92, color: '#F4F4F5', backgroundColor: '#18181A', borderWidth: 1, borderColor: '#2D2D31', borderRadius: 12, padding: 13, fontSize: 13, lineHeight: 18 },
   error: { color: '#FF9C94', fontSize: 12, lineHeight: 18, marginTop: 13 },
   boton: { minHeight: 52, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#13C296', borderRadius: 13, marginTop: 24 },

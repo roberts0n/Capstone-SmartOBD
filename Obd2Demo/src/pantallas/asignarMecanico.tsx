@@ -68,7 +68,6 @@ export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propie
           {
             vehiculoId: orden.vehiculo.id,
             motivoIngreso: orden.motivoIngreso,
-            kilometrajeIngreso: orden.kilometraje,
           },
           sesion,
         );
@@ -117,7 +116,6 @@ export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propie
           etiqueta="Vehículo"
           valor={`${orden.vehiculo.marca ?? ''} ${orden.vehiculo.modelo ?? ''}${orden.vehiculo.anio ? ` ${orden.vehiculo.anio}` : ''}  •  ${orden.vehiculo.patente ?? 'Sin patente'}`}
         />
-        <Resumen etiqueta="Kilometraje" valor={`${orden.kilometraje.toLocaleString('es-CL')} km`} />
         <Resumen etiqueta="Motivo de ingreso" valor={orden.motivoIngreso} secundario />
       </View>
 
