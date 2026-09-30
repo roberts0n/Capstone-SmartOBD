@@ -99,14 +99,14 @@ const estilos = StyleSheet.create({
   titulo: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#17324d',
+    color: '#EDEDEF',
     marginTop: 12,
     marginBottom: 8,
   },
-  ayuda: { color: '#536779', marginVertical: 8, lineHeight: 21 },
+  ayuda: { color: '#85858C', marginVertical: 8, lineHeight: 21 },
   fila: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   boton: {
-    backgroundColor: '#2f659a',
+    backgroundColor: '#10A37F',
     borderRadius: 10,
     padding: 12,
     maxWidth: '100%',
@@ -114,8 +114,8 @@ const estilos = StyleSheet.create({
   textoBoton: { color: '#fff', fontWeight: '600' },
   deshabilitado: { opacity: 0.45 },
   pendientes: {
-    color: '#785400',
-    backgroundColor: '#fff5d8',
+    color: '#F4B860',
+    backgroundColor: '#2A2114',
     padding: 12,
     marginTop: 12,
     borderRadius: 8,

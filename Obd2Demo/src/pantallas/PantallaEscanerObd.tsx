@@ -103,6 +103,8 @@ export function PantallaEscanerObd() {
   );
   const [conexionEnCurso, establecerConexionEnCurso] = useState(false);
   const [guardadoEnCurso, establecerGuardadoEnCurso] = useState(false);
+  const [mostrarHerramientasAvanzadas, establecerMostrarHerramientasAvanzadas] =
+    useState(false);
 
   // Estado de Bluetooth, busqueda, conexion e inventario GATT.
   const [estadoBluetooth, establecerEstadoBluetooth] = useState<State>(
@@ -1229,22 +1231,62 @@ export function PantallaEscanerObd() {
     conexionEnCurso || comandoEnCurso || guardadoEnCurso || pruebaDtc.guardando;
 
   return (
-    <ScrollView contentContainerStyle={estilos.contenedor}>
-      <Text style={estilos.titulo}>Demo ELM327 BLE</Text>
-      <View style={estilos.tarjetaEstado}>
-        <Text style={estilos.textoEstado}>
-          Estado: {ETIQUETAS_ESTADO[estadoConexion]}
-        </Text>
-        <Text style={estilos.secundario}>Bluetooth: {estadoBluetooth}</Text>
-        <Text style={estilos.secundario}>
-          Dispositivo:{' '}
-          {dispositivoConectado
-            ? mostrarNombreDispositivo(dispositivoConectado)
-            : 'ninguno'}
-        </Text>
+    <ScrollView
+      style={estilos.pantalla}
+      contentContainerStyle={estilos.contenedor}
+    >
+      <View style={estilos.cabeceraPrincipal}>
+        <View style={estilos.titulosPrincipal}>
+          <Text style={estilos.sobretitulo}>DIAGNOSTICO VEHICULAR</Text>
+          <Text style={estilos.titulo}>Escáner SmartOBD</Text>
+          <Text style={estilos.descripcionCabecera}>
+            Conecta el adaptador y revisa el estado del vehículo desde un solo lugar.
+          </Text>
+        </View>
+        <View
+          style={[
+            estilos.insigniaEstado,
+            estadoConexion === 'conectado' && estilos.insigniaConectada,
+            estadoConexion === 'error' && estilos.insigniaError,
+          ]}
+        >
+          <View
+            style={[
+              estilos.puntoEstado,
+              estadoConexion === 'conectado' && estilos.puntoConectado,
+              estadoConexion === 'error' && estilos.puntoError,
+            ]}
+          />
+          <Text style={estilos.textoInsignia}>
+            {ETIQUETAS_ESTADO[estadoConexion]}
+          </Text>
+        </View>
       </View>
 
-      <Seccion titulo="1. Bluetooth y búsqueda">
+      <View style={estilos.tarjetaEstado}>
+        <View style={estilos.iconoAdaptador}>
+          <Text style={estilos.textoIconoAdaptador}>OBD</Text>
+        </View>
+        <View style={estilos.datosAdaptador}>
+          <Text style={estilos.etiquetaEstado}>ADAPTADOR ACTUAL</Text>
+          <Text style={estilos.textoEstado}>
+            {dispositivoConectado
+              ? mostrarNombreDispositivo(dispositivoConectado)
+              : 'Sin adaptador conectado'}
+          </Text>
+          <Text style={estilos.secundario}>Bluetooth · {estadoBluetooth}</Text>
+        </View>
+      </View>
+
+      <View style={estilos.pasos}>
+        <Paso numero="1" etiqueta="Conectar" activo={Boolean(dispositivoConectado)} />
+        <View style={estilos.lineaPaso} />
+        <Paso numero="2" etiqueta="Configurar" activo={Boolean(claveSuscripcion)} />
+        <View style={estilos.lineaPaso} />
+        <Paso numero="3" etiqueta="Diagnosticar" activo={Boolean(ultimoAnalisis)} />
+      </View>
+
+      <Seccion titulo="Conexión del adaptador" descripcion="Busca y conecta un ELM327 disponible por Bluetooth.">
         <View style={estilos.filaBotones}>
           <BotonAccion
             etiqueta="Permisos / comprobar"
@@ -1279,9 +1321,36 @@ export function PantallaEscanerObd() {
           alConectar={dispositivo => conectar(dispositivo)}
           alOlvidar={id => olvidarEscaner(id)}
         />
+        <BotonAccion
+          etiqueta="Configurar canales automáticamente"
+          onPress={() => detectarCanalesAutomaticamente()}
+          disabled={
+            interfazOcupada || escaneres.cargando || !dispositivoConectado
+          }
+        />
+        <Text style={estilos.ayuda}>{mensajeVerificacion}</Text>
       </Seccion>
 
-      <Seccion titulo={`2. GATT (${caracteristicas.length})`}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: mostrarHerramientasAvanzadas }}
+        onPress={() => establecerMostrarHerramientasAvanzadas(valor => !valor)}
+        style={estilos.botonAvanzado}
+      >
+        <View>
+          <Text style={estilos.tituloAvanzado}>Herramientas avanzadas</Text>
+          <Text style={estilos.descripcionAvanzado}>
+            Servicios GATT, canales TX/RX y verificación manual
+          </Text>
+        </View>
+        <Text style={estilos.flechaAvanzado}>
+          {mostrarHerramientasAvanzadas ? '⌃' : '⌄'}
+        </Text>
+      </Pressable>
+
+      {mostrarHerramientasAvanzadas ? (
+        <>
+      <Seccion titulo={`Servicios Bluetooth detectados (${caracteristicas.length})`}>
         {caracteristicas.length === 0 ? (
           <Text style={estilos.vacio}>
             Conecta un dispositivo para enumerar servicios y características.
@@ -1307,7 +1376,7 @@ export function PantallaEscanerObd() {
         )}
       </Seccion>
 
-      <Seccion titulo="3. Características ELM327">
+      <Seccion titulo="Configuración manual ELM327">
         <Text style={estilos.etiqueta}>Candidatas para escritura</Text>
         <OpcionesCaracteristica
           candidatas={candidatasEscritura}
@@ -1335,14 +1404,6 @@ export function PantallaEscanerObd() {
             claveSuscripcion === claveNotificacion
           }
         />
-        <Text style={estilos.ayuda}>{mensajeVerificacion}</Text>
-        <BotonAccion
-          etiqueta="Detectar canales automáticamente · ATI"
-          onPress={() => detectarCanalesAutomaticamente()}
-          disabled={
-            interfazOcupada || escaneres.cargando || !dispositivoConectado
-          }
-        />
         <BotonAccion
           etiqueta="Verificar selección manual · ATI"
           onPress={() => verificarYGuardar()}
@@ -1355,8 +1416,10 @@ export function PantallaEscanerObd() {
           }
         />
       </Seccion>
+        </>
+      ) : null}
 
-      <Seccion titulo="4. Comandos ELM327">
+      <Seccion titulo="Diagnóstico del vehículo" descripcion="Ejecuta lecturas y revisa resultados técnicos del vehículo.">
         <Text style={estilos.ayuda}>
           Cada comando se envía como ASCII más retorno de carro. Las respuestas
           se acumulan hasta el prompt &gt;.
@@ -1542,7 +1605,7 @@ export function PantallaEscanerObd() {
         </Text>
       </Seccion>
 
-      <Seccion titulo="5. Consola de eventos y errores">
+      <Seccion titulo="Registro técnico" descripcion="Eventos de comunicación útiles para revisar una conexión.">
         <View style={estilos.cabeceraConsola}>
           <Text style={estilos.ayuda}>{entradasConsola.length} eventos</Text>
           <BotonAccion
@@ -1626,12 +1689,39 @@ function FilaMetrica({ nombre, valor, destacado }: PropiedadesFilaMetrica) {
 // Contenedor visual reutilizable para mantener las cinco secciones uniformes.
 function Seccion({
   titulo,
+  descripcion,
   children: hijos,
-}: React.PropsWithChildren<{ titulo: string }>) {
+}: React.PropsWithChildren<{ titulo: string; descripcion?: string }>) {
   return (
     <View style={estilos.seccion}>
       <Text style={estilos.tituloSeccion}>{titulo}</Text>
+      {descripcion ? (
+        <Text style={estilos.descripcionSeccion}>{descripcion}</Text>
+      ) : null}
       {hijos}
+    </View>
+  );
+}
+
+function Paso({
+  numero,
+  etiqueta,
+  activo,
+}: {
+  numero: string;
+  etiqueta: string;
+  activo: boolean;
+}) {
+  return (
+    <View style={estilos.paso}>
+      <View style={[estilos.numeroPaso, activo && estilos.numeroPasoActivo]}>
+        <Text style={[estilos.textoNumeroPaso, activo && estilos.textoPasoActivo]}>
+          {activo ? '✓' : numero}
+        </Text>
+      </View>
+      <Text style={[estilos.etiquetaPaso, activo && estilos.textoPasoActivo]}>
+        {etiqueta}
+      </Text>
     </View>
   );
 }
@@ -1769,84 +1859,181 @@ function colorConsola(nivel: EntradaConsola['nivel']) {
 }
 
 const estilos = StyleSheet.create({
-  contenedor: { padding: 16, paddingBottom: 48, backgroundColor: '#F4F7FA' },
+  pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
+  contenedor: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 40 },
+  cabeceraPrincipal: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 20,
+  },
+  titulosPrincipal: { flex: 1 },
+  sobretitulo: {
+    color: '#10A37F',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+  },
   titulo: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#102A43',
-    marginBottom: 12,
+    lineHeight: 34,
+    fontWeight: '700',
+    color: '#F4F4F5',
+    marginTop: 5,
   },
+  descripcionCabecera: {
+    color: '#929299',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 7,
+  },
+  insigniaEstado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1C1C1F',
+    borderWidth: 1,
+    borderColor: '#343439',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  insigniaConectada: { backgroundColor: '#11241F', borderColor: '#235E4E' },
+  insigniaError: { backgroundColor: '#2A1717', borderColor: '#633434' },
+  puntoEstado: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#71717A' },
+  puntoConectado: { backgroundColor: '#10A37F' },
+  puntoError: { backgroundColor: '#FF6B63' },
+  textoInsignia: { color: '#D4D4D8', fontSize: 10, fontWeight: '700' },
   tarjetaEstado: {
-    backgroundColor: '#DCEEFF',
-    borderRadius: 12,
-    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#303034',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 18,
+  },
+  iconoAdaptador: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#153B32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textoIconoAdaptador: { color: '#5BE0BB', fontSize: 11, fontWeight: '900' },
+  datosAdaptador: { flex: 1, marginLeft: 13 },
+  etiquetaEstado: { color: '#71717A', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  textoEstado: { fontSize: 15, fontWeight: '700', color: '#F4F4F5', marginTop: 3 },
+  secundario: { color: '#929299', fontSize: 11, marginTop: 4 },
+  pasos: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#121214',
+    borderRadius: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     marginBottom: 14,
   },
-  textoEstado: { fontSize: 18, fontWeight: '700', color: '#0B4F82' },
-  secundario: { color: '#486581', marginTop: 3 },
+  paso: { alignItems: 'center', minWidth: 60 },
+  numeroPaso: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#414147',
+    backgroundColor: '#1D1D20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  numeroPasoActivo: { borderColor: '#10A37F', backgroundColor: '#153B32' },
+  textoNumeroPaso: { color: '#85858C', fontSize: 10, fontWeight: '800' },
+  etiquetaPaso: { color: '#71717A', fontSize: 9, fontWeight: '600', marginTop: 5 },
+  textoPasoActivo: { color: '#5BE0BB' },
+  lineaPaso: { flex: 1, height: 1, backgroundColor: '#343439', marginTop: 12 },
+  botonAvanzado: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#121214',
+    borderWidth: 1,
+    borderColor: '#29292D',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  tituloAvanzado: { color: '#D4D4D8', fontSize: 14, fontWeight: '700' },
+  descripcionAvanzado: { color: '#71717A', fontSize: 10, marginTop: 4 },
+  flechaAvanzado: { color: '#85858C', fontSize: 20 },
   seccion: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#2D2D31',
+    borderRadius: 18,
+    padding: 16,
     marginBottom: 14,
   },
   tituloSeccion: {
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#102A43',
-    marginBottom: 10,
+    color: '#F4F4F5',
+    marginBottom: 5,
   },
+  descripcionSeccion: { color: '#85858C', fontSize: 11, lineHeight: 17, marginBottom: 13 },
   filaBotones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   boton: {
-    backgroundColor: '#1367A7',
-    borderRadius: 8,
+    backgroundColor: '#10A37F',
+    borderRadius: 11,
     paddingHorizontal: 13,
     paddingVertical: 11,
     marginBottom: 8,
   },
   botonCompacto: { paddingVertical: 6, paddingHorizontal: 10, marginBottom: 0 },
-  botonPeligro: { backgroundColor: '#B42318' },
+  botonPeligro: { backgroundColor: '#7A2E2A' },
   botonDeshabilitado: { opacity: 0.4 },
   textoBoton: { color: '#FFFFFF', fontWeight: '700' },
-  vacio: { color: '#627D98', fontStyle: 'italic', marginVertical: 8 },
+  vacio: { color: '#71717A', fontStyle: 'italic', marginVertical: 8 },
   tarjetaDispositivo: {
     borderWidth: 1,
-    borderColor: '#BCCCDC',
+    borderColor: '#38383D',
     borderRadius: 9,
     padding: 11,
     marginTop: 8,
   },
-  tarjetaSeleccionada: { borderColor: '#1367A7', backgroundColor: '#EAF5FF' },
-  nombreDispositivo: { fontWeight: '700', color: '#243B53', fontSize: 16 },
+  tarjetaSeleccionada: { borderColor: '#10A37F', backgroundColor: '#11241F' },
+  nombreDispositivo: { fontWeight: '700', color: '#F4F4F5', fontSize: 16 },
   monoespaciado: {
     fontFamily: 'monospace',
-    color: '#334E68',
+    color: '#A1A1AA',
     fontSize: 12,
     marginTop: 3,
   },
   tarjetaGatt: {
     borderLeftWidth: 3,
-    borderLeftColor: '#7FB3D5',
+    borderLeftColor: '#10A37F',
     paddingLeft: 10,
     marginBottom: 12,
   },
-  propiedades: { color: '#486581', lineHeight: 19, marginTop: 5 },
+  propiedades: { color: '#929299', lineHeight: 19, marginTop: 5 },
   etiqueta: {
     fontWeight: '700',
-    color: '#243B53',
+    color: '#D4D4D8',
     marginTop: 10,
     marginBottom: 6,
   },
-  ayuda: { color: '#627D98', lineHeight: 19, marginBottom: 8 },
+  ayuda: { color: '#85858C', lineHeight: 19, marginBottom: 8 },
   tarjetaMetricas: {
-    backgroundColor: '#EAF5FF',
-    borderColor: '#9CC6E3',
+    backgroundColor: '#111F1B',
+    borderColor: '#285849',
     borderWidth: 1,
     borderRadius: 8,
     padding: 10,
   },
   tituloMetricas: {
-    color: '#0B4F82',
+    color: '#76E4C5',
     fontWeight: '700',
     marginBottom: 7,
   },
@@ -1856,83 +2043,83 @@ const estilos = StyleSheet.create({
     gap: 12,
     paddingVertical: 3,
   },
-  nombreMetrica: { color: '#334E68', flex: 1 },
+  nombreMetrica: { color: '#A1A1AA', flex: 1 },
   valorMetrica: {
-    color: '#0B4F82',
+    color: '#D4D4D8',
     fontFamily: 'monospace',
     fontWeight: '600',
   },
-  valorMetricaDestacado: { color: '#1367A7', fontWeight: '800' },
+  valorMetricaDestacado: { color: '#5BE0BB', fontWeight: '800' },
   detalleMetricas: {
-    color: '#486581',
+    color: '#85858C',
     fontSize: 12,
     marginTop: 7,
     paddingTop: 7,
     borderTopWidth: 1,
-    borderTopColor: '#BDD7EA',
+    borderTopColor: '#285849',
   },
   bloqueDiagnostico: {
-    borderColor: '#BCCCDC',
+    borderColor: '#38383D',
     borderWidth: 1,
     borderRadius: 8,
     padding: 10,
   },
   subtituloDiagnostico: {
-    color: '#243B53',
+    color: '#D4D4D8',
     fontWeight: '700',
     marginTop: 10,
     marginBottom: 5,
   },
   respuestaCrudaDiagnostico: {
-    backgroundColor: '#102A43',
-    color: '#E6F1FA',
+    backgroundColor: '#0B0B0D',
+    color: '#D7E8E2',
     borderRadius: 6,
     padding: 9,
     fontFamily: 'monospace',
     fontSize: 12,
   },
   tarjetaLineaObd: {
-    backgroundColor: '#F5F8FA',
-    borderLeftColor: '#1367A7',
+    backgroundColor: '#121214',
+    borderLeftColor: '#10A37F',
     borderLeftWidth: 3,
     padding: 9,
     marginBottom: 8,
   },
-  tituloLineaObd: { color: '#0B4F82', fontWeight: '700' },
+  tituloLineaObd: { color: '#5BE0BB', fontWeight: '700' },
   textoLineaObd: {
-    color: '#243B53',
+    color: '#B8B8BE',
     fontFamily: 'monospace',
     fontSize: 12,
     marginTop: 4,
   },
-  descripcionLineaObd: { color: '#486581', marginTop: 5 },
-  dtcLineaObd: { color: '#102A43', fontWeight: '700', marginTop: 5 },
+  descripcionLineaObd: { color: '#929299', marginTop: 5 },
+  dtcLineaObd: { color: '#F4F4F5', fontWeight: '700', marginTop: 5 },
   advertenciasDiagnostico: {
-    backgroundColor: '#FFF4E5',
+    backgroundColor: '#2A2114',
     borderRadius: 6,
     padding: 8,
     marginTop: 4,
   },
-  tituloAdvertencias: { color: '#8A4B08', fontWeight: '700' },
-  textoAdvertencia: { color: '#9A3412', marginTop: 3 },
+  tituloAdvertencias: { color: '#F4B860', fontWeight: '700' },
+  textoAdvertencia: { color: '#E7B977', marginTop: 3 },
   listaOpciones: { marginBottom: 6 },
   opcion: {
     borderWidth: 1,
-    borderColor: '#BCCCDC',
+    borderColor: '#38383D',
     borderRadius: 8,
     padding: 9,
     marginBottom: 7,
   },
-  opcionSeleccionada: { borderColor: '#1367A7', backgroundColor: '#EAF5FF' },
+  opcionSeleccionada: { borderColor: '#10A37F', backgroundColor: '#11241F' },
   tituloOpcion: {
     fontFamily: 'monospace',
     fontSize: 12,
-    color: '#243B53',
+    color: '#D4D4D8',
     fontWeight: '700',
   },
   json: {
-    backgroundColor: '#EDF2F7',
-    color: '#102A43',
+    backgroundColor: '#0B0B0D',
+    color: '#C7D8D2',
     borderRadius: 8,
     padding: 10,
     fontFamily: 'monospace',
@@ -1944,7 +2131,7 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
   },
   consola: {
-    backgroundColor: '#102A43',
+    backgroundColor: '#09090B',
     borderRadius: 8,
     padding: 10,
     minHeight: 100,
