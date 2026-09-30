@@ -40,7 +40,7 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoLimpio)) {
-      establecerError('Ingresa un correo corporativo valido.');
+      establecerError('Ingresa un correo corporativo válido.');
       return;
     }
     if (rol !== 'recepcion' && rol !== 'mecanico') {
@@ -48,7 +48,7 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
       return;
     }
     if (contrasenaTemporal.length < 8) {
-      establecerError('La contrasena temporal debe tener al menos 8 caracteres.');
+      establecerError('La contraseña temporal debe tener al menos 8 caracteres.');
       return;
     }
     if (contrasenaTemporal !== confirmacion) {
@@ -106,16 +106,16 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
             <Text style={estilos.flechaVolver}>‹</Text>
           </Pressable>
           <View style={estilos.titulosCabecera}>
-            <Text style={estilos.sobretitulo}>ADMINISTRACION</Text>
-            <Text style={estilos.titulo}>Registrar personal</Text>
+            <Text style={estilos.sobretitulo}>Personal del taller</Text>
+            <Text style={estilos.titulo}>Agregar integrante</Text>
           </View>
         </View>
 
         <View style={estilos.aviso}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoAviso}>
-            Entrega el correo corporativo y la contrasena temporal solamente al
-            trabajador. En su primer acceso debera cambiarla.
+            Crea una cuenta para la nueva persona y entrégale estos datos de
+            acceso. Al ingresar por primera vez tendrá que cambiar la contraseña.
           </Text>
         </View>
 
@@ -124,7 +124,7 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
             etiqueta="Nombre completo"
             valor={nombre}
             alCambiar={establecerNombre}
-            placeholder="Ej. Maria Gonzalez"
+            placeholder="Ej. María González"
             autoComplete="name"
           />
           <Campo
@@ -140,14 +140,14 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
           <View style={estilos.roles}>
             <OpcionRol
               activo={rol === 'recepcion'}
-              descripcion="Registra ingresos y casos"
-              etiqueta="Recepcion"
+              descripcion="Recibe clientes y registra vehículos"
+              etiqueta="Recepción"
               alPresionar={() => establecerRol('recepcion')}
             />
             <OpcionRol
               activo={rol === 'mecanico'}
-              descripcion="Diagnostica casos asignados"
-              etiqueta="Mecanico"
+              descripcion="Revisa y diagnostica vehículos asignados"
+              etiqueta="Mecánico"
               alPresionar={() => establecerRol('mecanico')}
             />
           </View>
@@ -163,18 +163,18 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
           ) : null}
 
           <Campo
-            etiqueta="Contrasena temporal"
+            etiqueta="Contraseña temporal"
             valor={contrasenaTemporal}
             alCambiar={establecerContrasenaTemporal}
-            placeholder="Minimo 8 caracteres"
+            placeholder="Mínimo 8 caracteres"
             autoComplete="new-password"
             segura
           />
           <Campo
-            etiqueta="Confirmar contrasena temporal"
+            etiqueta="Confirmar contraseña temporal"
             valor={confirmacion}
             alCambiar={establecerConfirmacion}
-            placeholder="Repite la contrasena"
+            placeholder="Repite la contraseña"
             autoComplete="new-password"
             segura
           />
@@ -204,7 +204,7 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
             ]}
           >
             <Text style={estilos.textoBoton}>
-              {enviando ? 'Creando cuenta...' : 'Registrar personal'}
+              {enviando ? 'Creando cuenta...' : 'Crear cuenta'}
             </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>

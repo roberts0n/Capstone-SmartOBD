@@ -28,11 +28,11 @@ export function Login({
   async function continuar() {
     const correoLimpio = correo.trim().toLowerCase();
     if (!correoLimpio || !correoLimpio.includes('@')) {
-      establecerError('Ingresa un correo electronico valido.');
+      establecerError('Ingresa un correo electrónico válido.');
       return;
     }
     if (contrasena.length < 6) {
-      establecerError('La contrasena debe tener al menos 6 caracteres.');
+      establecerError('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
@@ -44,7 +44,7 @@ export function Login({
       establecerError(
         capturado instanceof Error
           ? capturado.message
-          : 'No fue posible iniciar sesion.',
+          : 'No fue posible iniciar sesión.',
       );
     } finally {
       establecerEnviando(false);
@@ -68,24 +68,24 @@ export function Login({
           </View>
           <View>
             <Text style={estilos.nombreMarca}>SmartOBD</Text>
-            <Text style={estilos.edicionMarca}>TALLER</Text>
+            <Text style={estilos.edicionMarca}>para talleres</Text>
           </View>
         </View>
 
         <View style={estilos.introduccion}>
-          <Text style={estilos.sobretitulo}>OPERACION Y DIAGNOSTICO</Text>
-          <Text style={estilos.titulo}>Cada vehiculo, bajo control.</Text>
+          <Text style={estilos.sobretitulo}>Acceso al taller</Text>
+          <Text style={estilos.titulo}>Ingresa a SmartOBD</Text>
           <Text style={estilos.descripcion}>
-            Recibe, diagnostica y entrega informacion clara desde una sola
-            herramienta para todo el equipo.
+            Revisa el trabajo del taller y accede a las herramientas disponibles
+            para tu rol.
           </Text>
         </View>
 
         <View style={estilos.formulario}>
-          <Text style={estilos.tituloFormulario}>Acceso del personal</Text>
+          <Text style={estilos.tituloFormulario}>Iniciar sesión</Text>
           <Text style={estilos.subtituloFormulario}>
-            Ingresa con la cuenta y el rol asignados por el administrador del
-            taller.
+            Escribe el correo corporativo y la contraseña que te entregó el
+            administrador.
           </Text>
 
           {mensajeSistema ? (
@@ -101,15 +101,15 @@ export function Login({
             teclado="email-address"
           />
 
-          <Text style={estilos.etiqueta}>Contrasena</Text>
+          <Text style={estilos.etiqueta}>Contraseña</Text>
           <View style={estilos.filaContrasena}>
             <TextInput
-              accessibilityLabel="Contrasena"
+              accessibilityLabel="Contraseña"
               autoCapitalize="none"
               autoComplete="password"
               onChangeText={establecerContrasena}
               onSubmitEditing={continuar}
-              placeholder="Minimo 6 caracteres"
+              placeholder="Mínimo 6 caracteres"
               placeholderTextColor="#68686F"
               secureTextEntry={!mostrarContrasena}
               style={estilos.entradaContrasena}
@@ -143,7 +143,7 @@ export function Login({
             ]}
           >
             <Text style={estilos.textoBotonPrincipal}>
-              {enviando ? 'Verificando acceso...' : 'Entrar al taller'}
+              {enviando ? 'Ingresando...' : 'Ingresar'}
             </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
@@ -153,8 +153,8 @@ export function Login({
         <View style={estilos.notaSeguridad}>
           <View style={estilos.puntoSeguro} />
           <Text style={estilos.textoSeguridad}>
-            ¿Necesitas una cuenta? Solicita al administrador del taller tus
-            credenciales corporativas. El rol no se elige desde esta pantalla.
+            ¿No tienes una cuenta? Solicita tus credenciales al administrador
+            del taller. Tu rol se asigna al momento de crearla.
           </Text>
         </View>
       </ScrollView>

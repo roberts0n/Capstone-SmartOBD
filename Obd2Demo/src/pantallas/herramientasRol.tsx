@@ -5,32 +5,43 @@ import type { SesionTaller } from '../tipos/usuarioTaller';
 interface Propiedades {
   sesion: SesionTaller;
   alAbrirEscaner: () => void;
+  alAbrirNuevaOrden: () => void;
+  alAbrirRegistroCliente: () => void;
+  alAbrirCasosAsignados: () => void;
 }
+
+type Destino = 'orden' | 'registro_cliente' | 'casos' | 'escaner';
 
 const CONTENIDO = {
   recepcion: {
-    sobretitulo: 'RECEPCION DEL TALLER',
-    titulo: 'Organiza cada ingreso',
-    descripcion: 'Herramientas para recibir vehículos y preparar el trabajo técnico.',
+    sobretitulo: 'Recepción',
+    titulo: '¿Qué necesitas registrar?',
+    descripcion: 'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
     opciones: [
-      { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Cliente, vehículo y motivo de ingreso', disponible: false },
-      { codigo: 'DIA', titulo: 'Vehículos del día', detalle: 'Revisa la carga actual del taller', disponible: false },
-      { codigo: 'OBD', titulo: 'Diagnóstico de ingreso', detalle: 'Obtén el estado inicial con el escáner', disponible: true },
+      { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Selecciona cliente, vehículo y mecánico', destino: 'orden' as Destino },
+      { codigo: 'CLI', titulo: 'Registrar cliente y vehículo', detalle: 'Agrega un cliente nuevo junto con su vehículo', destino: 'registro_cliente' as Destino },
+      { codigo: 'CAS', titulo: 'Casos asignados', detalle: 'Comprueba si los vehículos ya fueron revisados', destino: 'casos' as Destino },
     ],
   },
   mecanico: {
-    sobretitulo: 'TRABAJO TECNICO',
-    titulo: 'Herramientas de diagnóstico',
-    descripcion: 'Acceso rápido a las funciones disponibles del escáner SmartOBD.',
+    sobretitulo: 'Área de mecánica',
+    titulo: 'Herramientas de trabajo',
+    descripcion: 'Elige la lectura que necesitas para revisar el vehículo.',
     opciones: [
-      { codigo: '01', titulo: 'Datos en tiempo real', detalle: 'RPM, temperatura y sensores compatibles', disponible: true },
-      { codigo: 'DTC', titulo: 'Códigos de falla', detalle: 'Lee e interpreta alertas almacenadas', disponible: true },
-      { codigo: 'VIN', titulo: 'Identificar vehículo', detalle: 'Consulta VIN y compatibilidad', disponible: true },
+      { codigo: '01', titulo: 'Datos en tiempo real', detalle: 'RPM, temperatura y sensores compatibles', destino: 'escaner' as Destino },
+      { codigo: 'DTC', titulo: 'Códigos de falla', detalle: 'Lee e interpreta alertas almacenadas', destino: 'escaner' as Destino },
+      { codigo: 'VIN', titulo: 'Identificar vehículo', detalle: 'Consulta VIN y compatibilidad', destino: 'escaner' as Destino },
     ],
   },
 };
 
-export function HerramientasRol({ sesion, alAbrirEscaner }: Propiedades) {
+export function HerramientasRol({
+  sesion,
+  alAbrirEscaner,
+  alAbrirNuevaOrden,
+  alAbrirRegistroCliente,
+  alAbrirCasosAsignados,
+}: Propiedades) {
   const contenido = sesion.perfil === 'mecanico'
     ? CONTENIDO.mecanico
     : CONTENIDO.recepcion;
@@ -45,13 +56,16 @@ export function HerramientasRol({ sesion, alAbrirEscaner }: Propiedades) {
         {contenido.opciones.map(opcion => (
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !opcion.disponible }}
-            disabled={!opcion.disponible}
             key={opcion.codigo}
-            onPress={opcion.disponible ? alAbrirEscaner : undefined}
+            onPress={resolverDestino(
+              opcion.destino,
+              alAbrirEscaner,
+              alAbrirNuevaOrden,
+              alAbrirRegistroCliente,
+              alAbrirCasosAsignados,
+            )}
             style={({ pressed }) => [
               estilos.opcion,
-              !opcion.disponible && estilos.noDisponible,
               pressed && estilos.presionada,
             ]}
           >
@@ -62,14 +76,25 @@ export function HerramientasRol({ sesion, alAbrirEscaner }: Propiedades) {
               <Text style={estilos.tituloOpcion}>{opcion.titulo}</Text>
               <Text style={estilos.detalle}>{opcion.detalle}</Text>
             </View>
-            <Text style={opcion.disponible ? estilos.flecha : estilos.proximo}>
-              {opcion.disponible ? '›' : 'PROX.'}
-            </Text>
+            <Text style={estilos.flecha}>›</Text>
           </Pressable>
         ))}
       </View>
     </ScrollView>
   );
+}
+
+function resolverDestino(
+  destino: Destino,
+  alAbrirEscaner: () => void,
+  alAbrirNuevaOrden: () => void,
+  alAbrirRegistroCliente: () => void,
+  alAbrirCasosAsignados: () => void,
+): () => void {
+  if (destino === 'orden') return alAbrirNuevaOrden;
+  if (destino === 'registro_cliente') return alAbrirRegistroCliente;
+  if (destino === 'casos') return alAbrirCasosAsignados;
+  return alAbrirEscaner;
 }
 
 const estilos = StyleSheet.create({
@@ -80,7 +105,6 @@ const estilos = StyleSheet.create({
   descripcion: { color: '#A1A1AA', fontSize: 14, lineHeight: 21, marginTop: 10 },
   lista: { gap: 11, marginTop: 27 },
   opcion: { minHeight: 82, flexDirection: 'row', alignItems: 'center', backgroundColor: '#171719', borderWidth: 1, borderColor: '#303034', borderRadius: 17, padding: 14 },
-  noDisponible: { opacity: 0.55 },
   presionada: { opacity: 0.72 },
   codigo: { width: 45, height: 45, borderRadius: 13, backgroundColor: '#153B32', alignItems: 'center', justifyContent: 'center' },
   textoCodigo: { color: '#5BE0BB', fontSize: 11, fontWeight: '800' },
@@ -88,6 +112,5 @@ const estilos = StyleSheet.create({
   tituloOpcion: { color: '#F0F0F2', fontSize: 14, fontWeight: '700' },
   detalle: { color: '#85858C', fontSize: 11, lineHeight: 16, marginTop: 4 },
   flecha: { color: '#71717A', fontSize: 27 },
-  proximo: { color: '#71717A', fontSize: 9, fontWeight: '800' },
 });
 

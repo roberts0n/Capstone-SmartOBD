@@ -18,11 +18,11 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
 
   async function guardar() {
     if (nueva.length < 8) {
-      establecerError('La nueva contrasena debe tener al menos 8 caracteres.');
+      establecerError('La nueva contraseña debe tener al menos 8 caracteres.');
       return;
     }
     if (nueva !== confirmacion) {
-      establecerError('Las contrasenas no coinciden.');
+      establecerError('Las contraseñas no coinciden.');
       return;
     }
     establecerError(null);
@@ -33,7 +33,7 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
       establecerConfirmacion('');
     } catch (capturado) {
       establecerError(capturado instanceof Error
-        ? capturado.message : 'No fue posible cambiar la contrasena.');
+        ? capturado.message : 'No fue posible cambiar la contraseña.');
     } finally {
       establecerEnviando(false);
     }
@@ -45,32 +45,32 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
       style={estilos.pantalla}
     >
       <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
-        <Text style={estilos.marca}>SmartOBD · TALLER</Text>
-        <Text style={estilos.titulo}>Crea tu nueva contrasena</Text>
+        <Text style={estilos.marca}>SmartOBD</Text>
+        <Text style={estilos.titulo}>Crea tu contraseña</Text>
         <Text style={estilos.descripcion}>
-          Tu cuenta fue creada por el taller con una contrasena temporal.
-          Para continuar, reemplazala por una que solo tu conozcas.
+          Estás usando la contraseña temporal que te entregó el administrador.
+          Antes de continuar, elige una contraseña que solo tú conozcas.
         </Text>
         <View style={estilos.formulario}>
-          <Text style={estilos.etiqueta}>Nueva contrasena</Text>
+          <Text style={estilos.etiqueta}>Nueva contraseña</Text>
           <TextInput
-            accessibilityLabel="Nueva contrasena"
+            accessibilityLabel="Nueva contraseña"
             autoCapitalize="none"
             autoComplete="new-password"
             onChangeText={establecerNueva}
-            placeholder="Minimo 8 caracteres"
+            placeholder="Mínimo 8 caracteres"
             placeholderTextColor="#68686F"
             secureTextEntry
             style={estilos.entrada}
             value={nueva}
           />
-          <Text style={estilos.etiqueta}>Confirmar contrasena</Text>
+          <Text style={estilos.etiqueta}>Confirmar contraseña</Text>
           <TextInput
-            accessibilityLabel="Confirmar contrasena"
+            accessibilityLabel="Confirmar contraseña"
             autoCapitalize="none"
             autoComplete="new-password"
             onChangeText={establecerConfirmacion}
-            placeholder="Repite la nueva contrasena"
+            placeholder="Repite la nueva contraseña"
             placeholderTextColor="#68686F"
             secureTextEntry
             style={estilos.entrada}
@@ -84,12 +84,12 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
             style={[estilos.boton, enviando && estilos.deshabilitado]}
           >
             <Text style={estilos.textoBoton}>
-              {enviando ? 'Actualizando...' : 'Cambiar contrasena'}
+              {enviando ? 'Guardando...' : 'Cambiar contrasena'}
             </Text>
           </Pressable>
         </View>
         <Pressable accessibilityRole="button" onPress={alCerrarSesion} style={estilos.salir}>
-          <Text style={estilos.textoSalir}>Cerrar sesion</Text>
+          <Text style={estilos.textoSalir}>Cerrar sesión</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
