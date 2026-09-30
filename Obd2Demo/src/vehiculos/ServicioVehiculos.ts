@@ -12,14 +12,14 @@ interface FilaVehiculo {
   modelo: string | null;
   anio: number | null;
   combustible: string | null;
-  observaciones: string | null;
+  antecedentes_vehiculo: string | null;
   creado_por: string;
   creado_en: string;
   actualizado_en: string;
 }
 
 const CAMPOS_VEHICULO =
-  'id, taller_id, cliente_id, vin, patente, marca, modelo, anio, combustible, observaciones, creado_por, creado_en, actualizado_en';
+  'id, taller_id, cliente_id, vin, patente, marca, modelo, anio, combustible, antecedentes_vehiculo, creado_por, creado_en, actualizado_en';
 
 export async function crearVehiculo(
   entrada: NuevoVehiculoTaller,
@@ -46,7 +46,7 @@ export async function crearVehiculo(
       modelo: textoOpcional(entrada.modelo),
       anio: entrada.anio ?? null,
       combustible: textoOpcional(entrada.combustible),
-      observaciones: textoOpcional(entrada.observaciones),
+      antecedentes_vehiculo: textoOpcional(entrada.antecedentesVehiculo),
       creado_por: sesion.usuarioId,
     })
     .select(CAMPOS_VEHICULO)
@@ -146,7 +146,7 @@ function convertirVehiculo(fila: FilaVehiculo): VehiculoTaller {
     modelo: fila.modelo,
     anio: fila.anio,
     combustible: fila.combustible,
-    observaciones: fila.observaciones,
+    antecedentesVehiculo: fila.antecedentes_vehiculo,
     creadoPor: fila.creado_por,
     creadoEn: fila.creado_en,
     actualizadoEn: fila.actualizado_en,

@@ -47,7 +47,7 @@ function permisoRecepcion(
     return soloLectura('El caso ya se encuentra en manos del mecanico.');
   }
 
-  if (caso.recepcionId !== usuario.usuarioId) {
+  if (caso.recepcionResponsableId !== usuario.usuarioId) {
     return soloLectura('Otro recepcionista tiene la responsabilidad del caso.');
   }
 
@@ -63,7 +63,7 @@ function permisoMecanico(
   usuario: UsuarioPermisosChatbot,
   caso: CasoPermisosChatbot,
 ): PermisoChatbot {
-  if (caso.mecanicoAsignadoId !== usuario.usuarioId) {
+  if (caso.mecanicoResponsableId !== usuario.usuarioId) {
     return sinAcceso('El caso no esta asignado a este mecanico.');
   }
 
