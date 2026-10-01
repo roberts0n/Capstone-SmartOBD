@@ -80,7 +80,7 @@ const ETIQUETAS_ESTADO: Record<EstadoConexion, string> = {
  * - ServicioElm327: comandos ASCII y respuestas fragmentadas.
  * - React: estado visible, seleccion manual, consola y JSON.
  */
-export function PantallaEscanerObd() {
+export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
   const sesionEscaner = useSesionEscanerObd();
   const escaneres = useEscaneresGuardados();
   const pruebaDtc = usePruebaDtc();
@@ -870,6 +870,16 @@ export function PantallaEscanerObd() {
       contentContainerStyle={estilos.contenedor}
     >
       <View style={estilos.cabeceraPrincipal}>
+        {alVolver ? (
+          <Pressable
+            accessibilityLabel="Volver al caso"
+            accessibilityRole="button"
+            onPress={alVolver}
+            style={estilos.volverAlCaso}
+          >
+            <Text style={estilos.flechaVolver}>‹</Text>
+          </Pressable>
+        ) : null}
         <View style={estilos.titulosPrincipal}>
           <Text style={estilos.sobretitulo}>DIAGNOSTICO VEHICULAR</Text>
           <Text style={estilos.titulo}>Escáner SmartOBD</Text>
@@ -1498,6 +1508,17 @@ const estilos = StyleSheet.create({
     marginBottom: 20,
   },
   titulosPrincipal: { flex: 1 },
+  volverAlCaso: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#2C2C30',
+  },
+  flechaVolver: { color: '#E8E8EA', fontSize: 29, lineHeight: 30 },
   sobretitulo: {
     color: '#10A37F',
     fontSize: 9,

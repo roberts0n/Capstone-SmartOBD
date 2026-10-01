@@ -14,13 +14,12 @@ import { Registro } from './src/pantallas/registro';
 import { CambiarContrasena } from './src/pantallas/cambiarContrasena';
 import { HerramientasRol } from './src/pantallas/herramientasRol';
 import { Cuenta } from './src/pantallas/cuenta';
-import {
-  NuevaOrdenTrabajo,
-  type BorradorOrdenTrabajo,
-} from './src/pantallas/nuevaOrdenTrabajo';
-import { AsignarMecanico } from './src/pantallas/asignarMecanico';
-import { RegistrarClienteVehiculo } from './src/pantallas/registrarClienteVehiculo';
-import { CasosAsignados } from './src/pantallas/casosAsignados';
+import { NuevaOrdenTrabajo } from './src/pantallas/nuevaOrdenTrabajo';
+import { RegistrarCliente } from './src/pantallas/registrarCliente';
+import { RegistrarVehiculo } from './src/pantallas/registrarVehiculo';
+import { CasosRecepcion } from './src/pantallas/casosRecepcion';
+import { DetalleCasoRecepcion } from './src/pantallas/detalleCasoRecepcion';
+import type { CasoRecepcion } from './src/casos/ServicioCasosRecepcion';
 import {
   BarraNavegacionInferior,
   type DestinoBarra,
@@ -42,9 +41,10 @@ type Ruta =
   | DestinoBarra
   | 'login'
   | 'nueva_orden'
-  | 'asignar_mecanico'
   | 'registrar_cliente'
-  | 'casos_asignados';
+  | 'registrar_vehiculo'
+  | 'casos_recepcion'
+  | 'detalle_caso_recepcion';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
@@ -52,8 +52,10 @@ function ContenidoAplicacion() {
   const sesionEscaner = useSesionEscanerObd();
   const [ruta, establecerRuta] = useState<Ruta>('login');
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
-  const [borradorOrden, establecerBorradorOrden] =
-    useState<BorradorOrdenTrabajo | null>(null);
+  const [casoRecepcion, establecerCasoRecepcion] =
+    useState<CasoRecepcion | null>(null);
+  const [clienteInicialVehiculoId, establecerClienteInicialVehiculoId] =
+    useState<string | null>(null);
   const [inicializando, establecerInicializando] = useState(true);
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
@@ -98,7 +100,8 @@ function ContenidoAplicacion() {
     await sesionEscaner.desconectar().catch(() => undefined);
     await cerrarSesionTaller();
     establecerSesion(null);
-    establecerBorradorOrden(null);
+    establecerCasoRecepcion(null);
+    establecerClienteInicialVehiculoId(null);
     establecerRuta('login');
   }
 
@@ -114,7 +117,8 @@ function ContenidoAplicacion() {
     if (!sesion || sesion.debeCambiarPassword) return;
     if (destino === 'registro' && sesion.perfil !== 'administrador') return;
     if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
-    establecerBorradorOrden(null);
+    establecerCasoRecepcion(null);
+    establecerClienteInicialVehiculoId(null);
     establecerRuta(destino);
   }
 
@@ -122,9 +126,10 @@ function ContenidoAplicacion() {
     !inicializando && Boolean(sesion) && !sesion?.debeCambiarPassword;
   const destinoActivo: DestinoBarra =
     ruta === 'nueva_orden' ||
-    ruta === 'asignar_mecanico' ||
     ruta === 'registrar_cliente' ||
-    ruta === 'casos_asignados'
+    ruta === 'registrar_vehiculo' ||
+    ruta === 'casos_recepcion' ||
+    ruta === 'detalle_caso_recepcion'
       ? 'herramientas'
       : ruta === 'login'
         ? 'inicio'
@@ -173,7 +178,11 @@ function ContenidoAplicacion() {
               alAbrirEscaner={() => establecerRuta('escaner')}
               alAbrirNuevaOrden={() => establecerRuta('nueva_orden')}
               alAbrirRegistroCliente={() => establecerRuta('registrar_cliente')}
-              alAbrirCasosAsignados={() => establecerRuta('casos_asignados')}
+              alAbrirRegistroVehiculo={() => {
+                establecerClienteInicialVehiculoId(null);
+                establecerRuta('registrar_vehiculo');
+              }}
+              alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
             />
           )}
         {!inicializando &&
@@ -181,28 +190,11 @@ function ContenidoAplicacion() {
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
             <NuevaOrdenTrabajo
-              alVolver={() => establecerRuta('herramientas')}
-              alContinuar={borrador => {
-                establecerBorradorOrden(borrador);
-                establecerRuta('asignar_mecanico');
-              }}
-            />
-          )}
-        {!inicializando &&
-          ruta === 'asignar_mecanico' &&
-          sesion?.perfil === 'recepcion' &&
-          !sesion.debeCambiarPassword &&
-          borradorOrden && (
-            <AsignarMecanico
               sesion={sesion}
-              orden={borradorOrden}
-              alVolver={() => {
-                establecerBorradorOrden(null);
-                establecerRuta('herramientas');
-              }}
-              alCompletar={() => {
-                establecerBorradorOrden(null);
-                establecerRuta('casos_asignados');
+              alVolver={() => establecerRuta('herramientas')}
+              alCasoCreado={caso => {
+                establecerCasoRecepcion(caso);
+                establecerRuta('detalle_caso_recepcion');
               }}
             />
           )}
@@ -210,16 +202,60 @@ function ContenidoAplicacion() {
           ruta === 'registrar_cliente' &&
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
-            <RegistrarClienteVehiculo
+            <RegistrarCliente
               sesion={sesion}
+              alAgregarVehiculo={clienteId => {
+                establecerClienteInicialVehiculoId(clienteId);
+                establecerRuta('registrar_vehiculo');
+              }}
+              alFinalizar={() => establecerRuta('herramientas')}
               alVolver={() => establecerRuta('herramientas')}
             />
           )}
         {!inicializando &&
-          ruta === 'casos_asignados' &&
+          ruta === 'registrar_vehiculo' &&
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
-            <CasosAsignados alVolver={() => establecerRuta('herramientas')} />
+            <RegistrarVehiculo
+              sesion={sesion}
+              clienteInicialId={clienteInicialVehiculoId}
+              alFinalizar={() => {
+                establecerClienteInicialVehiculoId(null);
+                establecerRuta('herramientas');
+              }}
+              alVolver={() => {
+                establecerClienteInicialVehiculoId(null);
+                establecerRuta('herramientas');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'casos_recepcion' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <CasosRecepcion
+              alAbrirCaso={caso => {
+                establecerCasoRecepcion(caso);
+                establecerRuta('detalle_caso_recepcion');
+              }}
+              alVolver={() => establecerRuta('herramientas')}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'detalle_caso_recepcion' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword &&
+          casoRecepcion && (
+            <DetalleCasoRecepcion
+              caso={casoRecepcion}
+              sesion={sesion}
+              alAbrirEscaner={() => establecerRuta('escaner')}
+              alActualizarCaso={establecerCasoRecepcion}
+              alVolver={() => {
+                establecerCasoRecepcion(null);
+                establecerRuta('casos_recepcion');
+              }}
+            />
           )}
         {!inicializando &&
           ruta === 'registro' &&
@@ -231,7 +267,13 @@ function ContenidoAplicacion() {
             />
           )}
         {!inicializando && ruta === 'escaner' && sesion &&
-          !sesion.debeCambiarPassword && <PantallaEscanerObd />}
+          !sesion.debeCambiarPassword && (
+            <PantallaEscanerObd
+              alVolver={casoRecepcion
+                ? () => establecerRuta('detalle_caso_recepcion')
+                : undefined}
+            />
+          )}
         {!inicializando && ruta === 'cuenta' && sesion &&
           !sesion.debeCambiarPassword && (
             <Cuenta sesion={sesion} alCerrarSesion={cerrarSesion} />

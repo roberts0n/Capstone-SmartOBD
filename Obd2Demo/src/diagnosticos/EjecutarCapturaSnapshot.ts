@@ -2,10 +2,12 @@ import { version as versionAplicacion } from '../../package.json';
 import type { SesionEscanerObd } from '../escaner/TiposSesionEscaner';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import {
-  capturarYGuardarSnapshotDiagnostico,
+  capturarSnapshotDiagnostico,
   validarInicioCapturaSnapshot,
 } from './CapturarSnapshotDiagnostico';
+import { guardarSnapshotDiagnostico } from './ServicioSnapshotsDiagnostico';
 import type {
+  CondicionMotorSnapshot,
   OpcionesCapturaSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
@@ -14,13 +16,18 @@ import type {
   MotivoSnapshotParcial,
   TipoSnapshotDiagnostico,
 } from './TiposSnapshotDiagnostico';
+import { verificarMotorEnMarcha } from './VerificarCondicionMotor';
+import { ejecutarLecturaVin } from '../obd/EjecutarLecturaVin';
+import { asignarVinVehiculo } from '../vehiculos/ServicioVehiculos';
 
 const COMANDOS_PREPARACION = ['ATE0', 'ATL0', 'ATS1', 'ATH0', 'ATSP0'] as const;
 const capturasEnCurso = new Set<string>();
 
 export interface SolicitudCapturaSnapshotEscaner {
   casoId: string;
+  vehiculoId: string;
   tipo: TipoSnapshotDiagnostico;
+  condicionMotor: CondicionMotorSnapshot;
   sesionTaller: SesionTaller;
   sesionEscaner: SesionEscanerObd;
   motivoParcialInicial?: MotivoSnapshotParcial | null;
@@ -74,6 +81,45 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       solicitud.alProgresar,
     );
 
+    let verificacionMotorInicial = null;
+    if (solicitud.condicionMotor === 'en_marcha') {
+      solicitud.alProgresar?.({
+        etapa: 'verificando-motor',
+        actual: 0,
+        total: 2,
+        mensaje: 'Comprobando que el motor este en marcha.',
+      });
+      verificacionMotorInicial = await verificarMotorEnMarcha(
+        sesionEscaner.enviarComando,
+        cancelado,
+      );
+      if (verificacionMotorInicial.estado === 'detenido') {
+        throw new Error(
+          'El motor no esta en marcha. Enciendelo o utiliza la captura parcial para un vehiculo que no arranca.',
+        );
+      }
+      if (verificacionMotorInicial.estado === 'no-verificable') {
+        throw new Error(
+          `No se pudieron verificar las RPM: ${verificacionMotorInicial.mensaje}`,
+        );
+      }
+    }
+
+    solicitud.alProgresar?.({
+      etapa: 'leyendo-vin',
+      actual: null,
+      total: null,
+      mensaje: 'Consultando el VIN del vehiculo.',
+    });
+    const lecturaVin = await ejecutarLecturaVin(sesionEscaner.enviarComando);
+    if (lecturaVin.vin) {
+      await asignarVinVehiculo(
+        solicitud.vehiculoId,
+        lecturaVin.vin,
+        solicitud.sesionTaller,
+      );
+    }
+
     const opciones: OpcionesCapturaSnapshot = {
       casoId: solicitud.casoId,
       tipo: solicitud.tipo,
@@ -81,7 +127,10 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       escritura,
       notificacion,
       versionAplicacion,
-      motivoParcialInicial: solicitud.motivoParcialInicial,
+      motivoParcialInicial:
+        solicitud.condicionMotor === 'no_arranca'
+          ? 'motor_no_arranca'
+          : solicitud.motivoParcialInicial,
       enviar: comando => sesionEscaner.enviarComando(comando),
       conectado: mismaConexion,
       sincronizado: sesionEscaner.estaSincronizado,
@@ -89,10 +138,51 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       alProgresar: solicitud.alProgresar,
     };
 
-    return await capturarYGuardarSnapshotDiagnostico(
-      opciones,
+    const captura = await capturarSnapshotDiagnostico(opciones);
+    let verificacionMotorFinal = null;
+    if (solicitud.condicionMotor === 'en_marcha' && !captura.cancelada) {
+      solicitud.alProgresar?.({
+        etapa: 'verificando-motor',
+        actual: 2,
+        total: 2,
+        mensaje: 'Comprobando que el motor siga en marcha.',
+      });
+      verificacionMotorFinal = await verificarMotorEnMarcha(
+        sesionEscaner.enviarComando,
+        cancelado,
+      );
+      if (verificacionMotorFinal.estado !== 'en-marcha') {
+        captura.fallos.push({
+          etapa: 'condicion-motor',
+          comando: '010C',
+          mensaje: verificacionMotorFinal.mensaje,
+        });
+        captura.snapshot.estado = 'parcial';
+        captura.snapshot.motivoParcial = 'lecturas_incompletas';
+      }
+    }
+
+    if (captura.cancelada) {
+      throw new Error('La captura fue cancelada y no se guardo el snapshot.');
+    }
+    solicitud.alProgresar?.({
+      etapa: 'guardando',
+      actual: null,
+      total: null,
+      mensaje: 'Guardando el snapshot en el caso de diagnostico.',
+    });
+    const snapshotGuardado = await guardarSnapshotDiagnostico(
+      captura.snapshot,
       solicitud.sesionTaller,
     );
+    return {
+      captura,
+      snapshotGuardado,
+      vinLeido: lecturaVin.vin,
+      advertencias: lecturaVin.advertencia ? [lecturaVin.advertencia] : [],
+      verificacionMotorInicial,
+      verificacionMotorFinal,
+    };
   } finally {
     capturasEnCurso.delete(dispositivo.id);
   }

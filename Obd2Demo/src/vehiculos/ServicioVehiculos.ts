@@ -1,6 +1,10 @@
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import { supabase } from '../servicios/clienteSupabase';
-import type { NuevoVehiculoTaller, VehiculoTaller } from './TiposVehiculo';
+import type {
+  NuevoVehiculoTaller,
+  TipoCombustible,
+  VehiculoTaller,
+} from './TiposVehiculo';
 
 interface FilaVehiculo {
   id: string;
@@ -33,6 +37,7 @@ export async function crearVehiculo(
   }
 
   const vin = normalizarVin(entrada.vin);
+  const combustible = validarCombustible(entrada.combustible);
   validarAnio(entrada.anio);
 
   const { data, error } = await supabase
@@ -45,7 +50,7 @@ export async function crearVehiculo(
       marca: textoOpcional(entrada.marca),
       modelo: textoOpcional(entrada.modelo),
       anio: entrada.anio ?? null,
-      combustible: textoOpcional(entrada.combustible),
+      combustible,
       antecedentes_vehiculo: textoOpcional(entrada.antecedentesVehiculo),
       creado_por: sesion.usuarioId,
     })
@@ -78,6 +83,63 @@ export async function obtenerVehiculo(
   }
 
   return data ? convertirVehiculo(data as FilaVehiculo) : null;
+}
+
+export async function asignarVinVehiculo(
+  vehiculoId: string,
+  valorVin: string,
+  sesion: SesionTaller,
+): Promise<VehiculoTaller> {
+  validarSesionRecepcion(sesion);
+  const identificador = vehiculoId.trim();
+  if (!identificador) {
+    throw new Error('Se necesita el identificador del vehiculo.');
+  }
+  const vin = normalizarVin(valorVin);
+  if (!vin) {
+    throw new Error('Se necesita un VIN valido para identificar el vehiculo.');
+  }
+
+  const vehiculoActual = await obtenerVehiculo(identificador);
+  if (!vehiculoActual) {
+    throw new Error('El vehiculo no existe o no pertenece al taller.');
+  }
+  if (vehiculoActual.vin === vin) {
+    return vehiculoActual;
+  }
+  if (vehiculoActual.vin) {
+    throw new Error(
+      'El vehiculo ya tiene un VIN diferente. Revisa el caso antes de continuar.',
+    );
+  }
+
+  const { data, error } = await supabase
+    .from('vehiculos')
+    .update({ vin })
+    .eq('id', identificador)
+    .is('vin', null)
+    .select(CAMPOS_VEHICULO)
+    .maybeSingle();
+
+  if (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw new Error(
+        'El VIN obtenido ya pertenece a otro vehiculo registrado.',
+      );
+    }
+    throw new Error('No se pudo asignar el VIN al vehiculo.');
+  }
+  if (data) {
+    return convertirVehiculo(data as FilaVehiculo);
+  }
+
+  const vehiculoRecargado = await obtenerVehiculo(identificador);
+  if (vehiculoRecargado?.vin === vin) {
+    return vehiculoRecargado;
+  }
+  throw new Error(
+    'El VIN del vehiculo cambio durante la lectura. Revisa el caso antes de continuar.',
+  );
 }
 
 export async function listarVehiculosCliente(
@@ -129,6 +191,19 @@ function validarAnio(anio: number | null | undefined): void {
   if (!Number.isInteger(anio) || anio < 1886 || anio > 2200) {
     throw new Error('El ano del vehiculo no es valido.');
   }
+}
+
+function validarCombustible(
+  combustible: string | null | undefined,
+): TipoCombustible | null {
+  const normalizado = combustible?.trim().toLowerCase() ?? null;
+  if (!normalizado) {
+    return null;
+  }
+  if (normalizado !== 'gasolina' && normalizado !== 'diesel') {
+    throw new Error('El combustible debe ser gasolina o diesel.');
+  }
+  return normalizado;
 }
 
 function textoOpcional(valor: string | null | undefined): string | null {

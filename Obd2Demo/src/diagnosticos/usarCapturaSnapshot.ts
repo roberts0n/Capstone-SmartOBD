@@ -6,6 +6,7 @@ import {
   type SolicitudCapturaSnapshotEscaner,
 } from './EjecutarCapturaSnapshot';
 import type {
+  CondicionMotorSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
 } from './TiposCapturaSnapshot';
@@ -16,7 +17,9 @@ import type {
 
 export interface EntradaCapturaSnapshot {
   casoId: string;
+  vehiculoId: string;
   tipo: TipoSnapshotDiagnostico;
+  condicionMotor: CondicionMotorSnapshot;
   sesionTaller: SesionTaller;
   motivoParcialInicial?: MotivoSnapshotParcial | null;
 }

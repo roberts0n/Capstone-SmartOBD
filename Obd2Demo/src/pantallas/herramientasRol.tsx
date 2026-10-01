@@ -7,10 +7,16 @@ interface Propiedades {
   alAbrirEscaner: () => void;
   alAbrirNuevaOrden: () => void;
   alAbrirRegistroCliente: () => void;
-  alAbrirCasosAsignados: () => void;
+  alAbrirRegistroVehiculo: () => void;
+  alAbrirCasosRecepcion: () => void;
 }
 
-type Destino = 'orden' | 'registro_cliente' | 'casos' | 'escaner';
+type Destino =
+  | 'orden'
+  | 'registro_cliente'
+  | 'registro_vehiculo'
+  | 'casos'
+  | 'escaner';
 
 const CONTENIDO = {
   recepcion: {
@@ -19,8 +25,9 @@ const CONTENIDO = {
     descripcion: 'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
     opciones: [
       { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Selecciona cliente, vehículo y mecánico', destino: 'orden' as Destino },
-      { codigo: 'CLI', titulo: 'Registrar cliente y vehículo', detalle: 'Agrega un cliente nuevo junto con su vehículo', destino: 'registro_cliente' as Destino },
-      { codigo: 'CAS', titulo: 'Casos asignados', detalle: 'Comprueba si los vehículos ya fueron revisados', destino: 'casos' as Destino },
+      { codigo: 'CLI', titulo: 'Registrar cliente', detalle: 'Agrega una nueva persona al taller', destino: 'registro_cliente' as Destino },
+      { codigo: 'AUT', titulo: 'Registrar vehículo', detalle: 'Asigna un vehículo a un cliente registrado', destino: 'registro_vehiculo' as Destino },
+      { codigo: 'CAS', titulo: 'Casos de recepción', detalle: 'Consulta los ingresos registrados en el taller', destino: 'casos' as Destino },
     ],
   },
   mecanico: {
@@ -40,7 +47,8 @@ export function HerramientasRol({
   alAbrirEscaner,
   alAbrirNuevaOrden,
   alAbrirRegistroCliente,
-  alAbrirCasosAsignados,
+  alAbrirRegistroVehiculo,
+  alAbrirCasosRecepcion,
 }: Propiedades) {
   const contenido = sesion.perfil === 'mecanico'
     ? CONTENIDO.mecanico
@@ -62,7 +70,8 @@ export function HerramientasRol({
               alAbrirEscaner,
               alAbrirNuevaOrden,
               alAbrirRegistroCliente,
-              alAbrirCasosAsignados,
+              alAbrirRegistroVehiculo,
+              alAbrirCasosRecepcion,
             )}
             style={({ pressed }) => [
               estilos.opcion,
@@ -89,11 +98,13 @@ function resolverDestino(
   alAbrirEscaner: () => void,
   alAbrirNuevaOrden: () => void,
   alAbrirRegistroCliente: () => void,
-  alAbrirCasosAsignados: () => void,
+  alAbrirRegistroVehiculo: () => void,
+  alAbrirCasosRecepcion: () => void,
 ): () => void {
   if (destino === 'orden') return alAbrirNuevaOrden;
   if (destino === 'registro_cliente') return alAbrirRegistroCliente;
-  if (destino === 'casos') return alAbrirCasosAsignados;
+  if (destino === 'registro_vehiculo') return alAbrirRegistroVehiculo;
+  if (destino === 'casos') return alAbrirCasosRecepcion;
   return alAbrirEscaner;
 }
 

@@ -14,6 +14,8 @@ export interface VehiculoTaller {
   actualizadoEn: string;
 }
 
+export type TipoCombustible = 'gasolina' | 'diesel';
+
 export interface NuevoVehiculoTaller {
   clienteId: string;
   vin?: string | null;

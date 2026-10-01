@@ -12,21 +12,26 @@ import {
 } from 'react-native';
 import { listarClientes } from '../clientes/ServicioClientes';
 import type { ClienteTaller } from '../clientes/TiposCliente';
+import {
+  prepararCasoRecepcion,
+  type CasoRecepcion,
+} from '../casos/ServicioCasosRecepcion';
+import { crearCasoDiagnostico } from '../casos/ServicioCasosDiagnostico';
+import type { SesionTaller } from '../tipos/usuarioTaller';
 import { listarVehiculosCliente } from '../vehiculos/ServicioVehiculos';
 import type { VehiculoTaller } from '../vehiculos/TiposVehiculo';
 
 interface Propiedades {
+  sesion: SesionTaller;
   alVolver: () => void;
-  alContinuar: (orden: BorradorOrdenTrabajo) => void;
+  alCasoCreado: (caso: CasoRecepcion) => void;
 }
 
-export interface BorradorOrdenTrabajo {
-  cliente: ClienteTaller;
-  vehiculo: VehiculoTaller;
-  motivoIngreso: string;
-}
-
-export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
+export function NuevaOrdenTrabajo({
+  sesion,
+  alVolver,
+  alCasoCreado,
+}: Propiedades) {
   const [clientes, establecerClientes] = useState<ClienteTaller[]>([]);
   const [busqueda, establecerBusqueda] = useState('');
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
@@ -35,6 +40,7 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
   const [motivo, establecerMotivo] = useState('');
   const [cargandoClientes, establecerCargandoClientes] = useState(true);
   const [cargandoVehiculos, establecerCargandoVehiculos] = useState(false);
+  const [guardando, establecerGuardando] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,7 +104,7 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
     establecerBusqueda('');
   }
 
-  function continuar() {
+  async function crearCaso() {
     if (!cliente) {
       establecerError('Selecciona un cliente registrado.');
       return;
@@ -112,11 +118,25 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
       return;
     }
     establecerError(null);
-    alContinuar({
-      cliente,
-      vehiculo,
-      motivoIngreso: motivo.trim(),
-    });
+    establecerGuardando(true);
+    try {
+      const caso = await crearCasoDiagnostico(
+        {
+          vehiculoId: vehiculo.id,
+          motivoIngreso: motivo,
+        },
+        sesion,
+      );
+      alCasoCreado(prepararCasoRecepcion(caso, cliente, vehiculo));
+    } catch (capturado) {
+      establecerError(
+        capturado instanceof Error
+          ? capturado.message
+          : 'No se pudo crear el caso de diagnóstico.',
+      );
+    } finally {
+      establecerGuardando(false);
+    }
   }
 
   return (
@@ -240,15 +260,20 @@ export function NuevaOrdenTrabajo({ alVolver, alContinuar }: Propiedades) {
 
         <Pressable
           accessibilityRole="button"
-          disabled={cargandoVehiculos}
-          onPress={continuar}
+          disabled={cargandoVehiculos || guardando}
+          onPress={crearCaso}
           style={({ pressed }) => [
             estilos.boton,
             pressed && estilos.presionado,
-            cargandoVehiculos && estilos.deshabilitado,
+            (cargandoVehiculos || guardando) && estilos.deshabilitado,
           ]}
         >
-          <Text style={estilos.textoBoton}>Continuar y asignar mecánico</Text>
+          {guardando ? (
+            <ActivityIndicator color="#061B15" size="small" />
+          ) : null}
+          <Text style={estilos.textoBoton}>
+            {guardando ? 'Creando caso...' : 'Crear caso'}
+          </Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

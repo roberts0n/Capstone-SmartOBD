@@ -11,24 +11,22 @@ import {
   asignarMecanicoCaso,
   listarMecanicosActivos,
 } from '../casos/ServicioAsignaciones';
-import { crearCasoDiagnostico } from '../casos/ServicioCasosDiagnostico';
+import type { CasoRecepcion } from '../casos/ServicioCasosRecepcion';
 import type { MecanicoAsignable } from '../casos/TiposAsignacion';
 import type { SesionTaller } from '../tipos/usuarioTaller';
-import type { BorradorOrdenTrabajo } from './nuevaOrdenTrabajo';
 
 interface Propiedades {
   sesion: SesionTaller;
-  orden: BorradorOrdenTrabajo;
+  caso: CasoRecepcion;
   alVolver: () => void;
   alCompletar: () => void;
 }
 
-export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propiedades) {
+export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propiedades) {
   const [mecanicos, establecerMecanicos] = useState<MecanicoAsignable[]>([]);
   const [seleccionado, establecerSeleccionado] = useState<string | null>(null);
   const [cargando, establecerCargando] = useState(true);
   const [asignando, establecerAsignando] = useState(false);
-  const [casoCreadoId, establecerCasoCreadoId] = useState<string | null>(null);
   const [error, establecerError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,20 +60,8 @@ export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propie
     establecerError(null);
     establecerAsignando(true);
     try {
-      let casoId = casoCreadoId;
-      if (!casoId) {
-        const caso = await crearCasoDiagnostico(
-          {
-            vehiculoId: orden.vehiculo.id,
-            motivoIngreso: orden.motivoIngreso,
-          },
-          sesion,
-        );
-        casoId = caso.id;
-        establecerCasoCreadoId(caso.id);
-      }
       await asignarMecanicoCaso(
-        { casoId, mecanicoId: seleccionado },
+        { casoId: caso.id, mecanicoId: seleccionado },
         sesion,
       );
       alCompletar();
@@ -90,9 +76,7 @@ export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propie
     }
   }
 
-  const codigoOrden = casoCreadoId
-    ? `OT-${casoCreadoId.slice(0, 4).toUpperCase()}`
-    : 'Nueva OT';
+  const codigoOrden = `OT-${caso.id.slice(0, 8).toUpperCase()}`;
 
   return (
     <ScrollView style={estilos.pantalla} contentContainerStyle={estilos.contenido}>
@@ -111,12 +95,9 @@ export function AsignarMecanico({ sesion, orden, alVolver, alCompletar }: Propie
           <Text style={estilos.codigoOrden}>{codigoOrden}</Text>
           <Text style={estilos.estado}>Recién creada</Text>
         </View>
-        <Resumen etiqueta="Cliente" valor={orden.cliente.nombre} />
-        <Resumen
-          etiqueta="Vehículo"
-          valor={`${orden.vehiculo.marca ?? ''} ${orden.vehiculo.modelo ?? ''}${orden.vehiculo.anio ? ` ${orden.vehiculo.anio}` : ''}  •  ${orden.vehiculo.patente ?? 'Sin patente'}`}
-        />
-        <Resumen etiqueta="Motivo de ingreso" valor={orden.motivoIngreso} secundario />
+        <Resumen etiqueta="Cliente" valor={caso.cliente} />
+        <Resumen etiqueta="Vehículo" valor={`${caso.vehiculo}  •  ${caso.patente}`} />
+        <Resumen etiqueta="Motivo de ingreso" valor={caso.motivoIngreso} secundario />
       </View>
 
       <Text style={estilos.etiquetaLista}>Mecánicos disponibles</Text>

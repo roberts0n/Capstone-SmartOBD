@@ -5,6 +5,7 @@ import type {
   ResultadoDeteccionPids,
 } from '../tipos/ble';
 import type { InformePruebaDtc } from '../obd/dtc/PruebaDtc';
+import type { VerificacionMotor } from './VerificarCondicionMotor';
 import type {
   MotivoSnapshotParcial,
   NuevoSnapshotDiagnostico,
@@ -14,6 +15,8 @@ import type {
 
 export type EtapaCapturaSnapshot =
   | 'preparando-escaner'
+  | 'verificando-motor'
+  | 'leyendo-vin'
   | 'detectando-pids'
   | 'leyendo-pids'
   | 'leyendo-dtc'
@@ -28,7 +31,11 @@ export interface ProgresoCapturaSnapshot {
 }
 
 export interface FalloCapturaSnapshot {
-  etapa: 'deteccion-pids' | 'lectura-pid' | 'lectura-dtc';
+  etapa:
+    | 'condicion-motor'
+    | 'deteccion-pids'
+    | 'lectura-pid'
+    | 'lectura-dtc';
   comando: string | null;
   mensaje: string;
 }
@@ -60,4 +67,10 @@ export interface ResultadoCapturaSnapshot {
 export interface ResultadoCapturaGuardada {
   captura: ResultadoCapturaSnapshot;
   snapshotGuardado: SnapshotDiagnostico;
+  vinLeido?: string | null;
+  advertencias?: string[];
+  verificacionMotorInicial?: VerificacionMotor | null;
+  verificacionMotorFinal?: VerificacionMotor | null;
 }
+
+export type CondicionMotorSnapshot = 'en_marcha' | 'no_arranca';
