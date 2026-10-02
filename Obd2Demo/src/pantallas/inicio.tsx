@@ -40,7 +40,7 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
     pasos: [
       { titulo: 'Completa sus datos', descripcion: 'Ingresa su nombre y correo para crear la cuenta.' },
       { titulo: 'Elige su rol', descripcion: 'Selecciona Recepción o Mecánico según su trabajo.' },
-      { titulo: 'Entrega el acceso', descripcion: 'Comparte la contraseña temporal. La persona deberá cambiarla al entrar.' },
+      { titulo: 'Entrega el acceso', descripcion: 'Comparte el correo correspondiente. La persona deberá cambiarla al entrar.' },
     ],
     tituloNota: 'Las cuentas quedan asociadas a tu taller',
     nota: 'Cada integrante tendrá las pantallas y acciones correspondientes a su rol.',
@@ -48,7 +48,7 @@ const CONTENIDO: Record<PerfilTaller, ContenidoPerfil> = {
   recepcion: {
     rol: 'Recepción',
     etiqueta: 'INGRESO DE VEHÍCULOS',
-    titulo: 'Un buen servicio empieza por escuchar al conductor',
+    titulo: 'Para un buen servicio empieza por escuchar al conductor',
     descripcion:
       'Registra al cliente, identifica su vehículo y anota qué le ocurre. Así podrás preparar el caso antes de entregarlo al mecánico.',
     boton: 'Ir a recepción',
