@@ -192,6 +192,7 @@ function ContenidoAplicacion() {
             sesion={sesion}
             alAbrirEscaner={() => establecerRuta('escaner')}
             alAbrirRegistro={() => establecerRuta('registro')}
+            alAbrirRecepcion={() => navegar('herramientas')}
             alAbrirCuenta={() => establecerRuta('cuenta')}
           />
         )}

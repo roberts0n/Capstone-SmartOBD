@@ -24,9 +24,9 @@ const CONTENIDO = {
     titulo: '¿Qué necesitas registrar?',
     descripcion: 'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
     opciones: [
-      { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Selecciona cliente, vehículo y mecánico', destino: 'orden' as Destino },
       { codigo: 'CLI', titulo: 'Registrar cliente', detalle: 'Agrega una nueva persona al taller', destino: 'registro_cliente' as Destino },
       { codigo: 'AUT', titulo: 'Registrar vehículo', detalle: 'Asigna un vehículo a un cliente registrado', destino: 'registro_vehiculo' as Destino },
+      { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Selecciona cliente y vehículo, y anota el motivo de ingreso', destino: 'orden' as Destino },
       { codigo: 'CAS', titulo: 'Casos de recepción', detalle: 'Consulta los ingresos registrados en el taller', destino: 'casos' as Destino },
     ],
   },
@@ -35,8 +35,8 @@ const CONTENIDO = {
     titulo: 'Herramientas de trabajo',
     descripcion: 'Elige la lectura que necesitas para revisar el vehículo.',
     opciones: [
-      { codigo: '01', titulo: 'Datos en tiempo real', detalle: 'RPM, temperatura y sensores compatibles', destino: 'escaner' as Destino },
-      { codigo: 'DTC', titulo: 'Códigos de falla', detalle: 'Lee e interpreta alertas almacenadas', destino: 'escaner' as Destino },
+      { codigo: '01', titulo: 'Datos del vehículo', detalle: 'RPM, temperatura y sensores compatibles', destino: 'escaner' as Destino },
+      { codigo: 'DTC', titulo: 'Códigos de falla', detalle: 'Consulta códigos confirmados, pendientes y permanentes', destino: 'escaner' as Destino },
       { codigo: 'VIN', titulo: 'Identificar vehículo', detalle: 'Consulta VIN y compatibilidad', destino: 'escaner' as Destino },
     ],
   },
