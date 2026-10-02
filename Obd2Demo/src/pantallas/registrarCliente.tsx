@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { crearCliente } from '../clientes/ServicioClientes';
+import type { ClienteTaller } from '../clientes/TiposCliente';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
 interface Propiedades {
@@ -18,6 +19,8 @@ interface Propiedades {
   alAgregarVehiculo: (clienteId: string) => void;
   alFinalizar: () => void;
   alVolver: () => void;
+  alClienteRegistrado?: (cliente: ClienteTaller) => void;
+  etiquetaFinalizar?: string;
 }
 
 export function RegistrarCliente({
@@ -25,6 +28,8 @@ export function RegistrarCliente({
   alAgregarVehiculo,
   alFinalizar,
   alVolver,
+  alClienteRegistrado,
+  etiquetaFinalizar = 'Finalizar',
 }: Propiedades) {
   const [nombre, establecerNombre] = useState('');
   const [telefono, establecerTelefono] = useState('');
@@ -35,8 +40,16 @@ export function RegistrarCliente({
     nombre: string;
   } | null>(null);
   const [error, establecerError] = useState<string | null>(null);
+  const operacionEnCurso = useRef(false);
+  const pantallaActiva = useRef(true);
+
+  useEffect(() => {
+    pantallaActiva.current = true;
+    return () => { pantallaActiva.current = false; };
+  }, []);
 
   async function registrar() {
+    if (operacionEnCurso.current || clienteCreado) return;
     if (nombre.trim().length < 2) {
       establecerError('Ingresa el nombre del cliente.');
       return;
@@ -47,21 +60,26 @@ export function RegistrarCliente({
     }
 
     establecerError(null);
+    operacionEnCurso.current = true;
     establecerGuardando(true);
     try {
       const cliente = await crearCliente(
         { nombre, telefono, correo: correo || null },
         sesion,
       );
+      if (!pantallaActiva.current) return;
       establecerClienteCreado({ id: cliente.id, nombre: cliente.nombre });
+      // aviso que ya existe, aunque despues se cancele el registro del auto
+      alClienteRegistrado?.(cliente);
     } catch (capturado) {
-      establecerError(
+      if (pantallaActiva.current) establecerError(
         capturado instanceof Error
           ? capturado.message
           : 'No se pudo registrar el cliente.',
       );
     } finally {
-      establecerGuardando(false);
+      operacionEnCurso.current = false;
+      if (pantallaActiva.current) establecerGuardando(false);
     }
   }
 
@@ -92,7 +110,7 @@ export function RegistrarCliente({
               pressed && estilos.presionado,
             ]}
           >
-            <Text style={estilos.textoBotonSecundario}>Finalizar</Text>
+            <Text style={estilos.textoBotonSecundario}>{etiquetaFinalizar}</Text>
           </Pressable>
         </View>
       </View>

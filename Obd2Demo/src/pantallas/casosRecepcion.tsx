@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -24,27 +24,34 @@ export function CasosRecepcion({ alAbrirCaso, alVolver }: Propiedades) {
   const [cargando, establecerCargando] = useState(true);
   const [actualizando, establecerActualizando] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
+  const numeroConsulta = useRef(0);
 
   const cargar = useCallback(async (esActualizacion = false) => {
+    const consulta = ++numeroConsulta.current;
     if (esActualizacion) establecerActualizando(true);
     else establecerCargando(true);
     establecerError(null);
     try {
-      establecerCasos(await listarCasosRecepcion());
+      const resultado = await listarCasosRecepcion();
+      // si se vuelve a actualizar, no reemplazo el resultado con una lectura anterior
+      if (consulta === numeroConsulta.current) establecerCasos(resultado);
     } catch (capturado) {
-      establecerError(
+      if (consulta === numeroConsulta.current) establecerError(
         capturado instanceof Error
           ? capturado.message
           : 'No se pudieron cargar los casos.',
       );
     } finally {
-      establecerCargando(false);
-      establecerActualizando(false);
+      if (consulta === numeroConsulta.current) {
+        establecerCargando(false);
+        establecerActualizando(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     cargar().catch(() => undefined);
+    return () => { numeroConsulta.current += 1; };
   }, [cargar]);
 
   return (
@@ -129,6 +136,13 @@ function TarjetaCaso({
       </View>
       <Text style={estilos.vehiculo}>{caso.vehiculo}</Text>
       <Text style={estilos.patente}>{caso.patente}</Text>
+      <Text style={[
+        estilos.escaneo,
+        caso.snapshotIngreso?.estado === 'completo' && estilos.escaneoCompleto,
+        caso.snapshotIngreso?.estado === 'parcial' && estilos.escaneoParcial,
+      ]}>
+        {nombreEscaneoInicial(caso.snapshotIngreso)}
+      </Text>
       <View style={estilos.filaInferior}>
         <Text style={estilos.datoSecundario}>
           {caso.mecanico ?? 'Sin mecánico asignado'}
@@ -149,6 +163,11 @@ function nombreEstado(estado: EstadoCasoDiagnostico): string {
     cerrado: 'Cerrado',
   };
   return nombres[estado];
+}
+
+function nombreEscaneoInicial(snapshot: CasoRecepcion['snapshotIngreso']): string {
+  if (!snapshot) return 'Sin escaneo inicial';
+  return snapshot.estado === 'completo' ? 'Escaneo completo' : 'Escaneo parcial';
 }
 
 function formatearFecha(fecha: string): string {
@@ -211,6 +230,9 @@ const estilos = StyleSheet.create({
   estado: { color: '#66DFBD', fontSize: 10, fontWeight: '700' },
   vehiculo: { color: '#C7C7CC', fontSize: 13, marginTop: 9 },
   patente: { color: '#13C296', fontSize: 12, fontWeight: '700', marginTop: 4 },
+  escaneo: { color: '#85858C', fontSize: 11, marginTop: 8 },
+  escaneoCompleto: { color: '#66DFBD' },
+  escaneoParcial: { color: '#E6B85C' },
   filaInferior: {
     flexDirection: 'row',
     justifyContent: 'space-between',

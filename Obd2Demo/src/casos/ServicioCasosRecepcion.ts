@@ -1,22 +1,27 @@
 import type { ClienteTaller } from '../clientes/TiposCliente';
 import { supabase } from '../servicios/clienteSupabase';
 import type { VehiculoTaller } from '../vehiculos/TiposVehiculo';
+import type { EstadoSnapshotDiagnostico } from '../diagnosticos/TiposSnapshotDiagnostico';
 import type {
   CasoDiagnostico,
   EstadoCasoDiagnostico,
+  PrioridadCasoDiagnostico,
 } from './TiposCasoDiagnostico';
 
 export interface CasoRecepcion {
   id: string;
   clienteId: string;
   vehiculoId: string;
+  recepcionResponsableId: string;
   cliente: string;
   vehiculo: string;
   patente: string;
   vin: string | null;
   motivoIngreso: string;
   estado: EstadoCasoDiagnostico;
+  prioridad: PrioridadCasoDiagnostico;
   mecanico: string | null;
+  snapshotIngreso: { id: string; estado: EstadoSnapshotDiagnostico } | null;
   creadoEn: string;
 }
 
@@ -42,6 +47,12 @@ interface FilaAsignacion {
   mecanico_id: string;
 }
 
+interface FilaSnapshotIngreso {
+  id: string;
+  caso_id: string;
+  estado: EstadoSnapshotDiagnostico;
+}
+
 interface FilaVehiculo {
   id: string;
   cliente_id: string;
@@ -63,6 +74,8 @@ interface FilaPerfil {
 
 interface FilaCasoRecepcion extends FilaCaso {
   motivo_ingreso: string;
+  recepcion_responsable_id: string;
+  prioridad: PrioridadCasoDiagnostico;
 }
 
 interface FilaVehiculoRecepcion extends FilaVehiculo {
@@ -78,21 +91,38 @@ export function prepararCasoRecepcion(
     id: caso.id,
     clienteId: cliente.id,
     vehiculoId: vehiculo.id,
+    recepcionResponsableId: caso.recepcionResponsableId,
     cliente: cliente.nombre,
     vehiculo: nombreVehiculo(vehiculo),
     patente: vehiculo.patente ?? 'Sin patente',
     vin: vehiculo.vin,
     motivoIngreso: caso.motivoIngreso,
     estado: caso.estado,
+    prioridad: caso.prioridad,
     mecanico: null,
+    snapshotIngreso: null,
     creadoEn: caso.creadoEn,
   };
 }
 
 export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
-  const { data: casos, error: errorCasos } = await supabase
+  return consultarCasosRecepcion();
+}
+
+export async function obtenerCasoRecepcion(casoId: string): Promise<CasoRecepcion | null> {
+  const identificador = casoId.trim();
+  if (!identificador) throw new Error('Se necesita el identificador del caso.');
+  const casos = await consultarCasosRecepcion(identificador);
+  return casos[0] ?? null;
+}
+
+async function consultarCasosRecepcion(casoId?: string): Promise<CasoRecepcion[]> {
+  let consulta = supabase
     .from('casos_diagnosticos')
-    .select('id, vehiculo_id, motivo_ingreso, estado, creado_en')
+    .select('id, vehiculo_id, recepcion_responsable_id, motivo_ingreso, estado, prioridad, creado_en');
+  // cuando vuelvo de asignar, consulto solo el caso que acabo de trabajar
+  if (casoId) consulta = consulta.eq('id', casoId);
+  const { data: casos, error: errorCasos } = await consulta
     .order('creado_en', { ascending: false });
 
   if (errorCasos) {
@@ -112,7 +142,7 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
   }
 
   const filasVehiculo = (vehiculos ?? []) as FilaVehiculoRecepcion[];
-  const [resultadoClientes, resultadoAsignaciones] = await Promise.all([
+  const [resultadoClientes, resultadoAsignaciones, resultadoSnapshots] = await Promise.all([
     supabase
       .from('clientes')
       .select('id, nombre')
@@ -122,8 +152,17 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
       .select('caso_id, mecanico_id')
       .in('caso_id', filasCaso.map(item => item.id))
       .eq('estado', 'activa'),
+    // para el listado solo necesito saber que escaneo de ingreso tiene cada caso
+    supabase
+      .from('snapshots_diagnostico')
+      .select('id, caso_id, estado')
+      .in('caso_id', filasCaso.map(item => item.id))
+      .eq('tipo', 'ingreso'),
   ]);
 
+  if (resultadoSnapshots.error) {
+    throw new Error('No se pudo consultar el escaneo inicial de los casos.');
+  }
   if (resultadoClientes.error || resultadoAsignaciones.error) {
     throw new Error('No se pudo completar la informacion de los casos.');
   }
@@ -155,6 +194,10 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
   const mecanicosPorId = new Map(
     filasMecanico.map(item => [item.id, item.nombre]),
   );
+  const snapshotsPorCaso = new Map(
+    ((resultadoSnapshots.data ?? []) as FilaSnapshotIngreso[])
+      .map(item => [item.caso_id, { id: item.id, estado: item.estado }]),
+  );
 
   return filasCaso.flatMap(caso => {
     const vehiculo = vehiculosPorId.get(caso.vehiculo_id);
@@ -165,6 +208,7 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
       id: caso.id,
       clienteId: vehiculo.cliente_id,
       vehiculoId: vehiculo.id,
+      recepcionResponsableId: caso.recepcion_responsable_id,
       cliente:
         clientesPorId.get(vehiculo.cliente_id) ?? 'Cliente no disponible',
       vehiculo: nombreVehiculo(vehiculo),
@@ -172,9 +216,11 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
       vin: vehiculo.vin,
       motivoIngreso: caso.motivo_ingreso,
       estado: caso.estado,
+      prioridad: caso.prioridad,
       mecanico: mecanicoId
         ? mecanicosPorId.get(mecanicoId) ?? 'Mecanico no disponible'
         : null,
+      snapshotIngreso: snapshotsPorCaso.get(caso.id) ?? null,
       creadoEn: caso.creado_en,
     }];
   });

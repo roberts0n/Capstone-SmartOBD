@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import {
   asignarMecanicoCaso,
+  ErrorRecargaAsignacion,
   listarMecanicosActivos,
 } from '../casos/ServicioAsignaciones';
-import type { CasoRecepcion } from '../casos/ServicioCasosRecepcion';
+import { obtenerCasoRecepcion, type CasoRecepcion } from '../casos/ServicioCasosRecepcion';
 import type { MecanicoAsignable } from '../casos/TiposAsignacion';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
@@ -19,7 +20,7 @@ interface Propiedades {
   sesion: SesionTaller;
   caso: CasoRecepcion;
   alVolver: () => void;
-  alCompletar: () => void;
+  alCompletar: (caso: CasoRecepcion) => void;
 }
 
 export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propiedades) {
@@ -28,9 +29,20 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
   const [cargando, establecerCargando] = useState(true);
   const [asignando, establecerAsignando] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
+  const [guardada, establecerGuardada] = useState(false);
+  const [intentoCarga, establecerIntentoCarga] = useState(0);
+  const operacionEnCurso = useRef(false);
+  const asignacionGuardada = useRef(false);
+  const pantallaActiva = useRef(true);
+  const puedeAsignar = sesion.perfil === 'recepcion' &&
+    caso.recepcionResponsableId === sesion.usuarioId && !caso.mecanico &&
+    (caso.estado === 'ingresado' || caso.estado === 'diagnostico_inicial');
 
   useEffect(() => {
     let activa = true;
+    pantallaActiva.current = true;
+    establecerCargando(true);
+    establecerError(null);
     listarMecanicosActivos()
       .then(resultado => {
         if (activa) establecerMecanicos(resultado);
@@ -49,30 +61,54 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
       });
     return () => {
       activa = false;
+      pantallaActiva.current = false;
     };
-  }, []);
+  }, [intentoCarga]);
+
+  async function recargarCaso() {
+    const actualizado = await obtenerCasoRecepcion(caso.id);
+    if (!actualizado || !actualizado.mecanico ||
+        actualizado.estado === 'ingresado' || actualizado.estado === 'diagnostico_inicial') {
+      throw new Error('La asignación se guardó, pero no se pudo recuperar el caso actualizado. Reintenta la consulta.');
+    }
+    if (pantallaActiva.current) alCompletar(actualizado);
+  }
 
   async function asignar() {
-    if (!seleccionado) {
+    if (operacionEnCurso.current) return;
+    if (!asignacionGuardada.current && !puedeAsignar) return;
+    if (!asignacionGuardada.current && !seleccionado) {
       establecerError('Selecciona un mecánico para continuar.');
       return;
     }
     establecerError(null);
+    // bloqueo la segunda pulsacion sin esperar al siguiente render
+    operacionEnCurso.current = true;
     establecerAsignando(true);
     try {
-      await asignarMecanicoCaso(
-        { casoId: caso.id, mecanicoId: seleccionado },
-        sesion,
-      );
-      alCompletar();
+      if (!asignacionGuardada.current) {
+        try {
+          await asignarMecanicoCaso(
+            { casoId: caso.id, mecanicoId: seleccionado!, prioridad: caso.prioridad },
+            sesion,
+          );
+        } catch (capturado) {
+          if (!(capturado instanceof ErrorRecargaAsignacion)) throw capturado;
+        }
+        asignacionGuardada.current = true;
+        if (pantallaActiva.current) establecerGuardada(true);
+      }
+      // leo el nombre y el estado desde la bd, no los doy por guardados en la pantalla
+      await recargarCaso();
     } catch (capturado) {
-      establecerError(
+      if (pantallaActiva.current) establecerError(
         capturado instanceof Error
           ? capturado.message
           : 'No se pudo asignar el mecánico.',
       );
     } finally {
-      establecerAsignando(false);
+      operacionEnCurso.current = false;
+      if (pantallaActiva.current) establecerAsignando(false);
     }
   }
 
@@ -81,7 +117,7 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
   return (
     <ScrollView style={estilos.pantalla} contentContainerStyle={estilos.contenido}>
       <View style={estilos.cabecera}>
-        <Pressable accessibilityLabel="Volver" accessibilityRole="button" onPress={alVolver} style={estilos.volver}>
+        <Pressable accessibilityLabel="Volver" accessibilityRole="button" disabled={asignando || guardada} onPress={alVolver} style={[estilos.volver, (asignando || guardada) && estilos.deshabilitado]}>
           <Text style={estilos.flechaVolver}>‹</Text>
         </Pressable>
         <View>
@@ -93,14 +129,14 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
       <View style={estilos.resumen}>
         <View style={estilos.filaOrden}>
           <Text style={estilos.codigoOrden}>{codigoOrden}</Text>
-          <Text style={estilos.estado}>Recién creada</Text>
+          <Text style={estilos.estado}>{guardada ? 'Asignado' : caso.estado === 'diagnostico_inicial' ? 'Diagnóstico inicial' : 'Ingresado'}</Text>
         </View>
         <Resumen etiqueta="Cliente" valor={caso.cliente} />
         <Resumen etiqueta="Vehículo" valor={`${caso.vehiculo}  •  ${caso.patente}`} />
         <Resumen etiqueta="Motivo de ingreso" valor={caso.motivoIngreso} secundario />
       </View>
 
-      <Text style={estilos.etiquetaLista}>Mecánicos disponibles</Text>
+      <Text style={estilos.etiquetaLista}>Mecánicos activos</Text>
       {cargando ? (
         <ActivityIndicator color="#13C296" style={estilos.cargando} />
       ) : mecanicos.length === 0 ? (
@@ -113,6 +149,7 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
               <Pressable
                 accessibilityRole="radio"
                 accessibilityState={{ checked: activo }}
+                disabled={asignando || guardada || !puedeAsignar}
                 key={mecanico.id}
                 onPress={() => establecerSeleccionado(mecanico.id)}
                 style={[estilos.mecanico, activo && estilos.mecanicoActivo]}
@@ -138,19 +175,25 @@ export function AsignarMecanico({ sesion, caso, alVolver, alCompletar }: Propied
       )}
 
       {error ? <Text accessibilityRole="alert" style={estilos.error}>{error}</Text> : null}
+      {!puedeAsignar && !guardada ? <Text style={estilos.error}>El caso ya fue asignado o no pertenece a esta recepción.</Text> : null}
+      {!cargando && error && mecanicos.length === 0 && !guardada ? (
+        <Pressable accessibilityRole="button" onPress={() => establecerIntentoCarga(valor => valor + 1)} style={estilos.boton}>
+          <Text style={estilos.textoBoton}>Recargar mecánicos</Text>
+        </Pressable>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
-        disabled={asignando || cargando || mecanicos.length === 0}
+        disabled={asignando || (!guardada && (cargando || mecanicos.length === 0 || !puedeAsignar))}
         onPress={asignar}
         style={({ pressed }) => [
           estilos.boton,
           pressed && estilos.presionado,
-          (asignando || cargando || mecanicos.length === 0) && estilos.deshabilitado,
+          (asignando || (!guardada && (cargando || mecanicos.length === 0 || !puedeAsignar))) && estilos.deshabilitado,
         ]}
       >
         {asignando ? <ActivityIndicator color="#061B15" size="small" /> : null}
-        <Text style={estilos.textoBoton}>{asignando ? 'Asignando...' : 'Asignar y comenzar'}</Text>
+        <Text style={estilos.textoBoton}>{asignando ? 'Procesando...' : guardada ? 'Reintentar consulta' : 'Asignar mecánico'}</Text>
       </Pressable>
     </ScrollView>
   );

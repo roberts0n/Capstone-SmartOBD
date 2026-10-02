@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +26,7 @@ interface Propiedades {
   alVolver: () => void;
   alAbrirEscaner: () => void;
   alActualizarCaso: (caso: CasoRecepcion) => void;
+  alAsignarMecanico: () => void;
 }
 
 export function DetalleCasoRecepcion({
@@ -33,6 +35,7 @@ export function DetalleCasoRecepcion({
   alVolver,
   alAbrirEscaner,
   alActualizarCaso,
+  alAsignarMecanico,
 }: Propiedades) {
   const sesionEscaner = useSesionEscanerObd();
   const captura = useCapturaSnapshot();
@@ -41,9 +44,13 @@ export function DetalleCasoRecepcion({
   const [snapshotIngreso, establecerSnapshotIngreso] =
     useState<SnapshotDiagnostico | null>(null);
   const [errorConsulta, establecerErrorConsulta] = useState<string | null>(null);
+  const [intentoConsulta, establecerIntentoConsulta] = useState(0);
+  const confirmacionAbierta = useRef(false);
+  const pantallaActiva = useRef(true);
 
   useEffect(() => {
     let activo = true;
+    pantallaActiva.current = true;
     async function consultarSnapshot() {
       establecerConsultando(true);
       establecerErrorConsulta(null);
@@ -53,6 +60,7 @@ export function DetalleCasoRecepcion({
         const detalle = ingreso
           ? await obtenerSnapshotDiagnostico(ingreso.id)
           : null;
+        if (ingreso && !detalle) throw new Error('No se pudo recuperar el escaneo inicial.');
         if (activo) establecerSnapshotIngreso(detalle);
       } catch (capturado) {
         if (activo) establecerErrorConsulta(mensajeError(capturado));
@@ -64,8 +72,9 @@ export function DetalleCasoRecepcion({
     consultarSnapshot().catch(() => undefined);
     return () => {
       activo = false;
+      pantallaActiva.current = false;
     };
-  }, [caso.id]);
+  }, [caso.id, intentoConsulta]);
 
   const escanerListo =
     sesionEscaner.conectado() &&
@@ -73,6 +82,7 @@ export function DetalleCasoRecepcion({
     Boolean(sesionEscaner.notificacionSeleccionada);
 
   async function comenzar(condicionMotor: CondicionMotorSnapshot) {
+    if (!puedeCapturar || consultando || errorConsulta) return;
     const resultado = await captura.iniciar({
       casoId: caso.id,
       vehiculoId: caso.vehiculoId,
@@ -88,10 +98,36 @@ export function DetalleCasoRecepcion({
       ...caso,
       vin: resultado.vinLeido ?? caso.vin,
       estado: 'diagnostico_inicial',
+      snapshotIngreso: {
+        id: resultado.snapshotGuardado.id,
+        estado: resultado.snapshotGuardado.estado,
+      },
     });
   }
 
-  const puedeCapturar = caso.estado === 'ingresado' && !snapshotIngreso;
+  const esResponsable = sesion.perfil === 'recepcion' &&
+    caso.recepcionResponsableId === sesion.usuarioId;
+  const admiteAsignacion = esResponsable && !caso.mecanico &&
+    (caso.estado === 'ingresado' || caso.estado === 'diagnostico_inicial');
+  const puedeCapturar = esResponsable && caso.estado === 'ingresado' && !snapshotIngreso;
+
+  function prepararAsignacion() {
+    if (!admiteAsignacion || consultando || errorConsulta || captura.enCurso || confirmacionAbierta.current) return;
+    if (snapshotIngreso) {
+      alAsignarMecanico();
+      return;
+    }
+    // si falta el escaneo, prefiero que recepcion lo confirme antes de entregar el caso
+    confirmacionAbierta.current = true;
+    Alert.alert('Asignar sin escaneo inicial',
+      'Este caso no tiene un escaneo de ingreso guardado. ¿Continuar con la asignación?', [
+        { text: 'Cancelar', style: 'cancel', onPress: () => { confirmacionAbierta.current = false; } },
+        { text: 'Continuar', onPress: () => {
+          confirmacionAbierta.current = false;
+          if (pantallaActiva.current) alAsignarMecanico();
+        } },
+      ], { cancelable: false });
+  }
   return (
     <ScrollView
       style={estilos.pantalla}
@@ -141,14 +177,14 @@ export function DetalleCasoRecepcion({
                 : 'Conecta y verifica el escáner para comenzar.'}
             </Text>
 
-            {!escanerListo ? (
+            {puedeCapturar && !errorConsulta && !escanerListo ? (
               <Boton etiqueta="Conectar escáner" alPresionar={alAbrirEscaner} />
-            ) : puedeCapturar && !confirmando ? (
+            ) : puedeCapturar && !errorConsulta && !confirmando ? (
               <Boton
                 etiqueta="Preparar escaneo inicial"
                 alPresionar={() => establecerConfirmando(true)}
               />
-            ) : puedeCapturar && confirmando ? (
+            ) : puedeCapturar && !errorConsulta && confirmando ? (
               <View style={estilos.confirmacion}>
                 <Text style={estilos.textoConfirmacion}>
                   Mantén el vehículo detenido, ventilado y con el freno aplicado.
@@ -167,7 +203,9 @@ export function DetalleCasoRecepcion({
               </View>
             ) : (
               <Text style={estilos.textoSecundario}>
-                Este caso ya avanzó y no admite otro escaneo de ingreso.
+                {esResponsable
+                  ? 'No se puede iniciar otro escaneo de ingreso en este momento.'
+                  : 'Solo la recepción responsable puede preparar este caso.'}
               </Text>
             )}
           </>
@@ -184,12 +222,22 @@ export function DetalleCasoRecepcion({
         ) : null}
         {captura.error ? <Text style={estilos.error}>{captura.error}</Text> : null}
         {errorConsulta ? <Text style={estilos.error}>{errorConsulta}</Text> : null}
+        {errorConsulta ? (
+          <Boton etiqueta="Reintentar consulta" alPresionar={() => establecerIntentoConsulta(valor => valor + 1)} />
+        ) : null}
         {captura.resultado?.advertencias?.map(advertencia => (
           <Text key={advertencia} style={estilos.advertencia}>
             {advertencia}
           </Text>
         ))}
       </View>
+      {admiteAsignacion ? (
+        <Boton
+          etiqueta="Asignar mecánico"
+          alPresionar={prepararAsignacion}
+          deshabilitado={consultando || Boolean(errorConsulta) || captura.enCurso}
+        />
+      ) : null}
     </ScrollView>
   );
 }

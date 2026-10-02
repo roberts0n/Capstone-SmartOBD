@@ -17,6 +17,13 @@ interface FilaAsignacionActiva {
   mecanico_id: string;
 }
 
+export class ErrorRecargaAsignacion extends Error {
+  constructor(readonly asignacionId: string) {
+    super('La asignacion se guardo, pero no se pudo recargar el caso.');
+    this.name = 'ErrorRecargaAsignacion';
+  }
+}
+
 export async function listarMecanicosActivos(): Promise<MecanicoAsignable[]> {
   const { data, error } = await supabase
     .from('perfiles')
@@ -78,15 +85,14 @@ export async function asignarMecanicoCaso(
     throw new Error(mensajeErrorAsignacion(error));
   }
 
-  const caso = await obtenerCasoDiagnostico(casoId);
-  if (!caso) {
-    throw new Error('La asignacion se completo, pero no se pudo recargar el caso.');
+  try {
+    const caso = await obtenerCasoDiagnostico(casoId);
+    if (!caso) throw new ErrorRecargaAsignacion(data);
+    return { asignacionId: data, caso };
+  } catch {
+    // si ya se guardo, aviso que falta leer el resultado y no volver a asignar
+    throw new ErrorRecargaAsignacion(data);
   }
-
-  return {
-    asignacionId: data,
-    caso,
-  };
 }
 
 function validarAsignacion(

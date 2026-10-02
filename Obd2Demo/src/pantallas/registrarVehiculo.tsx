@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,13 +17,15 @@ import {
 import type { ClienteTaller } from '../clientes/TiposCliente';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import { crearVehiculo } from '../vehiculos/ServicioVehiculos';
-import type { TipoCombustible } from '../vehiculos/TiposVehiculo';
+import type { TipoCombustible, VehiculoTaller } from '../vehiculos/TiposVehiculo';
 
 interface Propiedades {
   sesion: SesionTaller;
   clienteInicialId?: string | null;
   alFinalizar: () => void;
   alVolver: () => void;
+  alVehiculoRegistrado?: (vehiculo: VehiculoTaller) => void;
+  etiquetaFinalizar?: string;
 }
 
 export function RegistrarVehiculo({
@@ -31,6 +33,8 @@ export function RegistrarVehiculo({
   clienteInicialId,
   alFinalizar,
   alVolver,
+  alVehiculoRegistrado,
+  etiquetaFinalizar = 'Finalizar',
 }: Propiedades) {
   const [clientes, establecerClientes] = useState<ClienteTaller[]>([]);
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
@@ -48,6 +52,13 @@ export function RegistrarVehiculo({
     null,
   );
   const [error, establecerError] = useState<string | null>(null);
+  const operacionEnCurso = useRef(false);
+  const pantallaActiva = useRef(true);
+
+  useEffect(() => {
+    pantallaActiva.current = true;
+    return () => { pantallaActiva.current = false; };
+  }, []);
 
   useEffect(() => {
     let activa = true;
@@ -111,6 +122,7 @@ export function RegistrarVehiculo({
   }
 
   async function registrar() {
+    if (operacionEnCurso.current || vehiculoCreado || cargandoClientes) return;
     if (!cliente) {
       establecerError('Selecciona el cliente dueño del vehículo.');
       return;
@@ -130,6 +142,7 @@ export function RegistrarVehiculo({
     }
 
     establecerError(null);
+    operacionEnCurso.current = true;
     establecerGuardando(true);
     try {
       const vehiculo = await crearVehiculo(
@@ -144,19 +157,22 @@ export function RegistrarVehiculo({
         },
         sesion,
       );
+      if (!pantallaActiva.current) return;
       establecerVehiculoCreado(
         [vehiculo.marca, vehiculo.modelo, vehiculo.patente]
           .filter(Boolean)
           .join(' · '),
       );
+      alVehiculoRegistrado?.(vehiculo);
     } catch (capturado) {
-      establecerError(
+      if (pantallaActiva.current) establecerError(
         capturado instanceof Error
           ? capturado.message
           : 'No se pudo registrar el vehículo.',
       );
     } finally {
-      establecerGuardando(false);
+      operacionEnCurso.current = false;
+      if (pantallaActiva.current) establecerGuardando(false);
     }
   }
 
@@ -199,7 +215,7 @@ export function RegistrarVehiculo({
               pressed && estilos.presionado,
             ]}
           >
-            <Text style={estilos.textoBotonSecundario}>Finalizar</Text>
+            <Text style={estilos.textoBotonSecundario}>{etiquetaFinalizar}</Text>
           </Pressable>
         </View>
       </View>

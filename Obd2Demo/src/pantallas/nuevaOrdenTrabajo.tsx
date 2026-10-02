@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -20,38 +20,67 @@ import { crearCasoDiagnostico } from '../casos/ServicioCasosDiagnostico';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import { listarVehiculosCliente } from '../vehiculos/ServicioVehiculos';
 import type { VehiculoTaller } from '../vehiculos/TiposVehiculo';
+import type { BorradorOrdenTrabajo } from '../casos/BorradorOrdenTrabajo';
 
 interface Propiedades {
   sesion: SesionTaller;
   alVolver: () => void;
   alCasoCreado: (caso: CasoRecepcion) => void;
+  borrador: BorradorOrdenTrabajo;
+  alActualizarBorrador: (cambios: Partial<BorradorOrdenTrabajo>) => void;
+  alRegistrarCliente: () => void;
+  alRegistrarVehiculo: (clienteId: string) => void;
 }
 
 export function NuevaOrdenTrabajo({
   sesion,
   alVolver,
   alCasoCreado,
+  borrador,
+  alActualizarBorrador,
+  alRegistrarCliente,
+  alRegistrarVehiculo,
 }: Propiedades) {
   const [clientes, establecerClientes] = useState<ClienteTaller[]>([]);
-  const [busqueda, establecerBusqueda] = useState('');
-  const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
   const [vehiculos, establecerVehiculos] = useState<VehiculoTaller[]>([]);
-  const [vehiculo, establecerVehiculo] = useState<VehiculoTaller | null>(null);
-  const [motivo, establecerMotivo] = useState('');
+  const [vehiculosDeClienteId, establecerVehiculosDeClienteId] = useState<string | null>(null);
   const [cargandoClientes, establecerCargandoClientes] = useState(true);
   const [cargandoVehiculos, establecerCargandoVehiculos] = useState(false);
   const [guardando, establecerGuardando] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
+  const [errorClientes, establecerErrorClientes] = useState<string | null>(null);
+  const [errorVehiculos, establecerErrorVehiculos] = useState<string | null>(null);
+  const [intentoClientes, establecerIntentoClientes] = useState(0);
+  const [intentoVehiculos, establecerIntentoVehiculos] = useState(0);
+  const pantallaActiva = useRef(true);
+  const operacionEnCurso = useRef(false);
+  const casoCreado = useRef(false);
+  const { busquedaCliente: busqueda, motivoIngreso: motivo } = borrador;
+  const cliente = clientes.find(item => item.id === borrador.clienteId) ?? null;
+  const clienteId = cliente?.id ?? null;
+  const vehiculosActuales = vehiculosDeClienteId === clienteId ? vehiculos : [];
+  const vehiculo = vehiculosActuales.find(item =>
+    item.id === borrador.vehiculoId && item.clienteId === clienteId,
+  ) ?? null;
+  const consultandoVehiculos = Boolean(clienteId) &&
+    (cargandoVehiculos || vehiculosDeClienteId !== clienteId);
+
+  useEffect(() => {
+    pantallaActiva.current = true;
+    return () => { pantallaActiva.current = false; };
+  }, []);
 
   useEffect(() => {
     let activa = true;
+    establecerCargandoClientes(true);
+    establecerErrorClientes(null);
     listarClientes()
       .then(resultado => {
         if (activa) establecerClientes(resultado);
       })
       .catch(capturado => {
         if (activa) {
-          establecerError(
+          establecerErrorClientes(
             capturado instanceof Error
               ? capturado.message
               : 'No se pudieron cargar los clientes.',
@@ -64,7 +93,36 @@ export function NuevaOrdenTrabajo({
     return () => {
       activa = false;
     };
-  }, []);
+  }, [intentoClientes]);
+
+  useEffect(() => {
+    let activa = true;
+    establecerVehiculos([]);
+    establecerVehiculosDeClienteId(null);
+    establecerErrorVehiculos(null);
+    if (!clienteId) {
+      establecerCargandoVehiculos(false);
+      return;
+    }
+    establecerCargandoVehiculos(true);
+    // al volver del registro leo sus autos, sin aceptar respuestas de un cliente anterior
+    listarVehiculosCliente(clienteId)
+      .then(resultado => {
+        if (activa) establecerVehiculos(resultado);
+      })
+      .catch(capturado => {
+        if (activa) establecerErrorVehiculos(
+          capturado instanceof Error ? capturado.message : 'No se pudieron cargar los vehículos del cliente.',
+        );
+      })
+      .finally(() => {
+        if (activa) {
+          establecerVehiculosDeClienteId(clienteId);
+          establecerCargandoVehiculos(false);
+        }
+      });
+    return () => { activa = false; };
+  }, [clienteId, intentoVehiculos]);
 
   const coincidencias = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -78,33 +136,19 @@ export function NuevaOrdenTrabajo({
       .slice(0, 5);
   }, [busqueda, cliente, clientes]);
 
-  async function seleccionarCliente(seleccionado: ClienteTaller) {
-    establecerCliente(seleccionado);
-    establecerBusqueda(seleccionado.nombre);
-    establecerVehiculo(null);
-    establecerCargandoVehiculos(true);
+  function seleccionarCliente(seleccionado: ClienteTaller) {
+    alActualizarBorrador({ clienteId: seleccionado.id, busquedaCliente: seleccionado.nombre, vehiculoId: null });
     establecerError(null);
-    try {
-      establecerVehiculos(await listarVehiculosCliente(seleccionado.id));
-    } catch (capturado) {
-      establecerError(
-        capturado instanceof Error
-          ? capturado.message
-          : 'No se pudieron cargar los vehículos del cliente.',
-      );
-    } finally {
-      establecerCargandoVehiculos(false);
-    }
   }
 
   function limpiarCliente() {
-    establecerCliente(null);
-    establecerVehiculos([]);
-    establecerVehiculo(null);
-    establecerBusqueda('');
+    alActualizarBorrador({ clienteId: null, vehiculoId: null, busquedaCliente: '' });
+    establecerError(null);
   }
 
   async function crearCaso() {
+    if (operacionEnCurso.current || casoCreado.current || cargandoClientes ||
+        consultandoVehiculos || errorClientes || errorVehiculos) return;
     if (!cliente) {
       establecerError('Selecciona un cliente registrado.');
       return;
@@ -118,6 +162,7 @@ export function NuevaOrdenTrabajo({
       return;
     }
     establecerError(null);
+    operacionEnCurso.current = true;
     establecerGuardando(true);
     try {
       const caso = await crearCasoDiagnostico(
@@ -127,15 +172,18 @@ export function NuevaOrdenTrabajo({
         },
         sesion,
       );
+      casoCreado.current = true;
+      if (!pantallaActiva.current) return;
       alCasoCreado(prepararCasoRecepcion(caso, cliente, vehiculo));
     } catch (capturado) {
-      establecerError(
+      if (pantallaActiva.current) establecerError(
         capturado instanceof Error
           ? capturado.message
           : 'No se pudo crear el caso de diagnóstico.',
       );
     } finally {
-      establecerGuardando(false);
+      operacionEnCurso.current = false;
+      if (pantallaActiva.current) establecerGuardando(false);
     }
   }
 
@@ -148,20 +196,18 @@ export function NuevaOrdenTrabajo({
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
-        <Cabecera alVolver={alVolver} />
+        <Cabecera alVolver={alVolver} deshabilitado={guardando} />
 
         <Text style={estilos.etiqueta}>Cliente</Text>
         <View style={estilos.buscador}>
           <TextInput
             accessibilityLabel="Buscar cliente"
-            editable={!cargandoClientes}
+            editable={!cargandoClientes && !guardando}
             onChangeText={texto => {
-              establecerBusqueda(texto);
-              if (cliente && texto !== cliente.nombre) {
-                establecerCliente(null);
-                establecerVehiculos([]);
-                establecerVehiculo(null);
-              }
+              alActualizarBorrador({
+                busquedaCliente: texto,
+                ...(texto !== cliente?.nombre ? { clienteId: null, vehiculoId: null } : {}),
+              });
             }}
             placeholder="Buscar por nombre, correo o teléfono"
             placeholderTextColor="#77777F"
@@ -182,7 +228,7 @@ export function NuevaOrdenTrabajo({
                 {cliente.telefono || cliente.correo || 'Cliente registrado'}
               </Text>
             </View>
-            <Pressable accessibilityRole="button" onPress={limpiarCliente}>
+            <Pressable accessibilityRole="button" disabled={guardando} onPress={limpiarCliente}>
               <Text style={estilos.cambiarCliente}>Cambiar</Text>
             </Pressable>
           </View>
@@ -194,6 +240,7 @@ export function NuevaOrdenTrabajo({
               <Pressable
                 accessibilityRole="button"
                 key={item.id}
+                disabled={guardando || cargandoClientes}
                 onPress={() => seleccionarCliente(item)}
                 style={estilos.resultadoCliente}
               >
@@ -206,27 +253,37 @@ export function NuevaOrdenTrabajo({
           </View>
         ) : null}
 
-        {!cargandoClientes && busqueda.trim() && !cliente && coincidencias.length === 0 ? (
+        {!cargandoClientes && !errorClientes && busqueda.trim() && !cliente && coincidencias.length === 0 ? (
           <Text style={estilos.sinResultados}>No encontramos un cliente con esos datos.</Text>
+        ) : null}
+        {!cargandoClientes && !errorClientes && !cliente && coincidencias.length === 0 &&
+          (busqueda.trim() || clientes.length === 0) ? (
+          <Pressable accessibilityRole="button" disabled={guardando} onPress={alRegistrarCliente} style={estilos.accesoRegistro}>
+            <Text style={estilos.textoAcceso}>Registrar cliente</Text>
+          </Pressable>
+        ) : null}
+        {!cargandoClientes && !errorClientes && borrador.clienteId && !cliente ? (
+          <Text style={estilos.error}>El cliente seleccionado ya no está disponible. Busca otro cliente.</Text>
         ) : null}
 
         {cliente ? (
           <View style={estilos.tarjetaVehiculo}>
             <Text style={estilos.tituloTarjeta}>Vehículo</Text>
-            {cargandoVehiculos ? (
+            {consultandoVehiculos ? (
               <ActivityIndicator color="#13C296" />
-            ) : vehiculos.length === 0 ? (
+            ) : errorVehiculos ? null : vehiculosActuales.length === 0 ? (
               <Text style={estilos.sinResultados}>Este cliente todavía no tiene vehículos registrados.</Text>
             ) : (
               <View style={estilos.listaVehiculos}>
-                {vehiculos.map(item => {
+                {vehiculosActuales.map(item => {
                   const activo = vehiculo?.id === item.id;
                   return (
                     <Pressable
                       accessibilityRole="radio"
                       accessibilityState={{ checked: activo }}
                       key={item.id}
-                      onPress={() => establecerVehiculo(item)}
+                      disabled={guardando}
+                      onPress={() => alActualizarBorrador({ vehiculoId: item.id })}
                       style={[estilos.vehiculo, activo && estilos.vehiculoActivo]}
                     >
                       <View style={estilos.datosVehiculo}>
@@ -241,6 +298,14 @@ export function NuevaOrdenTrabajo({
                 })}
               </View>
             )}
+            {!consultandoVehiculos && !errorVehiculos ? (
+              <Pressable accessibilityRole="button" disabled={guardando} onPress={() => alRegistrarVehiculo(cliente.id)} style={estilos.accesoRegistro}>
+                <Text style={estilos.textoAcceso}>Agregar vehículo</Text>
+              </Pressable>
+            ) : null}
+            {!consultandoVehiculos && !errorVehiculos && borrador.vehiculoId && !vehiculo ? (
+              <Text style={estilos.error}>Selecciona un vehículo disponible de este cliente.</Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -248,7 +313,8 @@ export function NuevaOrdenTrabajo({
         <TextInput
           accessibilityLabel="Motivo de ingreso"
           multiline
-          onChangeText={establecerMotivo}
+          editable={!guardando}
+          onChangeText={texto => alActualizarBorrador({ motivoIngreso: texto })}
           placeholder="Describe la consulta, la falla informada o el mantenimiento solicitado"
           placeholderTextColor="#77777F"
           style={estilos.areaTexto}
@@ -257,15 +323,26 @@ export function NuevaOrdenTrabajo({
         />
 
         {error ? <Text accessibilityRole="alert" style={estilos.error}>{error}</Text> : null}
+        {errorClientes || errorVehiculos ? (
+          <>
+            <Text accessibilityRole="alert" style={estilos.error}>{errorClientes ?? errorVehiculos}</Text>
+            <Pressable accessibilityRole="button" disabled={cargandoClientes || consultandoVehiculos} onPress={() => {
+              if (errorClientes) establecerIntentoClientes(valor => valor + 1);
+              else establecerIntentoVehiculos(valor => valor + 1);
+            }} style={estilos.accesoRegistro}>
+              <Text style={estilos.textoAcceso}>Reintentar consulta</Text>
+            </Pressable>
+          </>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
-          disabled={cargandoVehiculos || guardando}
+          disabled={cargandoClientes || consultandoVehiculos || guardando || Boolean(errorClientes || errorVehiculos)}
           onPress={crearCaso}
           style={({ pressed }) => [
             estilos.boton,
             pressed && estilos.presionado,
-            (cargandoVehiculos || guardando) && estilos.deshabilitado,
+            (cargandoClientes || consultandoVehiculos || guardando || Boolean(errorClientes || errorVehiculos)) && estilos.deshabilitado,
           ]}
         >
           {guardando ? (
@@ -280,10 +357,10 @@ export function NuevaOrdenTrabajo({
   );
 }
 
-function Cabecera({ alVolver }: { alVolver: () => void }) {
+function Cabecera({ alVolver, deshabilitado }: { alVolver: () => void; deshabilitado: boolean }) {
   return (
     <View style={estilos.cabecera}>
-      <Pressable accessibilityLabel="Volver" accessibilityRole="button" onPress={alVolver} style={estilos.volver}>
+      <Pressable accessibilityLabel="Volver" accessibilityRole="button" disabled={deshabilitado} onPress={alVolver} style={estilos.volver}>
         <Text style={estilos.flechaVolver}>‹</Text>
       </Pressable>
       <View>
@@ -317,6 +394,8 @@ const estilos = StyleSheet.create({
   nombreResultado: { color: '#ECECEE', fontSize: 13, fontWeight: '600' },
   contactoResultado: { color: '#85858C', fontSize: 11, marginTop: 3 },
   sinResultados: { color: '#898990', fontSize: 12, marginTop: 8 },
+  accesoRegistro: { alignSelf: 'flex-start', paddingVertical: 12 },
+  textoAcceso: { color: '#4DDBB7', fontSize: 12, fontWeight: '700' },
   tarjetaVehiculo: { backgroundColor: '#171719', borderWidth: 1, borderColor: '#2D2D31', borderRadius: 17, padding: 14, marginTop: 18 },
   tituloTarjeta: { color: '#13C296', fontSize: 12, fontWeight: '700', marginBottom: 13 },
   listaVehiculos: { gap: 9 },

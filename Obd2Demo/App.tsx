@@ -19,7 +19,12 @@ import { RegistrarCliente } from './src/pantallas/registrarCliente';
 import { RegistrarVehiculo } from './src/pantallas/registrarVehiculo';
 import { CasosRecepcion } from './src/pantallas/casosRecepcion';
 import { DetalleCasoRecepcion } from './src/pantallas/detalleCasoRecepcion';
+import { AsignarMecanico } from './src/pantallas/asignarMecanico';
 import type { CasoRecepcion } from './src/casos/ServicioCasosRecepcion';
+import {
+  crearBorradorOrdenTrabajo,
+  type BorradorOrdenTrabajo,
+} from './src/casos/BorradorOrdenTrabajo';
 import {
   BarraNavegacionInferior,
   type DestinoBarra,
@@ -44,7 +49,10 @@ type Ruta =
   | 'registrar_cliente'
   | 'registrar_vehiculo'
   | 'casos_recepcion'
-  | 'detalle_caso_recepcion';
+  | 'detalle_caso_recepcion'
+  | 'asignar_mecanico';
+
+type OrigenRegistro = 'herramientas' | 'nueva_orden';
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
@@ -56,6 +64,10 @@ function ContenidoAplicacion() {
     useState<CasoRecepcion | null>(null);
   const [clienteInicialVehiculoId, establecerClienteInicialVehiculoId] =
     useState<string | null>(null);
+  const [borradorOrden, establecerBorradorOrden] =
+    useState(crearBorradorOrdenTrabajo);
+  const [origenRegistro, establecerOrigenRegistro] =
+    useState<OrigenRegistro>('herramientas');
   const [inicializando, establecerInicializando] = useState(true);
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
@@ -102,6 +114,8 @@ function ContenidoAplicacion() {
     establecerSesion(null);
     establecerCasoRecepcion(null);
     establecerClienteInicialVehiculoId(null);
+    establecerBorradorOrden(crearBorradorOrdenTrabajo());
+    establecerOrigenRegistro('herramientas');
     establecerRuta('login');
   }
 
@@ -119,7 +133,19 @@ function ContenidoAplicacion() {
     if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
     establecerCasoRecepcion(null);
     establecerClienteInicialVehiculoId(null);
+    establecerBorradorOrden(crearBorradorOrdenTrabajo());
+    establecerOrigenRegistro('herramientas');
     establecerRuta(destino);
+  }
+
+  function actualizarBorrador(cambios: Partial<BorradorOrdenTrabajo>) {
+    establecerBorradorOrden(actual => ({ ...actual, ...cambios }));
+  }
+
+  function volverDelRegistro() {
+    establecerClienteInicialVehiculoId(null);
+    establecerRuta(origenRegistro === 'nueva_orden' ? 'nueva_orden' : 'herramientas');
+    establecerOrigenRegistro('herramientas');
   }
 
   const mostrarBarra =
@@ -129,7 +155,8 @@ function ContenidoAplicacion() {
     ruta === 'registrar_cliente' ||
     ruta === 'registrar_vehiculo' ||
     ruta === 'casos_recepcion' ||
-    ruta === 'detalle_caso_recepcion'
+    ruta === 'detalle_caso_recepcion' ||
+    ruta === 'asignar_mecanico'
       ? 'herramientas'
       : ruta === 'login'
         ? 'inicio'
@@ -176,10 +203,18 @@ function ContenidoAplicacion() {
             <HerramientasRol
               sesion={sesion}
               alAbrirEscaner={() => establecerRuta('escaner')}
-              alAbrirNuevaOrden={() => establecerRuta('nueva_orden')}
-              alAbrirRegistroCliente={() => establecerRuta('registrar_cliente')}
+              alAbrirNuevaOrden={() => {
+                establecerBorradorOrden(crearBorradorOrdenTrabajo());
+                establecerOrigenRegistro('herramientas');
+                establecerRuta('nueva_orden');
+              }}
+              alAbrirRegistroCliente={() => {
+                establecerOrigenRegistro('herramientas');
+                establecerRuta('registrar_cliente');
+              }}
               alAbrirRegistroVehiculo={() => {
                 establecerClienteInicialVehiculoId(null);
+                establecerOrigenRegistro('herramientas');
                 establecerRuta('registrar_vehiculo');
               }}
               alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
@@ -191,8 +226,23 @@ function ContenidoAplicacion() {
           !sesion.debeCambiarPassword && (
             <NuevaOrdenTrabajo
               sesion={sesion}
-              alVolver={() => establecerRuta('herramientas')}
+              borrador={borradorOrden}
+              alActualizarBorrador={actualizarBorrador}
+              alRegistrarCliente={() => {
+                establecerOrigenRegistro('nueva_orden');
+                establecerRuta('registrar_cliente');
+              }}
+              alRegistrarVehiculo={clienteId => {
+                establecerClienteInicialVehiculoId(clienteId);
+                establecerOrigenRegistro('nueva_orden');
+                establecerRuta('registrar_vehiculo');
+              }}
+              alVolver={() => {
+                establecerBorradorOrden(crearBorradorOrdenTrabajo());
+                establecerRuta('herramientas');
+              }}
               alCasoCreado={caso => {
+                establecerBorradorOrden(crearBorradorOrdenTrabajo());
                 establecerCasoRecepcion(caso);
                 establecerRuta('detalle_caso_recepcion');
               }}
@@ -204,12 +254,21 @@ function ContenidoAplicacion() {
           !sesion.debeCambiarPassword && (
             <RegistrarCliente
               sesion={sesion}
+              etiquetaFinalizar={origenRegistro === 'nueva_orden' ? 'Volver a la orden' : 'Finalizar'}
+              alClienteRegistrado={cliente => {
+                if (origenRegistro !== 'nueva_orden') return;
+                actualizarBorrador({
+                  busquedaCliente: cliente.nombre,
+                  clienteId: cliente.id,
+                  vehiculoId: null,
+                });
+              }}
               alAgregarVehiculo={clienteId => {
                 establecerClienteInicialVehiculoId(clienteId);
                 establecerRuta('registrar_vehiculo');
               }}
-              alFinalizar={() => establecerRuta('herramientas')}
-              alVolver={() => establecerRuta('herramientas')}
+              alFinalizar={volverDelRegistro}
+              alVolver={volverDelRegistro}
             />
           )}
         {!inicializando &&
@@ -219,14 +278,13 @@ function ContenidoAplicacion() {
             <RegistrarVehiculo
               sesion={sesion}
               clienteInicialId={clienteInicialVehiculoId}
-              alFinalizar={() => {
-                establecerClienteInicialVehiculoId(null);
-                establecerRuta('herramientas');
+              etiquetaFinalizar={origenRegistro === 'nueva_orden' ? 'Volver a la orden' : 'Finalizar'}
+              alVehiculoRegistrado={vehiculo => {
+                if (origenRegistro !== 'nueva_orden') return;
+                actualizarBorrador({ clienteId: vehiculo.clienteId, vehiculoId: vehiculo.id });
               }}
-              alVolver={() => {
-                establecerClienteInicialVehiculoId(null);
-                establecerRuta('herramientas');
-              }}
+              alFinalizar={volverDelRegistro}
+              alVolver={volverDelRegistro}
             />
           )}
         {!inicializando &&
@@ -251,9 +309,26 @@ function ContenidoAplicacion() {
               sesion={sesion}
               alAbrirEscaner={() => establecerRuta('escaner')}
               alActualizarCaso={establecerCasoRecepcion}
+              alAsignarMecanico={() => establecerRuta('asignar_mecanico')}
               alVolver={() => {
                 establecerCasoRecepcion(null);
                 establecerRuta('casos_recepcion');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'asignar_mecanico' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword &&
+          casoRecepcion && (
+            <AsignarMecanico
+              key={casoRecepcion.id}
+              caso={casoRecepcion}
+              sesion={sesion}
+              alVolver={() => establecerRuta('detalle_caso_recepcion')}
+              alCompletar={caso => {
+                establecerCasoRecepcion(caso);
+                establecerRuta('detalle_caso_recepcion');
               }}
             />
           )}
