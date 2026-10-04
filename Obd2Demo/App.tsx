@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { PantallaEscanerObd } from './src/pantallas/PantallaEscanerObd';
+import { ConectarEscaner } from './src/pantallas/conectarEscaner';
 import { Login } from './src/pantallas/login';
 import { Inicio } from './src/pantallas/inicio';
 import { Registro } from './src/pantallas/registro';
@@ -20,6 +21,7 @@ import { RegistrarVehiculo } from './src/pantallas/registrarVehiculo';
 import { CasosRecepcion } from './src/pantallas/casosRecepcion';
 import { DetalleCasoRecepcion } from './src/pantallas/detalleCasoRecepcion';
 import { AsignarMecanico } from './src/pantallas/asignarMecanico';
+import { EliminarDatosPrueba } from './src/pantallas/eliminarDatosPrueba';
 import type { CasoRecepcion } from './src/casos/ServicioCasosRecepcion';
 import {
   crearBorradorOrdenTrabajo,
@@ -50,25 +52,36 @@ type Ruta =
   | 'registrar_vehiculo'
   | 'casos_recepcion'
   | 'detalle_caso_recepcion'
-  | 'asignar_mecanico';
+  | 'asignar_mecanico'
+  | 'conectar_escaner'
+  | 'pruebas_escaner'
+  | 'eliminar_datos_prueba';
 
 type OrigenRegistro = 'herramientas' | 'nueva_orden';
+type OrigenConexion = 'inicio' | 'herramientas' | 'detalle_caso_recepcion';
+
+// dejo las pruebas disponibles en nuestras apk internas; para distribuir la app final lo cambio a false
+const PRUEBAS_INTERNAS_HABILITADAS = true;
 
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
 function ContenidoAplicacion() {
   const sesionEscaner = useSesionEscanerObd();
   const [ruta, establecerRuta] = useState<Ruta>('login');
+  const [origenConexion, establecerOrigenConexion] =
+    useState<OrigenConexion>('inicio');
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
   const [casoRecepcion, establecerCasoRecepcion] =
     useState<CasoRecepcion | null>(null);
   const [clienteInicialVehiculoId, establecerClienteInicialVehiculoId] =
     useState<string | null>(null);
-  const [borradorOrden, establecerBorradorOrden] =
-    useState(crearBorradorOrdenTrabajo);
+  const [borradorOrden, establecerBorradorOrden] = useState(
+    crearBorradorOrdenTrabajo,
+  );
   const [origenRegistro, establecerOrigenRegistro] =
     useState<OrigenRegistro>('herramientas');
   const [inicializando, establecerInicializando] = useState(true);
+  const [limpiezaEnCurso, establecerLimpiezaEnCurso] = useState(false);
   const [mensajeSistema, establecerMensajeSistema] = useState<string | null>(
     null,
   );
@@ -128,6 +141,7 @@ function ContenidoAplicacion() {
   }
 
   function navegar(destino: DestinoBarra) {
+    if (limpiezaEnCurso) return;
     if (!sesion || sesion.debeCambiarPassword) return;
     if (destino === 'registro' && sesion.perfil !== 'administrador') return;
     if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
@@ -138,29 +152,55 @@ function ContenidoAplicacion() {
     establecerRuta(destino);
   }
 
+  function abrirConexion(origen: OrigenConexion) {
+    if (
+      !sesion ||
+      sesion.perfil === 'administrador' ||
+      sesion.debeCambiarPassword
+    )
+      return;
+    establecerOrigenConexion(origen);
+    establecerRuta('conectar_escaner');
+  }
+
+  function volverDeConexion() {
+    establecerRuta(origenConexion);
+  }
+
   function actualizarBorrador(cambios: Partial<BorradorOrdenTrabajo>) {
     establecerBorradorOrden(actual => ({ ...actual, ...cambios }));
   }
 
   function volverDelRegistro() {
     establecerClienteInicialVehiculoId(null);
-    establecerRuta(origenRegistro === 'nueva_orden' ? 'nueva_orden' : 'herramientas');
+    establecerRuta(
+      origenRegistro === 'nueva_orden' ? 'nueva_orden' : 'herramientas',
+    );
     establecerOrigenRegistro('herramientas');
   }
 
   const mostrarBarra =
-    !inicializando && Boolean(sesion) && !sesion?.debeCambiarPassword;
+    !inicializando &&
+    Boolean(sesion) &&
+    !sesion?.debeCambiarPassword &&
+    !limpiezaEnCurso &&
+    ruta !== 'conectar_escaner';
   const destinoActivo: DestinoBarra =
     ruta === 'nueva_orden' ||
     ruta === 'registrar_cliente' ||
     ruta === 'registrar_vehiculo' ||
     ruta === 'casos_recepcion' ||
     ruta === 'detalle_caso_recepcion' ||
-    ruta === 'asignar_mecanico'
+    ruta === 'asignar_mecanico' ||
+    ruta === 'eliminar_datos_prueba'
+      ? 'herramientas'
+      : ruta === 'pruebas_escaner'
+      ? 'cuenta'
+      : ruta === 'conectar_escaner'
       ? 'herramientas'
       : ruta === 'login'
-        ? 'inicio'
-        : ruta;
+      ? 'inicio'
+      : ruta;
 
   return (
     <>
@@ -176,10 +216,7 @@ function ContenidoAplicacion() {
           </View>
         )}
         {!inicializando && !sesion && (
-          <Login
-            alIngresar={ingresar}
-            mensajeSistema={mensajeSistema}
-          />
+          <Login alIngresar={ingresar} mensajeSistema={mensajeSistema} />
         )}
         {!inicializando && sesion?.debeCambiarPassword && (
           <CambiarContrasena
@@ -187,15 +224,18 @@ function ContenidoAplicacion() {
             alCerrarSesion={cerrarSesion}
           />
         )}
-        {!inicializando && !sesion?.debeCambiarPassword && ruta === 'inicio' && sesion && (
-          <Inicio
-            sesion={sesion}
-            alAbrirEscaner={() => establecerRuta('escaner')}
-            alAbrirRegistro={() => establecerRuta('registro')}
-            alAbrirRecepcion={() => navegar('herramientas')}
-            alAbrirCuenta={() => establecerRuta('cuenta')}
-          />
-        )}
+        {!inicializando &&
+          !sesion?.debeCambiarPassword &&
+          ruta === 'inicio' &&
+          sesion && (
+            <Inicio
+              sesion={sesion}
+              alAbrirEscaner={() => abrirConexion('inicio')}
+              alAbrirRegistro={() => establecerRuta('registro')}
+              alAbrirRecepcion={() => navegar('herramientas')}
+              alAbrirCuenta={() => establecerRuta('cuenta')}
+            />
+          )}
         {!inicializando &&
           ruta === 'herramientas' &&
           sesion &&
@@ -203,7 +243,7 @@ function ContenidoAplicacion() {
           sesion.perfil !== 'administrador' && (
             <HerramientasRol
               sesion={sesion}
-              alAbrirEscaner={() => establecerRuta('escaner')}
+              alAbrirEscaner={() => abrirConexion('herramientas')}
               alAbrirNuevaOrden={() => {
                 establecerBorradorOrden(crearBorradorOrdenTrabajo());
                 establecerOrigenRegistro('herramientas');
@@ -219,6 +259,11 @@ function ContenidoAplicacion() {
                 establecerRuta('registrar_vehiculo');
               }}
               alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
+              alAbrirLimpieza={() => {
+                establecerCasoRecepcion(null);
+                establecerBorradorOrden(crearBorradorOrdenTrabajo());
+                establecerRuta('eliminar_datos_prueba');
+              }}
             />
           )}
         {!inicializando &&
@@ -255,7 +300,11 @@ function ContenidoAplicacion() {
           !sesion.debeCambiarPassword && (
             <RegistrarCliente
               sesion={sesion}
-              etiquetaFinalizar={origenRegistro === 'nueva_orden' ? 'Volver a la orden' : 'Finalizar'}
+              etiquetaFinalizar={
+                origenRegistro === 'nueva_orden'
+                  ? 'Volver a la orden'
+                  : 'Finalizar'
+              }
               alClienteRegistrado={cliente => {
                 if (origenRegistro !== 'nueva_orden') return;
                 actualizarBorrador({
@@ -279,10 +328,17 @@ function ContenidoAplicacion() {
             <RegistrarVehiculo
               sesion={sesion}
               clienteInicialId={clienteInicialVehiculoId}
-              etiquetaFinalizar={origenRegistro === 'nueva_orden' ? 'Volver a la orden' : 'Finalizar'}
+              etiquetaFinalizar={
+                origenRegistro === 'nueva_orden'
+                  ? 'Volver a la orden'
+                  : 'Finalizar'
+              }
               alVehiculoRegistrado={vehiculo => {
                 if (origenRegistro !== 'nueva_orden') return;
-                actualizarBorrador({ clienteId: vehiculo.clienteId, vehiculoId: vehiculo.id });
+                actualizarBorrador({
+                  clienteId: vehiculo.clienteId,
+                  vehiculoId: vehiculo.id,
+                });
               }}
               alFinalizar={volverDelRegistro}
               alVolver={volverDelRegistro}
@@ -308,7 +364,7 @@ function ContenidoAplicacion() {
             <DetalleCasoRecepcion
               caso={casoRecepcion}
               sesion={sesion}
-              alAbrirEscaner={() => establecerRuta('escaner')}
+              alAbrirEscaner={() => abrirConexion('detalle_caso_recepcion')}
               alActualizarCaso={establecerCasoRecepcion}
               alAsignarMecanico={() => establecerRuta('asignar_mecanico')}
               alVolver={() => {
@@ -334,6 +390,21 @@ function ContenidoAplicacion() {
             />
           )}
         {!inicializando &&
+          ruta === 'eliminar_datos_prueba' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <EliminarDatosPrueba
+              sesion={sesion}
+              alVolver={() => establecerRuta('herramientas')}
+              alCambiarOperacion={establecerLimpiezaEnCurso}
+              alEliminar={() => {
+                establecerCasoRecepcion(null);
+                establecerClienteInicialVehiculoId(null);
+                establecerBorradorOrden(crearBorradorOrdenTrabajo());
+              }}
+            />
+          )}
+        {!inicializando &&
           ruta === 'registro' &&
           !sesion?.debeCambiarPassword &&
           sesion?.perfil === 'administrador' && (
@@ -342,17 +413,36 @@ function ContenidoAplicacion() {
               alVolver={() => establecerRuta('inicio')}
             />
           )}
-        {!inicializando && ruta === 'escaner' && sesion &&
+        {!inicializando &&
+          ruta === 'conectar_escaner' &&
+          sesion &&
+          sesion.perfil !== 'administrador' &&
           !sesion.debeCambiarPassword && (
-            <PantallaEscanerObd
-              alVolver={casoRecepcion
-                ? () => establecerRuta('detalle_caso_recepcion')
-                : undefined}
+            <ConectarEscaner
+              alVolver={volverDeConexion}
+              alPreparado={volverDeConexion}
             />
           )}
-        {!inicializando && ruta === 'cuenta' && sesion &&
+        {!inicializando &&
+          ruta === 'pruebas_escaner' &&
+          PRUEBAS_INTERNAS_HABILITADAS &&
+          sesion &&
           !sesion.debeCambiarPassword && (
-            <Cuenta sesion={sesion} alCerrarSesion={cerrarSesion} />
+            <PantallaEscanerObd alVolver={() => establecerRuta('cuenta')} />
+          )}
+        {!inicializando &&
+          ruta === 'cuenta' &&
+          sesion &&
+          !sesion.debeCambiarPassword && (
+            <Cuenta
+              sesion={sesion}
+              alCerrarSesion={cerrarSesion}
+              alAbrirPruebas={
+                PRUEBAS_INTERNAS_HABILITADAS
+                  ? () => establecerRuta('pruebas_escaner')
+                  : undefined
+              }
+            />
           )}
         {mostrarBarra && sesion ? (
           <BarraNavegacionInferior

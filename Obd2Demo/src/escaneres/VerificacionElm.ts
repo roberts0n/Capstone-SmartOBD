@@ -11,6 +11,71 @@ export interface CombinacionCanalesElm {
   descripcion: string;
 }
 
+interface OperacionesVerificacion {
+  sigueVigente: () => boolean;
+  probar: (canales: CombinacionCanalesElm) => Promise<string>;
+  alIntentar: (mensaje: string) => void;
+}
+
+// pruebo primero lo que funciono antes, pero no lo doy por valido sin consultar ATI
+export async function verificarCanalesElm(
+  dispositivo: InformacionDispositivoBle,
+  caracteristicas: InformacionCaracteristicaGatt[],
+  guardado: EscanerGuardado | undefined,
+  operaciones: OperacionesVerificacion,
+): Promise<{
+  registro: EscanerGuardado;
+  canales: CombinacionCanalesElm;
+  respuestaAti: string;
+}> {
+  const anteriores = guardado && recuperarCanales(guardado, caracteristicas);
+  const candidatos = [
+    ...(anteriores
+      ? [{ ...anteriores, descripcion: 'canales guardados' }]
+      : []),
+    ...obtenerCombinacionesAutomaticas(caracteristicas),
+  ];
+  const probados = new Set<string>();
+  const comprobar = () => {
+    if (!operaciones.sigueVigente())
+      throw new Error('Preparación del escáner cancelada.');
+  };
+  let ultimoError = 'El escáner no tiene canales automáticos compatibles.';
+  for (const canales of candidatos) {
+    comprobar();
+    const clave = [canales.escritura, canales.notificacion]
+      .map(
+        canal =>
+          `${normalizarUuid(canal.uuidServicio)}|${normalizarUuid(
+            canal.uuidCaracteristica,
+          )}`,
+      )
+      .join('/');
+    if (probados.has(clave)) continue;
+    probados.add(clave);
+    operaciones.alIntentar(`Verificando ${canales.descripcion}…`);
+    try {
+      const respuesta = await operaciones.probar(canales);
+      comprobar();
+      return {
+        registro: crearEscanerVerificado(
+          dispositivo,
+          canales.escritura,
+          canales.notificacion,
+          respuesta,
+        ),
+        canales,
+        respuestaAti: respuesta,
+      };
+    } catch (capturado) {
+      comprobar();
+      ultimoError =
+        capturado instanceof Error ? capturado.message : String(capturado);
+    }
+  }
+  throw new Error(`No se pudo verificar el escáner. ${ultimoError}`);
+}
+
 const PRIORIDADES_AUTOMATICAS = [
   { escritura: 'FFF1', notificacion: 'FFF1' },
   { escritura: 'FFF2', notificacion: 'FFF1' },

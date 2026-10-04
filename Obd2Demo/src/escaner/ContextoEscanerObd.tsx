@@ -10,11 +10,16 @@ import React, {
 } from 'react';
 import { State, type Subscription } from 'react-native-ble-plx';
 import {
-  esBluetoothNoDisponible,
   esBluetoothUtilizable,
   ServicioBle,
+  type EstadoPermisosBluetooth,
 } from '../ble/ServicioBle';
 import { combinarAnuncios } from '../escaneres/PerfilesEscaner';
+import { useEscaneresGuardados } from '../escaneres/usarEscaneresGuardados';
+import {
+  identificarElm,
+  verificarCanalesElm,
+} from '../escaneres/VerificacionElm';
 import { ServicioElm327 } from '../obd/ServicioElm327';
 import type {
   EntradaConsola,
@@ -34,6 +39,15 @@ const ContextoEscanerObd = createContext<SesionEscanerObd | null>(null);
 export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   const [servicioBle] = useState(() => new ServicioBle());
   const [servicioElm] = useState(() => new ServicioElm327(servicioBle));
+  const escaneres = useEscaneresGuardados();
+  const { buscar: buscarGuardado, guardar: guardarEscaner } = escaneres;
+  const [estadoPermisos, establecerEstadoPermisos] =
+    useState<EstadoPermisosBluetooth>('pendientes');
+  const [estadoPreparacion, establecerEstadoPreparacion] =
+    useState<SesionEscanerObd['estadoPreparacion']>('sin-verificar');
+  const [advertenciaGuardado, establecerAdvertenciaGuardado] = useState<
+    string | null
+  >(null);
   const [estadoBluetooth, establecerEstadoBluetooth] = useState<State>(
     State.Unknown,
   );
@@ -53,9 +67,9 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     useState<InformacionCaracteristicaGatt | null>(null);
   const [notificacionSeleccionada, establecerNotificacionSeleccionada] =
     useState<InformacionCaracteristicaGatt | null>(null);
-  const [claveSuscripcion, establecerClaveSuscripcion] = useState<string | null>(
-    null,
-  );
+  const [claveSuscripcion, establecerClaveSuscripcion] = useState<
+    string | null
+  >(null);
   const [conexionEnCurso, establecerConexionEnCurso] = useState(false);
   const [mensajeVerificacion, establecerMensajeVerificacion] = useState(
     MENSAJE_SIN_VERIFICAR,
@@ -70,7 +84,25 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   const versionConexion = useRef(0);
   const secuenciaRegistro = useRef(0);
   const bloqueoConexion = useRef(false);
+  const cierreEnCurso = useRef(false);
   const suscripcionDesconexion = useRef<Subscription | null>(null);
+  const bloqueoPreparacion = useRef(false);
+  const versionPreparacion = useRef(0);
+  const versionBusqueda = useRef(0);
+  const bluetoothRef = useRef(State.Unknown);
+  const permisosRef = useRef<EstadoPermisosBluetooth>('pendientes');
+  const caracteristicasRef = useRef<InformacionCaracteristicaGatt[]>([]);
+  const verificacionRef = useRef<{
+    version: number;
+    escritura: string;
+    notificacion: string;
+  } | null>(null);
+
+  const invalidarVerificacion = useCallback(() => {
+    verificacionRef.current = null;
+    establecerEstadoPreparacion('sin-verificar');
+    establecerAdvertenciaGuardado(null);
+  }, []);
 
   const agregarRegistro = useCallback(
     (nivel: EntradaConsola['nivel'], mensaje: string) => {
@@ -89,6 +121,8 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   );
 
   const limpiarSeleccion = useCallback(() => {
+    invalidarVerificacion();
+    caracteristicasRef.current = [];
     dispositivoRef.current = null;
     escrituraRef.current = null;
     notificacionRef.current = null;
@@ -99,12 +133,15 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     establecerClaveSuscripcion(null);
     establecerIdDispositivoSeleccionado(null);
     establecerMensajeVerificacion(MENSAJE_SIN_VERIFICAR);
-  }, []);
+  }, [invalidarVerificacion]);
 
   useEffect(() => {
     const suscripcionEstado = servicioBle.observarEstadoBluetooth(estado => {
+      bluetoothRef.current = estado;
       establecerEstadoBluetooth(estado);
-      if (esBluetoothNoDisponible(estado) || estado === State.PoweredOff) {
+      if (!esBluetoothUtilizable(estado)) {
+        versionPreparacion.current += 1;
+        versionBusqueda.current += 1;
         servicioBle.detenerEscaneo();
         servicioElm.cancelarSuscripcion();
         suscripcionDesconexion.current?.remove();
@@ -112,10 +149,13 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         versionConexion.current += 1;
         limpiarSeleccion();
         establecerEstadoConexion('bluetooth-no-disponible');
+        servicioBle.desconectar().catch(() => undefined);
       }
     });
 
     return () => {
+      versionPreparacion.current += 1;
+      versionBusqueda.current += 1;
       versionConexion.current += 1;
       suscripcionEstado.remove();
       suscripcionDesconexion.current?.remove();
@@ -124,37 +164,84 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     };
   }, [limpiarSeleccion, servicioBle, servicioElm]);
 
-  const prepararBluetooth = useCallback(async (): Promise<boolean> => {
-    try {
-      const concedidos = await servicioBle.solicitarPermisosAndroid();
-      if (!concedidos) {
-        throw new Error('Permisos Bluetooth denegados.');
-      }
-      const estado = await servicioBle.obtenerEstadoBluetooth();
-      establecerEstadoBluetooth(estado);
-      if (!esBluetoothUtilizable(estado)) {
-        establecerEstadoConexion('bluetooth-no-disponible');
-        agregarRegistro(
-          'error',
-          `Bluetooth no está listo: ${estado}. Enciéndelo e intenta otra vez.`,
-        );
+  const actualizarBluetooth = useCallback(
+    async (solicitar = false): Promise<boolean> => {
+      try {
+        const permisos = await servicioBle.consultarPermisosAndroid(solicitar);
+        permisosRef.current = permisos;
+        establecerEstadoPermisos(permisos);
+        if (permisos !== 'concedidos') {
+          if (dispositivoRef.current) {
+            versionPreparacion.current += 1;
+            versionConexion.current += 1;
+            versionBusqueda.current += 1;
+            servicioElm.cancelarSuscripcion();
+            suscripcionDesconexion.current?.remove();
+            suscripcionDesconexion.current = null;
+            limpiarSeleccion();
+            servicioBle.desconectar().catch(() => undefined);
+          }
+          establecerEstadoConexion('bluetooth-no-disponible');
+          return false;
+        }
+        const estado = await servicioBle.obtenerEstadoBluetooth();
+        bluetoothRef.current = estado;
+        establecerEstadoBluetooth(estado);
+        if (!esBluetoothUtilizable(estado)) {
+          if (dispositivoRef.current) {
+            versionPreparacion.current += 1;
+            versionConexion.current += 1;
+            servicioElm.cancelarSuscripcion();
+            suscripcionDesconexion.current?.remove();
+            suscripcionDesconexion.current = null;
+            limpiarSeleccion();
+            servicioBle.desconectar().catch(() => undefined);
+          }
+          establecerEstadoConexion('bluetooth-no-disponible');
+          agregarRegistro(
+            'error',
+            `Bluetooth no está listo: ${estado}. Enciéndelo e intenta otra vez.`,
+          );
+          return false;
+        }
+        agregarRegistro('exito', 'Permisos concedidos y Bluetooth encendido.');
+        if (!dispositivoRef.current) {
+          establecerEstadoConexion(anterior =>
+            anterior === 'buscando' || anterior === 'conectando'
+              ? anterior
+              : 'listo',
+          );
+        }
+        return true;
+      } catch (capturado) {
+        const mensaje = mensajeError(capturado);
+        establecerEstadoConexion('error');
+        agregarRegistro('error', mensaje);
         return false;
       }
-      agregarRegistro('exito', 'Permisos concedidos y Bluetooth encendido.');
-      if (!dispositivoRef.current) {
-        establecerEstadoConexion('listo');
-      }
-      return true;
-    } catch (capturado) {
-      const mensaje = mensajeError(capturado);
-      establecerEstadoConexion('error');
-      agregarRegistro('error', mensaje);
-      return false;
-    }
-  }, [agregarRegistro, servicioBle]);
+    },
+    [agregarRegistro, limpiarSeleccion, servicioBle, servicioElm],
+  );
+
+  const prepararBluetooth = useCallback(
+    () => actualizarBluetooth(true),
+    [actualizarBluetooth],
+  );
 
   const iniciarEscaneo = useCallback(async () => {
-    if (bloqueoConexion.current || !(await prepararBluetooth())) {
+    if (
+      bloqueoConexion.current ||
+      bloqueoPreparacion.current ||
+      cierreEnCurso.current
+    )
+      return;
+    const version = ++versionBusqueda.current;
+    if (
+      !(await prepararBluetooth()) ||
+      version !== versionBusqueda.current ||
+      bloqueoConexion.current ||
+      bloqueoPreparacion.current
+    ) {
       return;
     }
     establecerDispositivos([]);
@@ -199,25 +286,42 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   }, [agregarRegistro, prepararBluetooth, servicioBle]);
 
   const detenerEscaneo = useCallback(() => {
+    versionBusqueda.current += 1;
     servicioBle.detenerEscaneo();
-    establecerEstadoConexion(dispositivoRef.current ? 'conectado' : 'listo');
+    establecerEstadoConexion(
+      esBluetoothUtilizable(bluetoothRef.current)
+        ? dispositivoRef.current
+          ? 'conectado'
+          : 'listo'
+        : 'bluetooth-no-disponible',
+    );
     agregarRegistro('informacion', 'Búsqueda BLE detenida.');
   }, [agregarRegistro, servicioBle]);
 
   const conectar = useCallback(
     async (
       dispositivo: InformacionDispositivoBle,
+      interno = false,
     ): Promise<ResultadoConexionEscaner> => {
-      if (bloqueoConexion.current) {
+      if (
+        bloqueoConexion.current ||
+        cierreEnCurso.current ||
+        (bloqueoPreparacion.current && !interno)
+      ) {
         throw new Error('Ya existe una conexión en curso.');
       }
       bloqueoConexion.current = true;
       establecerConexionEnCurso(true);
       const version = ++versionConexion.current;
+      versionBusqueda.current += 1;
+      invalidarVerificacion();
+      if (interno) establecerEstadoPreparacion('conectando');
       try {
         if (!(await prepararBluetooth())) {
           throw new Error('Bluetooth no está disponible para conectar.');
         }
+        if (version !== versionConexion.current)
+          throw new Error('Conexión cancelada.');
         servicioBle.detenerEscaneo();
         servicioElm.cancelarSuscripcion();
         suscripcionDesconexion.current?.remove();
@@ -225,19 +329,25 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         if (dispositivoRef.current) {
           await servicioBle.desconectar();
         }
+        if (version !== versionConexion.current)
+          throw new Error('Conexión cancelada.');
         limpiarSeleccion();
         establecerEstadoConexion('conectando');
         establecerIdDispositivoSeleccionado(dispositivo.id);
         agregarRegistro(
           'informacion',
-          `Conectando con ${nombreDispositivo(dispositivo)} (${dispositivo.id})…`,
+          `Conectando con ${nombreDispositivo(dispositivo)} (${
+            dispositivo.id
+          })…`,
         );
         const descubrimiento = await servicioBle.conectarYDescubrir(
           dispositivo.id,
         );
         if (version !== versionConexion.current) {
           await servicioBle.desconectar();
-          throw new Error('La conexión fue reemplazada por una operación nueva.');
+          throw new Error(
+            'La conexión fue reemplazada por una operación nueva.',
+          );
         }
         const dispositivoActual: InformacionDispositivoBle = {
           ...dispositivo,
@@ -250,6 +360,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         dispositivoRef.current = dispositivoActual;
         establecerDispositivoConectado(dispositivoActual);
         establecerCaracteristicas(descubrimiento.caracteristicas);
+        caracteristicasRef.current = descubrimiento.caracteristicas;
         establecerEstadoConexion('conectado');
         agregarRegistro(
           'exito',
@@ -259,6 +370,8 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         suscripcionDesconexion.current = servicioBle.observarDesconexion(
           dispositivoActual.id,
           error => {
+            if (version !== versionConexion.current) return;
+            versionPreparacion.current += 1;
             versionConexion.current += 1;
             servicioElm.cancelarSuscripcion();
             suscripcionDesconexion.current?.remove();
@@ -279,18 +392,21 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         };
       } catch (capturado) {
         await servicioBle.desconectar().catch(() => undefined);
-        limpiarSeleccion();
-        establecerEstadoConexion('error');
-        agregarRegistro('error', mensajeError(capturado));
+        if (version === versionConexion.current) {
+          limpiarSeleccion();
+          establecerEstadoConexion('error');
+          agregarRegistro('error', mensajeError(capturado));
+        }
         throw capturado;
       } finally {
         bloqueoConexion.current = false;
-        establecerConexionEnCurso(false);
+        if (!cierreEnCurso.current) establecerConexionEnCurso(false);
       }
     },
     [
       agregarRegistro,
       limpiarSeleccion,
+      invalidarVerificacion,
       prepararBluetooth,
       servicioBle,
       servicioElm,
@@ -298,18 +414,18 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   );
 
   const desconectar = useCallback(async () => {
-    if (bloqueoConexion.current) {
-      return;
-    }
-    bloqueoConexion.current = true;
+    if (cierreEnCurso.current) return;
+    cierreEnCurso.current = true;
     establecerConexionEnCurso(true);
+    versionPreparacion.current += 1;
+    versionBusqueda.current += 1;
     versionConexion.current += 1;
+    limpiarSeleccion();
     try {
       servicioElm.cancelarSuscripcion();
       suscripcionDesconexion.current?.remove();
       suscripcionDesconexion.current = null;
       await servicioBle.desconectar();
-      limpiarSeleccion();
       establecerEstadoConexion('desconectado');
       agregarRegistro('informacion', 'Conexión cerrada por el usuario.');
     } catch (capturado) {
@@ -317,18 +433,20 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       agregarRegistro('error', mensajeError(capturado));
       throw capturado;
     } finally {
-      bloqueoConexion.current = false;
-      establecerConexionEnCurso(false);
+      cierreEnCurso.current = false;
+      if (!bloqueoConexion.current) establecerConexionEnCurso(false);
     }
   }, [agregarRegistro, limpiarSeleccion, servicioBle, servicioElm]);
 
   const cancelarSuscripcion = useCallback(() => {
+    invalidarVerificacion();
     servicioElm.cancelarSuscripcion();
     establecerClaveSuscripcion(null);
-  }, [servicioElm]);
+  }, [invalidarVerificacion, servicioElm]);
 
   const elegirEscritura = useCallback(
     (elemento: InformacionCaracteristicaGatt) => {
+      invalidarVerificacion();
       escrituraRef.current = elemento;
       establecerEscrituraSeleccionada(elemento);
       establecerMensajeVerificacion(
@@ -339,7 +457,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         `Característica de escritura seleccionada: ${elemento.uuidCaracteristica}`,
       );
     },
-    [agregarRegistro],
+    [agregarRegistro, invalidarVerificacion],
   );
 
   const elegirNotificacion = useCallback(
@@ -395,6 +513,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
           );
         },
         alOcurrirError: error => {
+          invalidarVerificacion();
           establecerEstadoConexion('error');
           establecerClaveSuscripcion(null);
           agregarRegistro('error', `Error de notificación: ${error.message}`);
@@ -407,7 +526,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       );
       return true;
     },
-    [agregarRegistro, servicioElm],
+    [agregarRegistro, invalidarVerificacion, servicioElm],
   );
 
   const enviarComando = useCallback(
@@ -441,8 +560,186 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     [agregarRegistro],
   );
 
+  const estaPreparado = useCallback(() => {
+    const verificacion = verificacionRef.current;
+    return Boolean(
+      verificacion &&
+        dispositivoRef.current &&
+        bluetoothRef.current === State.PoweredOn &&
+        permisosRef.current === 'concedidos' &&
+        verificacion.version === versionConexion.current &&
+        escrituraRef.current &&
+        notificacionRef.current &&
+        verificacion.escritura === clavePara(escrituraRef.current) &&
+        verificacion.notificacion === clavePara(notificacionRef.current) &&
+        servicioElm.estaSuscrito() &&
+        servicioElm.estaSincronizado(),
+    );
+  }, [servicioElm]);
+
+  const confirmarVerificacion = useCallback(
+    (
+      respuesta: string,
+      version: number,
+      escritura: InformacionCaracteristicaGatt,
+      notificacion: InformacionCaracteristicaGatt,
+    ): boolean => {
+      if (
+        !identificarElm(respuesta) ||
+        !dispositivoRef.current ||
+        version !== versionConexion.current ||
+        bluetoothRef.current !== State.PoweredOn ||
+        permisosRef.current !== 'concedidos' ||
+        !servicioElm.estaSuscrito() ||
+        !escrituraRef.current ||
+        !notificacionRef.current ||
+        clavePara(escritura) !== clavePara(escrituraRef.current) ||
+        clavePara(notificacion) !== clavePara(notificacionRef.current)
+      )
+        return false;
+      verificacionRef.current = {
+        version,
+        escritura: clavePara(escritura),
+        notificacion: clavePara(notificacion),
+      };
+      establecerEstadoPreparacion('preparado');
+      return true;
+    },
+    [servicioElm],
+  );
+
+  const prepararEscaner = useCallback(
+    async (dispositivo?: InformacionDispositivoBle) => {
+      if (
+        bloqueoPreparacion.current ||
+        bloqueoConexion.current ||
+        cierreEnCurso.current
+      ) {
+        throw new Error('Ya existe una preparación del escáner en curso.');
+      }
+      bloqueoPreparacion.current = true;
+      const operacion = ++versionPreparacion.current;
+      const vigente = () => operacion === versionPreparacion.current;
+      invalidarVerificacion();
+      try {
+        if (dispositivo) await conectar(dispositivo, true);
+        if (!vigente()) throw new Error('Preparación cancelada.');
+        const actual = dispositivoRef.current;
+        if (!actual)
+          throw new Error('Conecta un escáner antes de verificarlo.');
+        const version = versionConexion.current;
+        const sigueVigente = () =>
+          vigente() &&
+          version === versionConexion.current &&
+          bluetoothRef.current === State.PoweredOn &&
+          dispositivoRef.current?.id === actual.id;
+        establecerEstadoPreparacion('verificando');
+        const resultado = await verificarCanalesElm(
+          actual,
+          caracteristicasRef.current,
+          buscarGuardado(actual.id),
+          {
+            sigueVigente,
+            alIntentar: mensaje => {
+              establecerMensajeVerificacion(mensaje);
+              agregarRegistro('informacion', mensaje);
+            },
+            probar: async canales => {
+              seleccionarCanales(canales.escritura, canales.notificacion);
+              establecerEstadoPreparacion('verificando');
+              if (!activarSuscripcion(canales.notificacion))
+                throw new Error('No se pudo activar la recepción.');
+              return (
+                await enviarComando('ATI', {
+                  escritura: canales.escritura,
+                  tiempoEsperaMs: 5000,
+                })
+              ).textoAscii;
+            },
+          },
+        );
+        if (
+          !sigueVigente() ||
+          !confirmarVerificacion(
+            resultado.respuestaAti,
+            version,
+            resultado.canales.escritura,
+            resultado.canales.notificacion,
+          )
+        )
+          throw new Error('La conexión o sus canales cambiaron durante ATI.');
+        // si el telefono falla al guardar, la comprobacion del enlace sigue siendo valida
+        let advertencia: string | null = null;
+        try {
+          await guardarEscaner(resultado.registro);
+        } catch {
+          advertencia =
+            'Escáner conectado. No se pudo guardar para próximas conexiones.';
+          if (sigueVigente()) establecerAdvertenciaGuardado(advertencia);
+        }
+        if (!sigueVigente() || !estaPreparado())
+          throw new Error('Preparación cancelada.');
+        establecerMensajeVerificacion(
+          `Escáner preparado: ${resultado.registro.identificacionElm}.`,
+        );
+        establecerEstadoConexion('conectado');
+        agregarRegistro(
+          'exito',
+          `ATI verificado: ${resultado.registro.identificacionElm}.`,
+        );
+        return advertencia;
+      } catch (capturado) {
+        if (vigente()) {
+          cancelarSuscripcion();
+          establecerEstadoPreparacion('error');
+          establecerMensajeVerificacion(mensajeError(capturado));
+          agregarRegistro('error', mensajeError(capturado));
+        }
+        throw capturado;
+      } finally {
+        bloqueoPreparacion.current = false;
+      }
+    },
+    [
+      activarSuscripcion,
+      agregarRegistro,
+      buscarGuardado,
+      cancelarSuscripcion,
+      confirmarVerificacion,
+      conectar,
+      enviarComando,
+      estaPreparado,
+      guardarEscaner,
+      invalidarVerificacion,
+      seleccionarCanales,
+    ],
+  );
+
+  const conectarYVerificar = useCallback(
+    (dispositivo: InformacionDispositivoBle) => prepararEscaner(dispositivo),
+    [prepararEscaner],
+  );
+  const verificarCanalesAutomaticamente = useCallback(
+    () => prepararEscaner(),
+    [prepararEscaner],
+  );
+
   const valor = useMemo<SesionEscanerObd>(
     () => ({
+      estadoPermisos,
+      estadoPreparacion,
+      advertenciaGuardado,
+      escaneresGuardados: escaneres.guardados,
+      cargandoGuardados: escaneres.cargando,
+      errorGuardados: escaneres.error,
+      actualizarBluetooth,
+      conectarYVerificar,
+      verificarCanalesAutomaticamente,
+      cancelarPreparacion: desconectar,
+      confirmarVerificacion,
+      estaPreparado,
+      guardarEscaner,
+      olvidarEscaner: escaneres.olvidar,
       estadoBluetooth,
       estadoConexion,
       dispositivos,
@@ -483,6 +780,19 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       limpiarRegistros: () => establecerEntradasConsola([]),
     }),
     [
+      estadoPermisos,
+      estadoPreparacion,
+      advertenciaGuardado,
+      escaneres.guardados,
+      escaneres.cargando,
+      escaneres.error,
+      escaneres.olvidar,
+      actualizarBluetooth,
+      conectarYVerificar,
+      verificarCanalesAutomaticamente,
+      confirmarVerificacion,
+      estaPreparado,
+      guardarEscaner,
       activarSuscripcion,
       agregarRegistro,
       cancelarSuscripcion,

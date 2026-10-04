@@ -16,6 +16,12 @@ export interface ConexionGatt {
   caracteristicas: InformacionCaracteristicaGatt[];
 }
 
+export type EstadoPermisosBluetooth =
+  | 'pendientes'
+  | 'concedidos'
+  | 'denegados'
+  | 'bloqueados';
+
 /**
  * Encapsula todas las operaciones de react-native-ble-plx.
  *
@@ -28,11 +34,20 @@ export class ServicioBle {
   private idDispositivoConectado: string | null = null;
   private temporizadorEscaneo: ReturnType<typeof setTimeout> | null = null;
   private sesionEscaneo = 0;
+  private versionConexion = 0;
+  private estadoPermisos: EstadoPermisosBluetooth = 'pendientes';
+  private cancelacionPendiente: Promise<void> = Promise.resolve();
 
   /** Solicita los permisos que corresponden a la version de Android. */
   async solicitarPermisosAndroid(): Promise<boolean> {
+    return (await this.consultarPermisosAndroid(true)) === 'concedidos';
+  }
+
+  async consultarPermisosAndroid(
+    solicitar = false,
+  ): Promise<EstadoPermisosBluetooth> {
     if (Platform.OS !== 'android') {
-      return true;
+      return 'concedidos';
     }
 
     const nivelApi = Number(Platform.Version);
@@ -46,10 +61,28 @@ export class ServicioBle {
           ]
         : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
 
-    const resultados = await PermissionsAndroid.requestMultiple(permisos);
-    return permisos.every(
-      permiso => resultados[permiso] === PermissionsAndroid.RESULTS.GRANTED,
+    const concedidos = await Promise.all(
+      permisos.map(permiso => PermissionsAndroid.check(permiso)),
     );
+    if (concedidos.every(Boolean)) {
+      this.estadoPermisos = 'concedidos';
+    } else if (solicitar) {
+      const resultados = await PermissionsAndroid.requestMultiple(permisos);
+      this.estadoPermisos = permisos.every(
+        permiso => resultados[permiso] === PermissionsAndroid.RESULTS.GRANTED,
+      )
+        ? 'concedidos'
+        : permisos.some(
+            permiso =>
+              resultados[permiso] ===
+              PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
+          )
+        ? 'bloqueados'
+        : 'denegados';
+    } else if (this.estadoPermisos === 'concedidos') {
+      this.estadoPermisos = 'pendientes';
+    }
+    return this.estadoPermisos;
   }
 
   async obtenerEstadoBluetooth(): Promise<State> {
@@ -132,18 +165,56 @@ export class ServicioBle {
    */
   async conectarYDescubrir(idDispositivo: string): Promise<ConexionGatt> {
     this.detenerEscaneo();
+    const version = ++this.versionConexion;
+    const iniciar = async () => {
+      await this.cancelacionPendiente;
+      if (version !== this.versionConexion)
+        throw new Error('Conexión cancelada.');
+      // conservo el id desde el intento para poder cancelar tambien una conexion pendiente
+      this.idDispositivoConectado = idDispositivo;
+      return this.descubrir(idDispositivo, version);
+    };
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        iniciar(),
+        new Promise<never>((_, rechazar) => {
+          temporizador = setTimeout(() => {
+            this.desconectar().catch(() => undefined);
+            rechazar(
+              new Error('Tiempo agotado conectando o descubriendo el escáner.'),
+            );
+          }, 15000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(temporizador);
+    }
+  }
+
+  private async descubrir(
+    idDispositivo: string,
+    version: number,
+  ): Promise<ConexionGatt> {
+    const comprobar = () => {
+      if (version !== this.versionConexion)
+        throw new Error('Conexión cancelada.');
+    };
     const dispositivo = await this.administrador.connectToDevice(
       idDispositivo,
       { timeout: 12000 },
     );
-    this.idDispositivoConectado = dispositivo.id;
+    comprobar();
     const dispositivoDescubierto =
       await dispositivo.discoverAllServicesAndCharacteristics();
+    comprobar();
     const servicios = await dispositivoDescubierto.services();
+    comprobar();
     const caracteristicas: InformacionCaracteristicaGatt[] = [];
 
     for (const servicio of servicios) {
       const caracteristicasServicio = await servicio.characteristics();
+      comprobar();
       for (const caracteristica of caracteristicasServicio) {
         caracteristicas.push({
           uuidServicio: servicio.uuid,
@@ -225,13 +296,18 @@ export class ServicioBle {
   /** Detiene el escaneo y cierra la conexion activa, si existe. */
   async desconectar(): Promise<void> {
     this.detenerEscaneo();
+    this.versionConexion += 1;
     const idDispositivo = this.idDispositivoConectado;
     this.idDispositivoConectado = null;
-    if (
-      idDispositivo &&
-      (await this.administrador.isDeviceConnected(idDispositivo))
-    ) {
-      await this.administrador.cancelDeviceConnection(idDispositivo);
+    if (idDispositivo) {
+      const cancelacion = Promise.resolve(
+        this.administrador.cancelDeviceConnection(idDispositivo),
+      );
+      this.cancelacionPendiente = cancelacion.then(
+        () => undefined,
+        () => undefined,
+      );
+      await cancelacion;
     }
   }
 

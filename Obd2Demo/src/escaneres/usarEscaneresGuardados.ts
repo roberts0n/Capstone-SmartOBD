@@ -61,14 +61,26 @@ export function useEscaneresGuardados() {
     [conservarGuardados],
   );
 
+  const buscar = useCallback(
+    (id: string) =>
+      guardadosActuales.current.find(escaner => escaner.id === id),
+    [],
+  );
+  const guardar = useCallback(
+    (escaner: EscanerGuardado) => actualizar(repositorio.guardar(escaner)),
+    [actualizar],
+  );
+  const olvidar = useCallback(
+    (id: string) => actualizar(repositorio.olvidar(id)),
+    [actualizar],
+  );
+
   return {
     guardados,
     cargando,
     error,
-    buscar: (id: string) =>
-      guardadosActuales.current.find(escaner => escaner.id === id),
-    guardar: (escaner: EscanerGuardado) =>
-      actualizar(repositorio.guardar(escaner)),
-    olvidar: (id: string) => actualizar(repositorio.olvidar(id)),
+    buscar,
+    guardar,
+    olvidar,
   };
 }

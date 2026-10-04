@@ -1,4 +1,6 @@
 import type { State } from 'react-native-ble-plx';
+import type { EstadoPermisosBluetooth } from '../ble/ServicioBle';
+import type { EscanerGuardado } from '../tipos/escaner';
 import type {
   EntradaConsola,
   EstadoConexion,
@@ -18,6 +20,32 @@ export interface OpcionesEnvioEscaner {
 }
 
 export interface SesionEscanerObd {
+  estadoPermisos: EstadoPermisosBluetooth;
+  estadoPreparacion:
+    | 'sin-verificar'
+    | 'conectando'
+    | 'verificando'
+    | 'preparado'
+    | 'error';
+  advertenciaGuardado: string | null;
+  escaneresGuardados: EscanerGuardado[];
+  cargandoGuardados: boolean;
+  errorGuardados: string | null;
+  actualizarBluetooth: (solicitar?: boolean) => Promise<boolean>;
+  conectarYVerificar: (
+    dispositivo: InformacionDispositivoBle,
+  ) => Promise<string | null>;
+  verificarCanalesAutomaticamente: () => Promise<string | null>;
+  cancelarPreparacion: () => Promise<void>;
+  estaPreparado: () => boolean;
+  confirmarVerificacion: (
+    respuesta: string,
+    version: number,
+    escritura: InformacionCaracteristicaGatt,
+    notificacion: InformacionCaracteristicaGatt,
+  ) => boolean;
+  olvidarEscaner: (id: string) => Promise<void>;
+  guardarEscaner: (escaner: EscanerGuardado) => Promise<void>;
   estadoBluetooth: State;
   estadoConexion: EstadoConexion;
   dispositivos: InformacionDispositivoBle[];
@@ -45,9 +73,7 @@ export interface SesionEscanerObd {
     escritura: InformacionCaracteristicaGatt,
     notificacion: InformacionCaracteristicaGatt,
   ) => void;
-  activarSuscripcion: (
-    notificacion?: InformacionCaracteristicaGatt,
-  ) => boolean;
+  activarSuscripcion: (notificacion?: InformacionCaracteristicaGatt) => boolean;
   cancelarSuscripcion: () => void;
   enviarComando: (
     comando: string,
@@ -60,9 +86,6 @@ export interface SesionEscanerObd {
   establecerMensajeVerificacion: (mensaje: string) => void;
   marcarError: (mensaje: string) => void;
   marcarConectado: () => void;
-  agregarRegistro: (
-    nivel: EntradaConsola['nivel'],
-    mensaje: string,
-  ) => void;
+  agregarRegistro: (nivel: EntradaConsola['nivel'], mensaje: string) => void;
   limpiarRegistros: () => void;
 }

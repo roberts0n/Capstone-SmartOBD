@@ -63,6 +63,11 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       'Verifica los canales de escritura y notificacion antes de capturar.',
     );
   }
+  if (!sesionEscaner.estaPreparado()) {
+    throw new Error(
+      'Verifica el escáner con ATI en esta conexión antes de capturar.',
+    );
+  }
   if (capturasEnCurso.has(dispositivo.id)) {
     throw new Error('Ya existe una captura en curso para este escaner.');
   }
@@ -204,7 +209,9 @@ async function prepararEscaner(
       throw new Error('La preparacion del escaner fue cancelada.');
     }
     if (!conectado() || !sesionEscaner.estaSincronizado()) {
-      throw new Error('La conexion se interrumpio mientras se preparaba el escaner.');
+      throw new Error(
+        'La conexion se interrumpio mientras se preparaba el escaner.',
+      );
     }
 
     alProgresar?.({
