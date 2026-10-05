@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,11 +10,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { listarClientes, obtenerCliente } from '../clientes/ServicioClientes';
+import { useBusquedaClientes } from '../clientes/usarBusquedaClientes';
 import type { ClienteTaller } from '../clientes/TiposCliente';
 import type { SesionTaller } from '../tipos/usuarioTaller';
+import { useProteccionSalida } from '../componentes/ProteccionSalida';
 import {
   crearVehiculo,
+  actualizarVehiculo,
   normalizarPatente,
 } from '../vehiculos/ServicioVehiculos';
 import type {
@@ -29,6 +31,8 @@ interface Propiedades {
   alVolver: () => void;
   alVehiculoRegistrado?: (vehiculo: VehiculoTaller) => void;
   etiquetaFinalizar?: string;
+  vehiculoEditar?: VehiculoTaller;
+  alGuardarEdicion?: (vehiculo: VehiculoTaller) => void;
 }
 
 export function RegistrarVehiculo({
@@ -38,19 +42,26 @@ export function RegistrarVehiculo({
   alVolver,
   alVehiculoRegistrado,
   etiquetaFinalizar = 'Finalizar',
+  vehiculoEditar,
+  alGuardarEdicion,
 }: Propiedades) {
-  const [clientes, establecerClientes] = useState<ClienteTaller[]>([]);
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
   const [busqueda, establecerBusqueda] = useState('');
-  const [patente, establecerPatente] = useState('');
-  const [marca, establecerMarca] = useState('');
-  const [modelo, establecerModelo] = useState('');
-  const [anio, establecerAnio] = useState('');
-  const [combustible, establecerCombustible] = useState<TipoCombustible | null>(
-    null,
+  const [patente, establecerPatente] = useState(vehiculoEditar?.patente ?? '');
+  const [marca, establecerMarca] = useState(vehiculoEditar?.marca ?? '');
+  const [modelo, establecerModelo] = useState(vehiculoEditar?.modelo ?? '');
+  const [anio, establecerAnio] = useState(
+    vehiculoEditar?.anio?.toString() ?? '',
   );
-  const [antecedentes, establecerAntecedentes] = useState('');
-  const [cargandoClientes, establecerCargandoClientes] = useState(true);
+  const [combustible, establecerCombustible] = useState<TipoCombustible | null>(
+    vehiculoEditar?.combustible === 'gasolina' ||
+      vehiculoEditar?.combustible === 'diesel'
+      ? vehiculoEditar.combustible
+      : null,
+  );
+  const [antecedentes, establecerAntecedentes] = useState(
+    vehiculoEditar?.antecedentesVehiculo ?? '',
+  );
   const [guardando, establecerGuardando] = useState(false);
   const [vehiculoCreado, establecerVehiculoCreado] = useState<string | null>(
     null,
@@ -58,6 +69,22 @@ export function RegistrarVehiculo({
   const [error, establecerError] = useState<string | null>(null);
   const operacionEnCurso = useRef(false);
   const pantallaActiva = useRef(true);
+  const busquedaClientes = useBusquedaClientes(
+    busqueda,
+    clienteInicialId ?? cliente?.id,
+  );
+  const { clientes, cargando: cargandoClientes } = busquedaClientes;
+  const solicitarSalida = useProteccionSalida({
+    ocupado: guardando,
+    cambios:
+      !vehiculoCreado &&
+      (patente !== (vehiculoEditar?.patente ?? '') ||
+        marca !== (vehiculoEditar?.marca ?? '') ||
+        modelo !== (vehiculoEditar?.modelo ?? '') ||
+        anio !== (vehiculoEditar?.anio?.toString() ?? '') ||
+        combustible !== (vehiculoEditar?.combustible ?? null) ||
+        antecedentes !== (vehiculoEditar?.antecedentesVehiculo ?? '')),
+  });
 
   useEffect(() => {
     pantallaActiva.current = true;
@@ -67,54 +94,10 @@ export function RegistrarVehiculo({
   }, []);
 
   useEffect(() => {
-    let activa = true;
-
-    async function cargarClientes() {
-      try {
-        if (clienteInicialId) {
-          const encontrado = await obtenerCliente(clienteInicialId);
-          if (!encontrado) {
-            throw new Error('No se encontró el cliente seleccionado.');
-          }
-          if (activa) {
-            establecerCliente(encontrado);
-            establecerBusqueda(encontrado.nombre);
-          }
-          return;
-        }
-
-        const resultado = await listarClientes();
-        if (activa) establecerClientes(resultado);
-      } catch (capturado) {
-        if (activa) {
-          establecerError(
-            capturado instanceof Error
-              ? capturado.message
-              : 'No se pudieron cargar los clientes.',
-          );
-        }
-      } finally {
-        if (activa) establecerCargandoClientes(false);
-      }
-    }
-
-    cargarClientes().catch(() => undefined);
-    return () => {
-      activa = false;
-    };
-  }, [clienteInicialId]);
-
-  const coincidencias = useMemo(() => {
-    if (cliente) return [];
-    const texto = busqueda.trim().toLowerCase();
-    return clientes
-      .filter(item =>
-        [item.nombre, item.correo ?? '', item.telefono ?? ''].some(valor =>
-          valor.toLowerCase().includes(texto),
-        ),
-      )
-      .slice(0, 6);
-  }, [busqueda, cliente, clientes]);
+    if (clienteInicialId && busquedaClientes.seleccionado)
+      establecerCliente(busquedaClientes.seleccionado);
+  }, [clienteInicialId, busquedaClientes.seleccionado]);
+  const coincidencias = cliente ? [] : clientes;
 
   function seleccionarCliente(seleccionado: ClienteTaller) {
     establecerCliente(seleccionado);
@@ -128,7 +111,13 @@ export function RegistrarVehiculo({
   }
 
   async function registrar() {
-    if (operacionEnCurso.current || vehiculoCreado || cargandoClientes) return;
+    if (
+      operacionEnCurso.current ||
+      vehiculoCreado ||
+      cargandoClientes ||
+      busquedaClientes.error
+    )
+      return;
     if (!cliente) {
       establecerError('Selecciona el cliente dueño del vehículo.');
       return;
@@ -163,19 +152,33 @@ export function RegistrarVehiculo({
     operacionEnCurso.current = true;
     establecerGuardando(true);
     try {
-      const vehiculo = await crearVehiculo(
-        {
-          clienteId: cliente.id,
-          patente: patenteNormalizada,
-          marca,
-          modelo,
-          anio: anioNumero,
-          combustible,
-          antecedentesVehiculo: antecedentes || null,
-        },
-        sesion,
-      );
+      const entrada = {
+        patente: patenteNormalizada,
+        marca,
+        modelo,
+        anio: anioNumero,
+        combustible,
+        antecedentesVehiculo: antecedentes || null,
+      };
+      const vehiculo = vehiculoEditar
+        ? await actualizarVehiculo(vehiculoEditar.id, entrada, sesion)
+        : await crearVehiculo(
+            {
+              clienteId: cliente.id,
+              patente: patenteNormalizada,
+              marca,
+              modelo,
+              anio: anioNumero,
+              combustible,
+              antecedentesVehiculo: antecedentes || null,
+            },
+            sesion,
+          );
       if (!pantallaActiva.current) return;
+      if (vehiculoEditar) {
+        alGuardarEdicion?.(vehiculo);
+        return;
+      }
       establecerVehiculoCreado(
         [vehiculo.marca, vehiculo.modelo, vehiculo.patente]
           .filter(Boolean)
@@ -252,7 +255,10 @@ export function RegistrarVehiculo({
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
-        <Cabecera alVolver={alVolver} />
+        <Cabecera
+          alVolver={() => solicitarSalida(alVolver)}
+          titulo={vehiculoEditar ? 'Editar vehículo' : 'Registrar vehículo'}
+        />
 
         <Text style={estilos.etiqueta}>Cliente</Text>
         {cliente ? (
@@ -264,7 +270,11 @@ export function RegistrarVehiculo({
               </Text>
             </View>
             {!clienteInicialId ? (
-              <Pressable accessibilityRole="button" onPress={cambiarCliente}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={guardando}
+                onPress={cambiarCliente}
+              >
                 <Text style={estilos.cambiarCliente}>Cambiar</Text>
               </Pressable>
             ) : null}
@@ -274,7 +284,8 @@ export function RegistrarVehiculo({
             <View style={estilos.buscador}>
               <TextInput
                 accessibilityLabel="Buscar cliente"
-                editable={!cargandoClientes}
+                editable={!guardando}
+                maxLength={120}
                 onChangeText={establecerBusqueda}
                 placeholder="Buscar por nombre, correo o teléfono"
                 placeholderTextColor="#77777F"
@@ -291,6 +302,7 @@ export function RegistrarVehiculo({
                   <Pressable
                     accessibilityRole="button"
                     key={item.id}
+                    disabled={guardando}
                     onPress={() => seleccionarCliente(item)}
                     style={({ pressed }) => [
                       estilos.resultadoCliente,
@@ -321,10 +333,48 @@ export function RegistrarVehiculo({
         )}
 
         <View style={estilos.separador} />
+        {!cliente && !cargandoClientes && !busquedaClientes.error ? (
+          <View style={estilos.fila}>
+            {busquedaClientes.pagina > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  busquedaClientes.establecerPagina(actual => actual - 1)
+                }
+              >
+                <Text style={estilos.cambiarCliente}>Anteriores</Text>
+              </Pressable>
+            ) : null}
+            {busquedaClientes.haySiguiente ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                  busquedaClientes.establecerPagina(actual => actual + 1)
+                }
+              >
+                <Text style={estilos.cambiarCliente}>Más clientes</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {busquedaClientes.error ? (
+          <>
+            <Text accessibilityRole="alert" style={estilos.error}>
+              {busquedaClientes.error}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={busquedaClientes.reintentar}
+            >
+              <Text style={estilos.cambiarCliente}>Reintentar consulta</Text>
+            </Pressable>
+          </>
+        ) : null}
 
         <View style={estilos.fila}>
           <Campo
             etiqueta="Patente"
+            deshabilitado={guardando}
             valor={patente}
             alCambiar={texto =>
               establecerPatente(
@@ -337,6 +387,7 @@ export function RegistrarVehiculo({
           />
           <Campo
             etiqueta="Año"
+            deshabilitado={guardando}
             valor={anio}
             alCambiar={establecerAnio}
             placeholder="2021"
@@ -347,6 +398,7 @@ export function RegistrarVehiculo({
         <View style={estilos.fila}>
           <Campo
             etiqueta="Marca"
+            deshabilitado={guardando}
             valor={marca}
             alCambiar={establecerMarca}
             placeholder="Toyota"
@@ -354,6 +406,7 @@ export function RegistrarVehiculo({
           />
           <Campo
             etiqueta="Modelo"
+            deshabilitado={guardando}
             valor={modelo}
             alCambiar={establecerModelo}
             placeholder="Hilux"
@@ -370,6 +423,7 @@ export function RegistrarVehiculo({
                 accessibilityRole="radio"
                 accessibilityState={{ checked: activa }}
                 key={opcion}
+                disabled={guardando}
                 onPress={() => establecerCombustible(opcion)}
                 style={[
                   estilos.combustible,
@@ -392,6 +446,7 @@ export function RegistrarVehiculo({
         <Text style={estilos.etiqueta}>Antecedentes (opcional)</Text>
         <TextInput
           accessibilityLabel="Antecedentes"
+          editable={!guardando}
           multiline
           onChangeText={establecerAntecedentes}
           placeholder="Información útil informada por el cliente"
@@ -421,7 +476,11 @@ export function RegistrarVehiculo({
             <ActivityIndicator color="#061B15" size="small" />
           ) : null}
           <Text style={estilos.textoBoton}>
-            {guardando ? 'Guardando...' : 'Registrar vehículo'}
+            {guardando
+              ? 'Guardando...'
+              : vehiculoEditar
+              ? 'Guardar cambios'
+              : 'Registrar vehículo'}
           </Text>
         </Pressable>
       </ScrollView>
@@ -429,7 +488,13 @@ export function RegistrarVehiculo({
   );
 }
 
-function Cabecera({ alVolver }: { alVolver: () => void }) {
+function Cabecera({
+  alVolver,
+  titulo = 'Registrar vehículo',
+}: {
+  alVolver: () => void;
+  titulo?: string;
+}) {
   return (
     <View style={estilos.cabecera}>
       <Pressable
@@ -440,7 +505,7 @@ function Cabecera({ alVolver }: { alVolver: () => void }) {
       >
         <Text style={estilos.flechaVolver}>‹</Text>
       </Pressable>
-      <Text style={estilos.titulo}>Registrar vehículo</Text>
+      <Text style={estilos.titulo}>{titulo}</Text>
     </View>
   );
 }
@@ -453,6 +518,7 @@ function Campo({
   teclado,
   mitad,
   mayusculas,
+  deshabilitado,
 }: {
   etiqueta: string;
   valor: string;
@@ -461,11 +527,13 @@ function Campo({
   teclado?: 'number-pad';
   mitad?: boolean;
   mayusculas?: boolean;
+  deshabilitado?: boolean;
 }) {
   return (
     <View style={mitad ? estilos.campoMitad : estilos.campo}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
       <TextInput
+        editable={!deshabilitado}
         accessibilityLabel={etiqueta}
         autoCapitalize={mayusculas ? 'characters' : 'words'}
         keyboardType={teclado}

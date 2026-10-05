@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   StatusBar,
   StyleSheet,
   Text,
@@ -24,7 +26,16 @@ import { AsignarMecanico } from './src/pantallas/asignarMecanico';
 import { EliminarDatosPrueba } from './src/pantallas/eliminarDatosPrueba';
 import { ClientesVehiculos } from './src/pantallas/clientesVehiculos';
 import { DetalleCliente } from './src/pantallas/detalleCliente';
-import type { CasoRecepcion } from './src/casos/ServicioCasosRecepcion';
+import {
+  ProveedorProteccionSalida,
+  useSolicitudSalida,
+} from './src/componentes/ProteccionSalida';
+import type { ClienteTaller } from './src/clientes/TiposCliente';
+import type { VehiculoTaller } from './src/vehiculos/TiposVehiculo';
+import type {
+  CasoRecepcion,
+  ConsultaCasosRecepcion,
+} from './src/casos/ServicioCasosRecepcion';
 import {
   crearBorradorOrdenTrabajo,
   type BorradorOrdenTrabajo,
@@ -55,6 +66,8 @@ type Ruta =
   | 'casos_recepcion'
   | 'clientes_vehiculos'
   | 'detalle_cliente'
+  | 'editar_cliente'
+  | 'editar_vehiculo'
   | 'detalle_caso_recepcion'
   | 'asignar_mecanico'
   | 'conectar_escaner'
@@ -71,6 +84,7 @@ const PRUEBAS_INTERNAS_HABILITADAS = true;
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
 function ContenidoAplicacion() {
+  const solicitarSalida = useSolicitudSalida();
   const sesionEscaner = useSesionEscanerObd();
   const [ruta, establecerRuta] = useState<Ruta>('login');
   const [origenConexion, establecerOrigenConexion] =
@@ -90,6 +104,14 @@ function ContenidoAplicacion() {
   >(null);
   const [busquedaClientes, establecerBusquedaClientes] = useState('');
   const [paginaClientes, establecerPaginaClientes] = useState(0);
+  const [consultaCasos, establecerConsultaCasos] =
+    useState<ConsultaCasosRecepcion>({});
+  const [clienteEditar, establecerClienteEditar] = useState<
+    ClienteTaller | undefined
+  >();
+  const [vehiculoEditar, establecerVehiculoEditar] = useState<
+    VehiculoTaller | undefined
+  >();
   const [borradorOrden, establecerBorradorOrden] = useState(
     crearBorradorOrdenTrabajo,
   );
@@ -150,6 +172,7 @@ function ContenidoAplicacion() {
     establecerOrigenCaso('casos_recepcion');
     establecerBusquedaClientes('');
     establecerPaginaClientes(0);
+    establecerConsultaCasos({});
   }
 
   async function completarCambio(contrasena: string) {
@@ -165,14 +188,37 @@ function ContenidoAplicacion() {
     if (!sesion || sesion.debeCambiarPassword) return;
     if (destino === 'registro' && sesion.perfil !== 'administrador') return;
     if (destino === 'herramientas' && sesion.perfil === 'administrador') return;
-    establecerCasoRecepcion(null);
-    establecerClienteInicialVehiculoId(null);
-    establecerBorradorOrden(crearBorradorOrdenTrabajo());
-    establecerOrigenRegistro('herramientas');
-    establecerRuta(destino);
-    establecerClienteConsultaId(null);
-    establecerVehiculoConsultaId(null);
-    establecerOrigenCaso('casos_recepcion');
+    solicitarSalida(() => {
+      const continuar = () => {
+        establecerCasoRecepcion(null);
+        establecerClienteInicialVehiculoId(null);
+        establecerBorradorOrden(crearBorradorOrdenTrabajo());
+        establecerOrigenRegistro('herramientas');
+        establecerRuta(destino);
+        establecerClienteConsultaId(null);
+        establecerVehiculoConsultaId(null);
+        establecerOrigenCaso('casos_recepcion');
+        establecerClienteEditar(undefined);
+        establecerVehiculoEditar(undefined);
+      };
+      if (
+        origenRegistro === 'nueva_orden' &&
+        (ruta === 'registrar_cliente' || ruta === 'registrar_vehiculo') &&
+        (borradorOrden.motivoIngreso ||
+          borradorOrden.clienteId ||
+          borradorOrden.busquedaCliente)
+      ) {
+        Alert.alert(
+          'Salir de la orden',
+          'Se perderá el borrador de la orden de trabajo. Los registros ya guardados se conservarán.',
+          [
+            { text: 'Continuar aquí', style: 'cancel' },
+            { text: 'Salir', style: 'destructive', onPress: continuar },
+          ],
+          { cancelable: false },
+        );
+      } else continuar();
+    });
   }
 
   function abrirCaso(
@@ -205,12 +251,62 @@ function ContenidoAplicacion() {
   }
 
   function volverDelRegistro() {
+    if (ruta === 'editar_cliente' || ruta === 'editar_vehiculo') {
+      establecerClienteEditar(undefined);
+      establecerVehiculoEditar(undefined);
+      establecerRuta('detalle_cliente');
+      return;
+    }
     establecerClienteInicialVehiculoId(null);
     establecerRuta(
       origenRegistro === 'nueva_orden' ? 'nueva_orden' : 'herramientas',
     );
     establecerOrigenRegistro('herramientas');
   }
+
+  useEffect(() => {
+    const suscripcion = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (!sesion || inicializando || ruta === 'conectar_escaner')
+          return false;
+        if (limpiezaEnCurso || sesion.debeCambiarPassword) return true;
+        solicitarSalida(() => {
+          if (
+            ruta === 'registrar_cliente' ||
+            ruta === 'registrar_vehiculo' ||
+            ruta === 'editar_cliente' ||
+            ruta === 'editar_vehiculo'
+          )
+            volverDelRegistro();
+          else if (ruta === 'asignar_mecanico')
+            establecerRuta('detalle_caso_recepcion');
+          else if (ruta === 'detalle_caso_recepcion') {
+            establecerCasoRecepcion(null);
+            establecerRuta(
+              origenCaso === 'detalle_cliente' && clienteConsultaId
+                ? 'detalle_cliente'
+                : 'casos_recepcion',
+            );
+          } else if (ruta === 'detalle_cliente')
+            establecerRuta('clientes_vehiculos');
+          else if (ruta === 'pruebas_escaner') establecerRuta('cuenta');
+          else if (
+            ruta === 'nueva_orden' ||
+            ruta === 'casos_recepcion' ||
+            ruta === 'clientes_vehiculos' ||
+            ruta === 'eliminar_datos_prueba'
+          ) {
+            establecerBorradorOrden(crearBorradorOrdenTrabajo());
+            establecerRuta('herramientas');
+          } else if (ruta === 'inicio') BackHandler.exitApp();
+          else establecerRuta('inicio');
+        });
+        return true;
+      },
+    );
+    return () => suscripcion.remove();
+  });
 
   const mostrarBarra =
     !inicializando &&
@@ -225,6 +321,8 @@ function ContenidoAplicacion() {
     ruta === 'casos_recepcion' ||
     ruta === 'clientes_vehiculos' ||
     ruta === 'detalle_cliente' ||
+    ruta === 'editar_cliente' ||
+    ruta === 'editar_vehiculo' ||
     ruta === 'detalle_caso_recepcion' ||
     ruta === 'asignar_mecanico' ||
     ruta === 'eliminar_datos_prueba'
@@ -340,6 +438,14 @@ function ContenidoAplicacion() {
               vehiculoAbiertoId={vehiculoConsultaId}
               alCambiarVehiculoAbierto={establecerVehiculoConsultaId}
               alAbrirCaso={caso => abrirCaso(caso, 'detalle_cliente')}
+              alEditarCliente={cliente => {
+                establecerClienteEditar(cliente);
+                establecerRuta('editar_cliente');
+              }}
+              alEditarVehiculo={vehiculo => {
+                establecerVehiculoEditar(vehiculo);
+                establecerRuta('editar_vehiculo');
+              }}
               alVolver={() => {
                 establecerClienteConsultaId(null);
                 establecerVehiculoConsultaId(null);
@@ -375,10 +481,15 @@ function ContenidoAplicacion() {
             />
           )}
         {!inicializando &&
-          ruta === 'registrar_cliente' &&
+          (ruta === 'registrar_cliente' || ruta === 'editar_cliente') &&
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
             <RegistrarCliente
+              key={ruta}
+              clienteEditar={
+                ruta === 'editar_cliente' ? clienteEditar : undefined
+              }
+              alGuardarEdicion={volverDelRegistro}
               sesion={sesion}
               etiquetaFinalizar={
                 origenRegistro === 'nueva_orden'
@@ -402,12 +513,21 @@ function ContenidoAplicacion() {
             />
           )}
         {!inicializando &&
-          ruta === 'registrar_vehiculo' &&
+          (ruta === 'registrar_vehiculo' || ruta === 'editar_vehiculo') &&
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
             <RegistrarVehiculo
+              key={ruta}
+              vehiculoEditar={
+                ruta === 'editar_vehiculo' ? vehiculoEditar : undefined
+              }
+              alGuardarEdicion={volverDelRegistro}
               sesion={sesion}
-              clienteInicialId={clienteInicialVehiculoId}
+              clienteInicialId={
+                ruta === 'editar_vehiculo'
+                  ? vehiculoEditar?.clienteId
+                  : clienteInicialVehiculoId
+              }
               etiquetaFinalizar={
                 origenRegistro === 'nueva_orden'
                   ? 'Volver a la orden'
@@ -429,6 +549,8 @@ function ContenidoAplicacion() {
           sesion?.perfil === 'recepcion' &&
           !sesion.debeCambiarPassword && (
             <CasosRecepcion
+              consultaInicial={consultaCasos}
+              alCambiarConsulta={establecerConsultaCasos}
               alAbrirCaso={caso => {
                 abrirCaso(caso);
               }}
@@ -545,7 +667,9 @@ function Aplicacion() {
   return (
     <SafeAreaProvider>
       <ProveedorEscanerObd>
-        <ContenidoAplicacion />
+        <ProveedorProteccionSalida>
+          <ContenidoAplicacion />
+        </ProveedorProteccionSalida>
       </ProveedorEscanerObd>
     </SafeAreaProvider>
   );

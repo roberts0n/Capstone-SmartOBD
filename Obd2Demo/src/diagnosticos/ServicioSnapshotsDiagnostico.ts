@@ -15,7 +15,17 @@ import type {
   TipoValorPid,
   ValorJson,
   ValorPidSnapshot,
+  ResultadoCapturaGuardada,
 } from './TiposSnapshotDiagnostico';
+
+export class ErrorRecargaSnapshot extends Error {
+  contexto?: Omit<ResultadoCapturaGuardada, 'snapshotGuardado'>;
+
+  constructor(public readonly snapshotId: string) {
+    super('El snapshot se guardo, pero no se pudo recuperar para mostrarlo.');
+    this.name = 'ErrorRecargaSnapshot';
+  }
+}
 
 interface FilaCatalogoPid {
   codigo: string;
@@ -98,15 +108,14 @@ export async function guardarSnapshotDiagnostico(
     throw new Error(mensajeErrorGuardado(error));
   }
 
-  const snapshot = await obtenerSnapshotDiagnostico(data);
-
-  if (!snapshot) {
-    throw new Error(
-      'El snapshot se guardo, pero no se pudo recuperar para mostrarlo.',
-    );
+  try {
+    const snapshot = await obtenerSnapshotDiagnostico(data);
+    if (!snapshot) throw new ErrorRecargaSnapshot(data);
+    return snapshot;
+  } catch {
+    // conservo el id porque la escritura ya termino, aunque falle la consulta
+    throw new ErrorRecargaSnapshot(data);
   }
-
-  return snapshot;
 }
 
 export async function listarSnapshotsCaso(
@@ -164,12 +173,12 @@ export async function obtenerSnapshotDiagnostico(
 
   return {
     ...convertirSnapshot(filaSnapshot as FilaSnapshotDiagnostico),
-    valoresPid: (
-      (respuestaValores.data ?? []) as FilaValorPidSnapshot[]
-    ).map(convertirValorPid),
-    codigosDtc: (
-      (respuestaCodigos.data ?? []) as FilaCodigoDtcSnapshot[]
-    ).map(convertirCodigoDtc),
+    valoresPid: ((respuestaValores.data ?? []) as FilaValorPidSnapshot[]).map(
+      convertirValorPid,
+    ),
+    codigosDtc: ((respuestaCodigos.data ?? []) as FilaCodigoDtcSnapshot[]).map(
+      convertirCodigoDtc,
+    ),
   };
 }
 
@@ -216,7 +225,9 @@ function validarYNormalizarSnapshot(
   };
 }
 
-function normalizarValorPid(valor: NuevoValorPidSnapshot): NuevoValorPidSnapshot {
+function normalizarValorPid(
+  valor: NuevoValorPidSnapshot,
+): NuevoValorPidSnapshot {
   const pidCodigo = valor.pidCodigo.trim().toUpperCase();
 
   if (!/^01[0-9A-F]{2}$/.test(pidCodigo)) {
@@ -266,7 +277,9 @@ function revisarDtcDuplicados(
   const identificadores = new Set<string>();
 
   for (const codigo of codigos) {
-    const identificador = `${codigo.codigo}:${codigo.modoObd}:${codigo.ecu ?? ''}`;
+    const identificador = `${codigo.codigo}:${codigo.modoObd}:${
+      codigo.ecu ?? ''
+    }`;
     if (identificadores.has(identificador)) {
       throw new Error(`El DTC ${codigo.codigo} esta repetido.`);
     }
@@ -274,7 +287,10 @@ function revisarDtcDuplicados(
   }
 }
 
-function esValorJson(valor: unknown, visitados = new Set<object>()): valor is ValorJson {
+function esValorJson(
+  valor: unknown,
+  visitados = new Set<object>(),
+): valor is ValorJson {
   if (
     valor === null ||
     typeof valor === 'string' ||

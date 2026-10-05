@@ -25,6 +25,46 @@ interface FilaVehiculo {
 const CAMPOS_VEHICULO =
   'id, taller_id, cliente_id, vin, patente, marca, modelo, anio, combustible, antecedentes_vehiculo, creado_por, creado_en, actualizado_en';
 
+export type EdicionVehiculo = Omit<NuevoVehiculoTaller, 'clienteId' | 'vin'>;
+
+export async function actualizarVehiculo(
+  vehiculoId: string,
+  entrada: EdicionVehiculo,
+  sesion: SesionTaller,
+): Promise<VehiculoTaller> {
+  validarSesionRecepcion(sesion);
+  if (!vehiculoId.trim())
+    throw new Error('Se necesita el identificador del vehiculo.');
+  const patente = normalizarPatente(entrada.patente);
+  const marca = textoOpcional(entrada.marca);
+  const modelo = textoOpcional(entrada.modelo);
+  const combustible = validarCombustible(entrada.combustible);
+  validarAnio(entrada.anio);
+  if (!marca || !modelo || entrada.anio == null || !combustible)
+    throw new Error('Completa marca, modelo, ano y combustible.');
+  const { data, error } = await supabase
+    .from('vehiculos')
+    .update({
+      patente,
+      marca,
+      modelo,
+      anio: entrada.anio,
+      combustible,
+      antecedentes_vehiculo: textoOpcional(entrada.antecedentesVehiculo),
+    })
+    .eq('id', vehiculoId.trim())
+    .eq('taller_id', sesion.tallerId)
+    .select(CAMPOS_VEHICULO)
+    .maybeSingle();
+  if ((error as { code?: string } | null)?.code === '23505')
+    throw new Error('Ya existe un vehiculo con esa patente.');
+  if (error || !data)
+    throw new Error(
+      'No se pudo actualizar el vehiculo. Revisa los datos y tus permisos.',
+    );
+  return convertirVehiculo(data as FilaVehiculo);
+}
+
 export async function crearVehiculo(
   entrada: NuevoVehiculoTaller,
   sesion: SesionTaller,

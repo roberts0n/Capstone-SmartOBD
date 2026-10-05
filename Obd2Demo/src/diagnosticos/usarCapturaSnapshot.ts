@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useSesionEscanerObd } from '../escaner/ContextoEscanerObd';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 import {
+  ErrorRecargaSnapshot,
+  obtenerSnapshotDiagnostico,
+} from './ServicioSnapshotsDiagnostico';
+import {
   ejecutarCapturaSnapshotDesdeEscaner,
   type SolicitudCapturaSnapshotEscaner,
 } from './EjecutarCapturaSnapshot';
@@ -31,6 +35,10 @@ export function useCapturaSnapshot() {
   const [resultado, establecerResultado] =
     useState<ResultadoCapturaGuardada | null>(null);
   const [error, establecerError] = useState<string | null>(null);
+  const [pendienteRecuperacion, establecerPendienteRecuperacion] =
+    useState<ErrorRecargaSnapshot | null>(null);
+  const guardando = useRef(false);
+  const pendienteActual = useRef<ErrorRecargaSnapshot | null>(null);
   const montado = useRef(true);
   const ocupado = useRef(false);
   const cancelacionSolicitada = useRef(false);
@@ -46,12 +54,13 @@ export function useCapturaSnapshot() {
   async function iniciar(
     entrada: EntradaCapturaSnapshot,
   ): Promise<ResultadoCapturaGuardada | null> {
-    if (ocupado.current) {
+    if (ocupado.current || pendienteActual.current) {
       return null;
     }
 
     ocupado.current = true;
     cancelacionSolicitada.current = false;
+    guardando.current = false;
     establecerEnCurso(true);
     establecerError(null);
     establecerResultado(null);
@@ -67,6 +76,7 @@ export function useCapturaSnapshot() {
       sesionEscaner,
       cancelado: () => cancelacionSolicitada.current,
       alProgresar: siguiente => {
+        if (siguiente.etapa === 'guardando') guardando.current = true;
         if (montado.current) {
           establecerProgreso(siguiente);
         }
@@ -84,10 +94,14 @@ export function useCapturaSnapshot() {
           mensaje: `Snapshot ${captura.snapshotGuardado.secuencia} guardado correctamente.`,
         });
       }
-      return captura;
+      return montado.current ? captura : null;
     } catch (capturado) {
       if (montado.current) {
-        if (cancelacionSolicitada.current) {
+        if (capturado instanceof ErrorRecargaSnapshot) {
+          pendienteActual.current = capturado;
+          establecerPendienteRecuperacion(capturado);
+          establecerError(capturado.message);
+        } else if (cancelacionSolicitada.current && !guardando.current) {
           establecerProgreso(anterior => ({
             etapa: anterior?.etapa ?? 'preparando-escaner',
             actual: anterior?.actual ?? null,
@@ -109,7 +123,7 @@ export function useCapturaSnapshot() {
   }
 
   function cancelar(): void {
-    if (!ocupado.current) {
+    if (!ocupado.current || guardando.current) {
       return;
     }
     cancelacionSolicitada.current = true;
@@ -121,8 +135,38 @@ export function useCapturaSnapshot() {
     }));
   }
 
+  async function recuperar(): Promise<ResultadoCapturaGuardada | null> {
+    if (ocupado.current || !pendienteRecuperacion?.contexto) return null;
+    ocupado.current = true;
+    guardando.current = true;
+    establecerEnCurso(true);
+    establecerError(null);
+    try {
+      const snapshotGuardado = await obtenerSnapshotDiagnostico(
+        pendienteRecuperacion.snapshotId,
+      );
+      if (!snapshotGuardado)
+        throw new Error('No se pudo recuperar el snapshot guardado.');
+      const recuperado = {
+        ...pendienteRecuperacion.contexto,
+        snapshotGuardado,
+      };
+      if (!montado.current) return null;
+      establecerResultado(recuperado);
+      pendienteActual.current = null;
+      establecerPendienteRecuperacion(null);
+      return recuperado;
+    } catch (capturado) {
+      if (montado.current) establecerError(mensajeError(capturado));
+      return null;
+    } finally {
+      ocupado.current = false;
+      if (montado.current) establecerEnCurso(false);
+    }
+  }
+
   function limpiar(): void {
-    if (ocupado.current) {
+    if (ocupado.current || pendienteRecuperacion) {
       return;
     }
     establecerProgreso(null);
@@ -135,6 +179,9 @@ export function useCapturaSnapshot() {
     progreso,
     resultado,
     error,
+    pendienteRecuperacion,
+    puedeCancelar: enCurso && !guardando.current,
+    recuperar,
     iniciar,
     cancelar,
     limpiar,

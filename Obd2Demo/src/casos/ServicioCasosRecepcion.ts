@@ -95,8 +95,17 @@ export function prepararCasoRecepcion(
   };
 }
 
-export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
-  return consultarCasosRecepcion();
+export interface ConsultaCasosRecepcion {
+  busqueda?: string;
+  filtro?: 'todos' | 'pendientes' | 'asignados' | 'cerrados';
+  desde?: number;
+  limite?: number;
+}
+
+export async function listarCasosRecepcion(
+  opciones?: ConsultaCasosRecepcion,
+): Promise<CasoRecepcion[]> {
+  return consultarCasosRecepcion(undefined, undefined, opciones);
 }
 
 export async function listarCasosVehiculo(
@@ -124,25 +133,69 @@ export async function obtenerCasoRecepcion(
 async function consultarCasosRecepcion(
   casoId?: string,
   vehiculoId?: string,
+  opciones?: ConsultaCasosRecepcion,
 ): Promise<CasoRecepcion[]> {
+  const texto = opciones?.busqueda?.trim() ?? '';
+  const desde = opciones?.desde ?? 0;
+  const limite = opciones?.limite ?? 21;
+  if (
+    texto.length > 120 ||
+    !Number.isSafeInteger(desde) ||
+    desde < 0 ||
+    !Number.isInteger(limite) ||
+    limite < 1 ||
+    limite > 100 ||
+    !Number.isSafeInteger(desde + limite)
+  )
+    throw new Error('La consulta de casos no es valida.');
+  const campos =
+    'id, vehiculo_id, recepcion_responsable_id, motivo_ingreso, estado, prioridad, creado_en';
   let consulta = supabase
     .from('casos_diagnosticos')
     .select(
-      'id, vehiculo_id, recepcion_responsable_id, motivo_ingreso, estado, prioridad, creado_en',
+      texto
+        ? `${campos},por_patente:vehiculos(id),por_cliente:vehiculos(id,clientes!inner(id))`
+        : campos,
     );
+  if (texto) {
+    const patron = `%${texto.replace(/[\\%_]/g, caracter => `\\${caracter}`)}%`;
+    const patronPatente = `%${texto
+      .replace(/[\s.-]/g, '')
+      .replace(/[\\%_]/g, caracter => `\\${caracter}`)}%`;
+    // uso dos relaciones filtradas para buscar por cliente o patente antes de paginar
+    consulta = consulta
+      .ilike('por_patente.patente', patronPatente)
+      .ilike('por_cliente.clientes.nombre', patron)
+      .or('por_patente.not.is.null,por_cliente.not.is.null');
+  }
+  if (opciones?.filtro === 'pendientes')
+    consulta = consulta.in('estado', ['ingresado', 'diagnostico_inicial']);
+  else if (opciones?.filtro === 'asignados')
+    consulta = consulta.in('estado', [
+      'asignado',
+      'en_revision',
+      'diagnosticado',
+    ]);
+  else if (opciones?.filtro === 'cerrados')
+    consulta = consulta.eq('estado', 'cerrado');
   // cuando vuelvo de asignar, consulto solo el caso que acabo de trabajar
   if (casoId) consulta = consulta.eq('id', casoId);
   // filtro en la base para no traer el historial de otros autos
   if (vehiculoId) consulta = consulta.eq('vehiculo_id', vehiculoId);
-  const { data: casos, error: errorCasos } = await consulta.order('creado_en', {
+  consulta = consulta.order('creado_en', {
     ascending: false,
   });
+  if (opciones)
+    consulta = consulta
+      .order('id', { ascending: false })
+      .range(desde, desde + limite - 1);
+  const { data: casos, error: errorCasos } = await consulta;
 
   if (errorCasos) {
     throw new Error('No se pudieron consultar los casos de recepcion.');
   }
 
-  const filasCaso = (casos ?? []) as FilaCasoRecepcion[];
+  const filasCaso = (casos ?? []) as unknown as FilaCasoRecepcion[];
   if (filasCaso.length === 0) return [];
 
   const { data: vehiculos, error: errorVehiculos } = await supabase

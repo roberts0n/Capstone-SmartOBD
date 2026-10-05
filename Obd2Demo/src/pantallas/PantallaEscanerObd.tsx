@@ -23,6 +23,9 @@ import {
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
 import { PanelPidsCompatibles } from '../componentes/PanelPidsCompatibles';
+import { PanelGraficoPids } from '../componentes/PanelGraficoPids';
+import { useMuestreoPids } from '../obd/usarMuestreoPids';
+import { useProteccionSalida } from '../componentes/ProteccionSalida';
 import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
 import {
   ejecutarDeteccionPids,
@@ -120,15 +123,45 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     establecer: establecerCatalogoVehiculo,
   } = useCatalogoVehiculo();
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
+  const muestreo = useMuestreoPids(sesionEscaner);
+  const solicitarSalida = useProteccionSalida({
+    ocupado:
+      conexionEnCurso ||
+      comandoEnCurso ||
+      guardadoEnCurso ||
+      pruebaDtc.guardando,
+    cancelar: muestreo.enCurso ? () => muestreo.detener() : undefined,
+    etiquetaCancelar: 'Detener lectura',
+    mensajeOcupado: muestreo.enCurso
+      ? 'Puedes detener la lectura y salir cuando termine el comando actual.'
+      : undefined,
+  });
 
   const bloqueoConexion = useRef(false);
   const bloqueoComando = useRef(false);
+  const versionActual = sesionEscaner.obtenerVersionConexion();
 
   useEffect(() => {
-    if (!dispositivoConectado) {
-      limpiarPids();
+    // la compatibilidad y sus escalas no pasan de una conexion a otra
+    limpiarPids();
+  }, [versionActual, limpiarPids]);
+
+  async function iniciarMuestreo(comando: string) {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      !contextoPids.current
+    )
+      return;
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    try {
+      await muestreo.iniciar(comando, contextoPids.current);
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
     }
-  }, [dispositivoConectado, limpiarPids]);
+  }
 
   // GATT no indica cual canal pertenece a ELM327. Se muestran como candidatos
   // todas las caracteristicas que tecnicamente permiten TX o RX.
@@ -814,7 +847,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           <Pressable
             accessibilityLabel="Volver al caso"
             accessibilityRole="button"
-            onPress={alVolver}
+            onPress={() => solicitarSalida(alVolver)}
             style={estilos.volverAlCaso}
           >
             <Text style={estilos.flechaVolver}>‹</Text>
@@ -984,6 +1017,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
             <OpcionesCaracteristica
               candidatas={candidatasEscritura}
               claveSeleccionada={claveEscritura}
+              deshabilitado={interfazOcupada}
               alSeleccionar={sesionEscaner.elegirEscritura}
               mensajeVacio="No se detectaron características escribibles."
             />
@@ -993,6 +1027,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
             <OpcionesCaracteristica
               candidatas={candidatasNotificacion}
               claveSeleccionada={claveNotificacion}
+              deshabilitado={interfazOcupada}
               alSeleccionar={sesionEscaner.elegirNotificacion}
               mensajeVacio="No se detectaron características notificables."
             />
@@ -1002,6 +1037,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
               }
               onPress={() => sesionEscaner.activarSuscripcion()}
               disabled={
+                interfazOcupada ||
                 !notificacionSeleccionada ||
                 !dispositivoConectado ||
                 claveSuscripcion === claveNotificacion
@@ -1021,6 +1057,21 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           </Seccion>
         </>
       ) : null}
+
+      <PanelGraficoPids
+        pidsCompatibles={deteccionPids?.pidsInterpretables ?? null}
+        comandoActivo={muestreo.comando}
+        muestras={muestreo.muestras}
+        enCurso={muestreo.enCurso}
+        deteniendo={muestreo.deteniendo}
+        deshabilitado={interfazOcupada || !sesionEscaner.estaPreparado()}
+        frecuenciaHz={muestreo.frecuenciaHz}
+        error={muestreo.error}
+        mensaje={muestreo.mensaje}
+        alIniciar={comando => iniciarMuestreo(comando)}
+        alDetener={() => muestreo.detener()}
+        alLimpiar={muestreo.limpiar}
+      />
 
       <Seccion
         titulo="Diagnóstico del vehículo"
@@ -1375,6 +1426,7 @@ interface PropiedadesOpcionesCaracteristica {
   claveSeleccionada: string | null;
   alSeleccionar: (elemento: InformacionCaracteristicaGatt) => void;
   mensajeVacio: string;
+  deshabilitado?: boolean;
 }
 
 // Selector tipo radio para candidatos TX o RX encontrados durante GATT.
@@ -1383,6 +1435,7 @@ function OpcionesCaracteristica({
   claveSeleccionada,
   alSeleccionar,
   mensajeVacio,
+  deshabilitado = false,
 }: PropiedadesOpcionesCaracteristica) {
   if (candidatas.length === 0) {
     return <Text style={estilos.vacio}>{mensajeVacio}</Text>;
@@ -1394,9 +1447,13 @@ function OpcionesCaracteristica({
           accessibilityRole="radio"
           accessibilityState={{
             checked: claveSeleccionada === clavePara(elemento),
+            disabled: deshabilitado,
           }}
+          disabled={deshabilitado}
           key={clavePara(elemento)}
-          onPress={() => alSeleccionar(elemento)}
+          onPress={() => {
+            if (!deshabilitado) alSeleccionar(elemento);
+          }}
           style={[
             estilos.opcion,
             claveSeleccionada === clavePara(elemento) &&

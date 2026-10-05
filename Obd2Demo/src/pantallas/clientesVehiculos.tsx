@@ -107,7 +107,7 @@ export function ClientesVehiculos({
           accessibilityLabel="Buscar clientes"
           value={busqueda}
           onChangeText={alCambiarBusqueda}
-          placeholder="Nombre o teléfono"
+          placeholder="Nombre, teléfono o correo"
           placeholderTextColor="#77777F"
           style={estilos.buscador}
           autoCorrect={false}

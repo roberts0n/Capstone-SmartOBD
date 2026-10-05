@@ -16,6 +16,36 @@ interface FilaCliente {
 const CAMPOS_CLIENTE =
   'id, taller_id, nombre, telefono, correo, creado_por, creado_en, actualizado_en';
 
+export async function actualizarCliente(
+  clienteId: string,
+  entrada: NuevoClienteTaller,
+  sesion: SesionTaller,
+): Promise<ClienteTaller> {
+  validarSesionRecepcion(sesion);
+  if (!clienteId.trim())
+    throw new Error('Se necesita el identificador del cliente.');
+  const nombre = entrada.nombre.trim();
+  if (nombre.length < 2)
+    throw new Error('El nombre del cliente debe tener al menos 2 caracteres.');
+  const correo = textoOpcional(entrada.correo)?.toLowerCase() ?? null;
+  if (correo && !esCorreoValido(correo))
+    throw new Error('El correo del cliente no tiene un formato valido.');
+  const telefono = normalizarTelefonoChileno(entrada.telefono);
+  // envio solo los campos del formulario, no los ids ni los datos de autoria
+  const { data, error } = await supabase
+    .from('clientes')
+    .update({ nombre, telefono, correo })
+    .eq('id', clienteId.trim())
+    .eq('taller_id', sesion.tallerId)
+    .select(CAMPOS_CLIENTE)
+    .maybeSingle();
+  if (error || !data)
+    throw new Error(
+      'No se pudo actualizar el cliente. Revisa los datos y tus permisos.',
+    );
+  return convertirCliente(data as FilaCliente);
+}
+
 // mantengo el mismo formato que pide la base, sin adivinar digitos faltantes
 const TELEFONO_NACIONAL_CHILENO =
   /^(?:[29][0-9]{8}|(?:32|33|34|35|41|42|43|45|51|52|53|55|57|58|61|63|64|65|67|71|72|73|75)[0-9]{7}|44[2-9][0-9]{6})$/;
@@ -147,7 +177,9 @@ export async function listarClientes(
       // paso el texto como un valor, sin dejar que cambie los filtros de la consulta
       const literal = busqueda.replace(/[\\%_]/g, caracter => `\\${caracter}`);
       const patron = JSON.stringify(`%${literal}%`);
-      consulta = consulta.or(`nombre.ilike.${patron},telefono.ilike.${patron}`);
+      consulta = consulta.or(
+        `nombre.ilike.${patron},telefono.ilike.${patron},correo.ilike.${patron}`,
+      );
     }
     consulta = consulta.range(desde, desde + limite - 1);
   }

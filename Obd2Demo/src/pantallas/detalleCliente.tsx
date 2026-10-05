@@ -26,6 +26,8 @@ interface Propiedades {
   alCambiarVehiculoAbierto?: (vehiculoId: string | null) => void;
   alAbrirCaso?: (caso: CasoRecepcion) => void;
   alVolver: () => void;
+  alEditarCliente?: (cliente: ClienteTaller) => void;
+  alEditarVehiculo?: (vehiculo: VehiculoTaller) => void;
 }
 
 export function DetalleCliente({
@@ -34,6 +36,8 @@ export function DetalleCliente({
   alCambiarVehiculoAbierto,
   alAbrirCaso,
   alVolver,
+  alEditarCliente,
+  alEditarVehiculo,
 }: Propiedades) {
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
   const [vehiculos, establecerVehiculos] = useState<VehiculoTaller[]>([]);
@@ -139,6 +143,15 @@ export function DetalleCliente({
             <Text style={estilos.nombre}>{cliente.nombre}</Text>
             <Dato etiqueta="Teléfono" valor={cliente.telefono} />
             <Dato etiqueta="Correo" valor={cliente.correo} />
+            {alEditarCliente ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => alEditarCliente(cliente)}
+                style={estilos.reintentar}
+              >
+                <Text style={estilos.textoAccion}>Editar cliente</Text>
+              </Pressable>
+            ) : null}
           </View>
           <Text style={estilos.subtitulo}>Vehículos</Text>
           {vehiculos.length === 0 ? (
@@ -151,6 +164,9 @@ export function DetalleCliente({
                 abierta={seleccionadoId === auto.id}
                 revisionHistorial={revisionHistorial}
                 alAbrirCaso={alAbrirCaso}
+                alEditar={
+                  alEditarVehiculo ? () => alEditarVehiculo(auto) : undefined
+                }
                 alAlternar={() => {
                   const siguiente = seleccionadoId === auto.id ? null : auto.id;
                   establecerVehiculoAbiertoId(siguiente);
@@ -171,12 +187,14 @@ function FichaVehiculo({
   alAlternar,
   revisionHistorial,
   alAbrirCaso,
+  alEditar,
 }: {
   vehiculo: VehiculoTaller;
   abierta: boolean;
   alAlternar: () => void;
   revisionHistorial: number;
   alAbrirCaso?: (caso: CasoRecepcion) => void;
+  alEditar?: () => void;
 }) {
   return (
     <View style={estilos.fichaVehiculo}>
@@ -223,6 +241,15 @@ function FichaVehiculo({
             ausente="Sin VIN registrado"
           />
           <Dato etiqueta="Antecedentes" valor={vehiculo.antecedentesVehiculo} />
+          {alEditar ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={alEditar}
+              style={estilos.reintentar}
+            >
+              <Text style={estilos.textoAccion}>Editar vehículo</Text>
+            </Pressable>
+          ) : null}
           <HistorialVehiculo
             vehiculoId={vehiculo.id}
             revision={revisionHistorial}
