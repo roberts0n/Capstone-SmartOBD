@@ -11,13 +11,11 @@ import type {
   OpcionesCapturaSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
-} from './TiposCapturaSnapshot';
-import type {
   MotivoSnapshotParcial,
   TipoSnapshotDiagnostico,
 } from './TiposSnapshotDiagnostico';
 import { verificarMotorEnMarcha } from './VerificarCondicionMotor';
-import { ejecutarLecturaVin } from '../obd/EjecutarLecturaVin';
+import { ejecutarLecturaVin } from '../obd/LecturaVin';
 import { asignarVinVehiculo } from '../vehiculos/ServicioVehiculos';
 
 const COMANDOS_PREPARACION = ['ATE0', 'ATL0', 'ATS1', 'ATH0', 'ATSP0'] as const;

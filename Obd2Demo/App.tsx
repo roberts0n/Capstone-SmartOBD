@@ -22,6 +22,8 @@ import { CasosRecepcion } from './src/pantallas/casosRecepcion';
 import { DetalleCasoRecepcion } from './src/pantallas/detalleCasoRecepcion';
 import { AsignarMecanico } from './src/pantallas/asignarMecanico';
 import { EliminarDatosPrueba } from './src/pantallas/eliminarDatosPrueba';
+import { ClientesVehiculos } from './src/pantallas/clientesVehiculos';
+import { DetalleCliente } from './src/pantallas/detalleCliente';
 import type { CasoRecepcion } from './src/casos/ServicioCasosRecepcion';
 import {
   crearBorradorOrdenTrabajo,
@@ -51,6 +53,8 @@ type Ruta =
   | 'registrar_cliente'
   | 'registrar_vehiculo'
   | 'casos_recepcion'
+  | 'clientes_vehiculos'
+  | 'detalle_cliente'
   | 'detalle_caso_recepcion'
   | 'asignar_mecanico'
   | 'conectar_escaner'
@@ -59,6 +63,7 @@ type Ruta =
 
 type OrigenRegistro = 'herramientas' | 'nueva_orden';
 type OrigenConexion = 'inicio' | 'herramientas' | 'detalle_caso_recepcion';
+type OrigenCaso = 'casos_recepcion' | 'detalle_cliente';
 
 // dejo las pruebas disponibles en nuestras apk internas; para distribuir la app final lo cambio a false
 const PRUEBAS_INTERNAS_HABILITADAS = true;
@@ -73,8 +78,18 @@ function ContenidoAplicacion() {
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
   const [casoRecepcion, establecerCasoRecepcion] =
     useState<CasoRecepcion | null>(null);
+  const [origenCaso, establecerOrigenCaso] =
+    useState<OrigenCaso>('casos_recepcion');
+  const [vehiculoConsultaId, establecerVehiculoConsultaId] = useState<
+    string | null
+  >(null);
   const [clienteInicialVehiculoId, establecerClienteInicialVehiculoId] =
     useState<string | null>(null);
+  const [clienteConsultaId, establecerClienteConsultaId] = useState<
+    string | null
+  >(null);
+  const [busquedaClientes, establecerBusquedaClientes] = useState('');
+  const [paginaClientes, establecerPaginaClientes] = useState(0);
   const [borradorOrden, establecerBorradorOrden] = useState(
     crearBorradorOrdenTrabajo,
   );
@@ -130,6 +145,11 @@ function ContenidoAplicacion() {
     establecerBorradorOrden(crearBorradorOrdenTrabajo());
     establecerOrigenRegistro('herramientas');
     establecerRuta('login');
+    establecerClienteConsultaId(null);
+    establecerVehiculoConsultaId(null);
+    establecerOrigenCaso('casos_recepcion');
+    establecerBusquedaClientes('');
+    establecerPaginaClientes(0);
   }
 
   async function completarCambio(contrasena: string) {
@@ -150,6 +170,19 @@ function ContenidoAplicacion() {
     establecerBorradorOrden(crearBorradorOrdenTrabajo());
     establecerOrigenRegistro('herramientas');
     establecerRuta(destino);
+    establecerClienteConsultaId(null);
+    establecerVehiculoConsultaId(null);
+    establecerOrigenCaso('casos_recepcion');
+  }
+
+  function abrirCaso(
+    caso: CasoRecepcion,
+    origen: OrigenCaso = 'casos_recepcion',
+  ) {
+    if (sesion?.perfil !== 'recepcion' || sesion.debeCambiarPassword) return;
+    establecerOrigenCaso(origen);
+    establecerCasoRecepcion(caso);
+    establecerRuta('detalle_caso_recepcion');
   }
 
   function abrirConexion(origen: OrigenConexion) {
@@ -190,6 +223,8 @@ function ContenidoAplicacion() {
     ruta === 'registrar_cliente' ||
     ruta === 'registrar_vehiculo' ||
     ruta === 'casos_recepcion' ||
+    ruta === 'clientes_vehiculos' ||
+    ruta === 'detalle_cliente' ||
     ruta === 'detalle_caso_recepcion' ||
     ruta === 'asignar_mecanico' ||
     ruta === 'eliminar_datos_prueba'
@@ -259,10 +294,56 @@ function ContenidoAplicacion() {
                 establecerRuta('registrar_vehiculo');
               }}
               alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
+              alAbrirClientesVehiculos={() => {
+                if (sesion.perfil !== 'recepcion') return;
+                establecerClienteConsultaId(null);
+                establecerVehiculoConsultaId(null);
+                establecerBusquedaClientes('');
+                establecerPaginaClientes(0);
+                establecerRuta('clientes_vehiculos');
+              }}
               alAbrirLimpieza={() => {
                 establecerCasoRecepcion(null);
                 establecerBorradorOrden(crearBorradorOrdenTrabajo());
                 establecerRuta('eliminar_datos_prueba');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'clientes_vehiculos' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword && (
+            <ClientesVehiculos
+              busqueda={busquedaClientes}
+              pagina={paginaClientes}
+              alCambiarBusqueda={texto => {
+                establecerBusquedaClientes(texto);
+                establecerPaginaClientes(0);
+              }}
+              alCambiarPagina={establecerPaginaClientes}
+              alAbrirCliente={clienteId => {
+                establecerClienteConsultaId(clienteId);
+                establecerVehiculoConsultaId(null);
+                establecerRuta('detalle_cliente');
+              }}
+              alVolver={() => establecerRuta('herramientas')}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'detalle_cliente' &&
+          sesion?.perfil === 'recepcion' &&
+          !sesion.debeCambiarPassword &&
+          clienteConsultaId && (
+            <DetalleCliente
+              key={clienteConsultaId}
+              clienteId={clienteConsultaId}
+              vehiculoAbiertoId={vehiculoConsultaId}
+              alCambiarVehiculoAbierto={establecerVehiculoConsultaId}
+              alAbrirCaso={caso => abrirCaso(caso, 'detalle_cliente')}
+              alVolver={() => {
+                establecerClienteConsultaId(null);
+                establecerVehiculoConsultaId(null);
+                establecerRuta('clientes_vehiculos');
               }}
             />
           )}
@@ -289,8 +370,7 @@ function ContenidoAplicacion() {
               }}
               alCasoCreado={caso => {
                 establecerBorradorOrden(crearBorradorOrdenTrabajo());
-                establecerCasoRecepcion(caso);
-                establecerRuta('detalle_caso_recepcion');
+                abrirCaso(caso);
               }}
             />
           )}
@@ -350,8 +430,7 @@ function ContenidoAplicacion() {
           !sesion.debeCambiarPassword && (
             <CasosRecepcion
               alAbrirCaso={caso => {
-                establecerCasoRecepcion(caso);
-                establecerRuta('detalle_caso_recepcion');
+                abrirCaso(caso);
               }}
               alVolver={() => establecerRuta('herramientas')}
             />
@@ -369,7 +448,12 @@ function ContenidoAplicacion() {
               alAsignarMecanico={() => establecerRuta('asignar_mecanico')}
               alVolver={() => {
                 establecerCasoRecepcion(null);
-                establecerRuta('casos_recepcion');
+                // regreso a la ficha desde la que abri el caso, sin cerrar su auto
+                establecerRuta(
+                  origenCaso === 'detalle_cliente' && clienteConsultaId
+                    ? 'detalle_cliente'
+                    : 'casos_recepcion',
+                );
               }}
             />
           )}

@@ -1,5 +1,5 @@
 import type { State } from 'react-native-ble-plx';
-import type { EstadoPermisosBluetooth } from '../ble/ServicioBle';
+import type { EstadoPermisosBluetooth } from './ServicioBle';
 import type { EscanerGuardado } from '../tipos/escaner';
 import type {
   EntradaConsola,

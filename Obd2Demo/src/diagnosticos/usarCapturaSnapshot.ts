@@ -9,8 +9,6 @@ import type {
   CondicionMotorSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
-} from './TiposCapturaSnapshot';
-import type {
   MotivoSnapshotParcial,
   TipoSnapshotDiagnostico,
 } from './TiposSnapshotDiagnostico';

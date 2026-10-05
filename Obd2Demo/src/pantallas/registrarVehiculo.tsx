@@ -10,14 +10,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {
-  listarClientes,
-  obtenerCliente,
-} from '../clientes/ServicioClientes';
+import { listarClientes, obtenerCliente } from '../clientes/ServicioClientes';
 import type { ClienteTaller } from '../clientes/TiposCliente';
 import type { SesionTaller } from '../tipos/usuarioTaller';
-import { crearVehiculo } from '../vehiculos/ServicioVehiculos';
-import type { TipoCombustible, VehiculoTaller } from '../vehiculos/TiposVehiculo';
+import {
+  crearVehiculo,
+  normalizarPatente,
+} from '../vehiculos/ServicioVehiculos';
+import type {
+  TipoCombustible,
+  VehiculoTaller,
+} from '../vehiculos/TiposVehiculo';
 
 interface Propiedades {
   sesion: SesionTaller;
@@ -43,8 +46,9 @@ export function RegistrarVehiculo({
   const [marca, establecerMarca] = useState('');
   const [modelo, establecerModelo] = useState('');
   const [anio, establecerAnio] = useState('');
-  const [combustible, establecerCombustible] =
-    useState<TipoCombustible | null>(null);
+  const [combustible, establecerCombustible] = useState<TipoCombustible | null>(
+    null,
+  );
   const [antecedentes, establecerAntecedentes] = useState('');
   const [cargandoClientes, establecerCargandoClientes] = useState(true);
   const [guardando, establecerGuardando] = useState(false);
@@ -57,7 +61,9 @@ export function RegistrarVehiculo({
 
   useEffect(() => {
     pantallaActiva.current = true;
-    return () => { pantallaActiva.current = false; };
+    return () => {
+      pantallaActiva.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -132,12 +138,24 @@ export function RegistrarVehiculo({
       return;
     }
     const anioNumero = Number(anio);
-    if (!Number.isInteger(anioNumero) || anioNumero < 1886 || anioNumero > 2200) {
+    if (
+      !Number.isInteger(anioNumero) ||
+      anioNumero < 1886 ||
+      anioNumero > 2200
+    ) {
       establecerError('Ingresa un año válido.');
       return;
     }
     if (!combustible) {
       establecerError('Selecciona gasolina o diesel.');
+      return;
+    }
+
+    let patenteNormalizada: string;
+    try {
+      patenteNormalizada = normalizarPatente(patente);
+    } catch (capturado) {
+      establecerError((capturado as Error).message);
       return;
     }
 
@@ -148,7 +166,7 @@ export function RegistrarVehiculo({
       const vehiculo = await crearVehiculo(
         {
           clienteId: cliente.id,
-          patente,
+          patente: patenteNormalizada,
           marca,
           modelo,
           anio: anioNumero,
@@ -165,11 +183,12 @@ export function RegistrarVehiculo({
       );
       alVehiculoRegistrado?.(vehiculo);
     } catch (capturado) {
-      if (pantallaActiva.current) establecerError(
-        capturado instanceof Error
-          ? capturado.message
-          : 'No se pudo registrar el vehículo.',
-      );
+      if (pantallaActiva.current)
+        establecerError(
+          capturado instanceof Error
+            ? capturado.message
+            : 'No se pudo registrar el vehículo.',
+        );
     } finally {
       operacionEnCurso.current = false;
       if (pantallaActiva.current) establecerGuardando(false);
@@ -215,7 +234,9 @@ export function RegistrarVehiculo({
               pressed && estilos.presionado,
             ]}
           >
-            <Text style={estilos.textoBotonSecundario}>{etiquetaFinalizar}</Text>
+            <Text style={estilos.textoBotonSecundario}>
+              {etiquetaFinalizar}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -305,8 +326,12 @@ export function RegistrarVehiculo({
           <Campo
             etiqueta="Patente"
             valor={patente}
-            alCambiar={establecerPatente}
-            placeholder="AB12CD"
+            alCambiar={texto =>
+              establecerPatente(
+                texto.replace(/[a-z]/g, letra => letra.toUpperCase()),
+              )
+            }
+            placeholder="BCDF12 / AB1234"
             mitad
             mayusculas
           />

@@ -39,6 +39,7 @@ export async function crearVehiculo(
   const vin = normalizarVin(entrada.vin);
   const combustible = validarCombustible(entrada.combustible);
   validarAnio(entrada.anio);
+  const patente = normalizarPatente(entrada.patente);
 
   const { data, error } = await supabase
     .from('vehiculos')
@@ -46,7 +47,7 @@ export async function crearVehiculo(
       taller_id: sesion.tallerId,
       cliente_id: clienteId,
       vin,
-      patente: normalizarPatente(entrada.patente),
+      patente,
       marca: textoOpcional(entrada.marca),
       modelo: textoOpcional(entrada.modelo),
       anio: entrada.anio ?? null,
@@ -180,8 +181,18 @@ function normalizarVin(valor: string | null | undefined): string | null {
   return vin;
 }
 
-function normalizarPatente(valor: string | null | undefined): string | null {
-  return valor?.replace(/[\s-]/g, '').toUpperCase() || null;
+export function normalizarPatente(valor: string | null | undefined): string {
+  const patente = valor?.replace(/[\s.-]/g, '').toUpperCase() ?? '';
+  // acepto separadores al escribir, pero guardo la patente sin ellos
+  if (
+    !/^[A-Za-z0-9\s.-]+$/.test(valor ?? '') ||
+    !/^(?:[A-Z]{2}[0-9]{4}|[BCDFGHJKLPRSTVWXYZ]{4}[0-9]{2})$/.test(patente)
+  ) {
+    throw new Error(
+      'Ingresa una patente chilena de auto, como AB1234 o BCDF12.',
+    );
+  }
+  return patente;
 }
 
 function validarAnio(anio: number | null | undefined): void {
@@ -239,6 +250,9 @@ function mensajeErrorCreacion(error: unknown): string {
   }
   if (codigo === '42501') {
     return 'Tu cuenta no tiene permiso para registrar vehiculos.';
+  }
+  if (codigo === '23514' || codigo === '23502') {
+    return 'Revisa los datos del vehiculo antes de guardar.';
   }
 
   return 'No se pudo registrar el vehiculo. Intenta nuevamente.';

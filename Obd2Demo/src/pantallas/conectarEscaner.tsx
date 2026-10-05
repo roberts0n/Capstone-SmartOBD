@@ -19,7 +19,7 @@ import {
   clasificarDispositivo,
   nombreDispositivo,
   ordenarCandidatos,
-} from '../escaneres/PerfilesEscaner';
+} from '../escaner/PerfilesEscaner';
 import type { InformacionDispositivoBle } from '../tipos/ble';
 
 interface Propiedades {

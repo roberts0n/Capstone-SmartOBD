@@ -9,6 +9,7 @@ interface Propiedades {
   alAbrirRegistroCliente: () => void;
   alAbrirRegistroVehiculo: () => void;
   alAbrirCasosRecepcion: () => void;
+  alAbrirClientesVehiculos: () => void;
   alAbrirLimpieza: () => void;
 }
 
@@ -17,13 +18,14 @@ type Destino =
   | 'registro_cliente'
   | 'registro_vehiculo'
   | 'casos'
+  | 'clientes_vehiculos'
   | 'limpieza'
   | 'escaner';
 
 const CONTENIDO = {
   recepcion: {
     sobretitulo: 'Recepción',
-    titulo: '¿Qué necesitas registrar?',
+    titulo: '¿Qué necesitas hacer?',
     descripcion:
       'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
     opciones: [
@@ -50,6 +52,12 @@ const CONTENIDO = {
         titulo: 'Casos de recepción',
         detalle: 'Consulta los ingresos registrados en el taller',
         destino: 'casos' as Destino,
+      },
+      {
+        codigo: 'REG',
+        titulo: 'Clientes y vehículos',
+        detalle: 'Consulta los registros del taller',
+        destino: 'clientes_vehiculos' as Destino,
       },
       {
         codigo: 'DEL',
@@ -81,6 +89,7 @@ export function HerramientasRol({
   alAbrirRegistroCliente,
   alAbrirRegistroVehiculo,
   alAbrirCasosRecepcion,
+  alAbrirClientesVehiculos,
   alAbrirLimpieza,
 }: Propiedades) {
   const contenido =
@@ -107,6 +116,7 @@ export function HerramientasRol({
               alAbrirRegistroCliente,
               alAbrirRegistroVehiculo,
               alAbrirCasosRecepcion,
+              alAbrirClientesVehiculos,
               alAbrirLimpieza,
             )}
             style={({ pressed }) => [
@@ -136,12 +146,14 @@ function resolverDestino(
   alAbrirRegistroCliente: () => void,
   alAbrirRegistroVehiculo: () => void,
   alAbrirCasosRecepcion: () => void,
+  alAbrirClientesVehiculos: () => void,
   alAbrirLimpieza: () => void,
 ): () => void {
   if (destino === 'orden') return alAbrirNuevaOrden;
   if (destino === 'registro_cliente') return alAbrirRegistroCliente;
   if (destino === 'registro_vehiculo') return alAbrirRegistroVehiculo;
   if (destino === 'casos') return alAbrirCasosRecepcion;
+  if (destino === 'clientes_vehiculos') return alAbrirClientesVehiculos;
   if (destino === 'limpieza') return alAbrirLimpieza;
   return alAbrirEscaner;
 }

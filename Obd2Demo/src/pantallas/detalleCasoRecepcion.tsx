@@ -15,7 +15,7 @@ import {
   listarSnapshotsCaso,
   obtenerSnapshotDiagnostico,
 } from '../diagnosticos/ServicioSnapshotsDiagnostico';
-import type { CondicionMotorSnapshot } from '../diagnosticos/TiposCapturaSnapshot';
+import type { CondicionMotorSnapshot } from '../diagnosticos/TiposSnapshotDiagnostico';
 import type { SnapshotDiagnostico } from '../diagnosticos/TiposSnapshotDiagnostico';
 import { useSesionEscanerObd } from '../escaner/ContextoEscanerObd';
 import type { SesionTaller } from '../tipos/usuarioTaller';

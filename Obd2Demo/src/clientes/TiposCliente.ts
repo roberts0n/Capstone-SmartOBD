@@ -11,6 +11,6 @@ export interface ClienteTaller {
 
 export interface NuevoClienteTaller {
   nombre: string;
-  telefono?: string | null;
+  telefono: string;
   correo?: string | null;
 }

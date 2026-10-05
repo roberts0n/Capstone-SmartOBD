@@ -15,7 +15,7 @@ import { version as versionAplicacion } from '../../package.json';
 import {
   crearEscanerVerificado,
   recuperarCanales,
-} from '../escaneres/VerificacionElm';
+} from '../escaner/VerificacionElm';
 import {
   analizarRespuestaObd,
   type AnalisisRespuestaObd,
@@ -27,8 +27,8 @@ import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
 import {
   ejecutarDeteccionPids,
   ErrorEjecucionDeteccionPids,
-} from '../obd/EjecutarDeteccionPids';
-import type { BloquePidsInterpretado } from '../obd/DeteccionPids';
+  type BloquePidsInterpretado,
+} from '../obd/DeteccionPids';
 import { comprobarDisponibilidadVin, decodificarVin } from '../obd/LecturaVin';
 import { traducirRespuestaObd } from '../obd/ServicioElm327';
 import type {

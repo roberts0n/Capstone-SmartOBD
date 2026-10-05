@@ -19,7 +19,7 @@ export type TipoCombustible = 'gasolina' | 'diesel';
 export interface NuevoVehiculoTaller {
   clienteId: string;
   vin?: string | null;
-  patente?: string | null;
+  patente: string;
   marca?: string | null;
   modelo?: string | null;
   anio?: number | null;

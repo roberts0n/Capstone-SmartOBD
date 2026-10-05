@@ -22,14 +22,9 @@ export type EstadoPermisosBluetooth =
   | 'denegados'
   | 'bloqueados';
 
-/**
- * Encapsula todas las operaciones de react-native-ble-plx.
- *
- * La pantalla trabaja con metodos de alto nivel y no necesita conocer los
- * detalles del BleManager. Este servicio no contiene reglas de ELM327.
- */
+// aqui concentro el transporte bluetooth; las reglas de elm quedan aparte
 export class ServicioBle {
-  // Se mantiene una sola instancia durante la vida de la pantalla.
+  // mantengo una sola instancia mientras exista la sesion compartida
   private readonly administrador = new BleManager();
   private idDispositivoConectado: string | null = null;
   private temporizadorEscaneo: ReturnType<typeof setTimeout> | null = null;

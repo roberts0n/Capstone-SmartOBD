@@ -13,13 +13,13 @@ import {
   esBluetoothUtilizable,
   ServicioBle,
   type EstadoPermisosBluetooth,
-} from '../ble/ServicioBle';
-import { combinarAnuncios } from '../escaneres/PerfilesEscaner';
-import { useEscaneresGuardados } from '../escaneres/usarEscaneresGuardados';
+} from './ServicioBle';
+import { combinarAnuncios } from './PerfilesEscaner';
+import { useEscaneresGuardados } from './usarEscaneresGuardados';
 import {
   identificarElm,
   verificarCanalesElm,
-} from '../escaneres/VerificacionElm';
+} from './VerificacionElm';
 import { ServicioElm327 } from '../obd/ServicioElm327';
 import type {
   EntradaConsola,
@@ -135,6 +135,13 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     establecerMensajeVerificacion(MENSAJE_SIN_VERIFICAR);
   }, [invalidarVerificacion]);
 
+  const cancelarRecepcion = useCallback(() => {
+    // cierro los dos observadores sin cambiar los bloqueos de la conexion
+    servicioElm.cancelarSuscripcion();
+    suscripcionDesconexion.current?.remove();
+    suscripcionDesconexion.current = null;
+  }, [servicioElm]);
+
   useEffect(() => {
     const suscripcionEstado = servicioBle.observarEstadoBluetooth(estado => {
       bluetoothRef.current = estado;
@@ -143,9 +150,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         versionPreparacion.current += 1;
         versionBusqueda.current += 1;
         servicioBle.detenerEscaneo();
-        servicioElm.cancelarSuscripcion();
-        suscripcionDesconexion.current?.remove();
-        suscripcionDesconexion.current = null;
+        cancelarRecepcion();
         versionConexion.current += 1;
         limpiarSeleccion();
         establecerEstadoConexion('bluetooth-no-disponible');
@@ -162,7 +167,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       servicioElm.cancelarSuscripcion();
       servicioBle.destruir().catch(() => undefined);
     };
-  }, [limpiarSeleccion, servicioBle, servicioElm]);
+  }, [cancelarRecepcion, limpiarSeleccion, servicioBle, servicioElm]);
 
   const actualizarBluetooth = useCallback(
     async (solicitar = false): Promise<boolean> => {
@@ -175,9 +180,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
             versionPreparacion.current += 1;
             versionConexion.current += 1;
             versionBusqueda.current += 1;
-            servicioElm.cancelarSuscripcion();
-            suscripcionDesconexion.current?.remove();
-            suscripcionDesconexion.current = null;
+            cancelarRecepcion();
             limpiarSeleccion();
             servicioBle.desconectar().catch(() => undefined);
           }
@@ -191,9 +194,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
           if (dispositivoRef.current) {
             versionPreparacion.current += 1;
             versionConexion.current += 1;
-            servicioElm.cancelarSuscripcion();
-            suscripcionDesconexion.current?.remove();
-            suscripcionDesconexion.current = null;
+            cancelarRecepcion();
             limpiarSeleccion();
             servicioBle.desconectar().catch(() => undefined);
           }
@@ -220,7 +221,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         return false;
       }
     },
-    [agregarRegistro, limpiarSeleccion, servicioBle, servicioElm],
+    [agregarRegistro, cancelarRecepcion, limpiarSeleccion, servicioBle],
   );
 
   const prepararBluetooth = useCallback(
@@ -323,9 +324,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
         if (version !== versionConexion.current)
           throw new Error('Conexión cancelada.');
         servicioBle.detenerEscaneo();
-        servicioElm.cancelarSuscripcion();
-        suscripcionDesconexion.current?.remove();
-        suscripcionDesconexion.current = null;
+        cancelarRecepcion();
         if (dispositivoRef.current) {
           await servicioBle.desconectar();
         }
@@ -373,9 +372,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
             if (version !== versionConexion.current) return;
             versionPreparacion.current += 1;
             versionConexion.current += 1;
-            servicioElm.cancelarSuscripcion();
-            suscripcionDesconexion.current?.remove();
-            suscripcionDesconexion.current = null;
+            cancelarRecepcion();
             limpiarSeleccion();
             establecerEstadoConexion('desconectado');
             agregarRegistro(
@@ -405,11 +402,11 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     },
     [
       agregarRegistro,
+      cancelarRecepcion,
       limpiarSeleccion,
       invalidarVerificacion,
       prepararBluetooth,
       servicioBle,
-      servicioElm,
     ],
   );
 
@@ -422,9 +419,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
     versionConexion.current += 1;
     limpiarSeleccion();
     try {
-      servicioElm.cancelarSuscripcion();
-      suscripcionDesconexion.current?.remove();
-      suscripcionDesconexion.current = null;
+      cancelarRecepcion();
       await servicioBle.desconectar();
       establecerEstadoConexion('desconectado');
       agregarRegistro('informacion', 'Conexión cerrada por el usuario.');
@@ -436,7 +431,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       cierreEnCurso.current = false;
       if (!bloqueoConexion.current) establecerConexionEnCurso(false);
     }
-  }, [agregarRegistro, limpiarSeleccion, servicioBle, servicioElm]);
+  }, [agregarRegistro, cancelarRecepcion, limpiarSeleccion, servicioBle]);
 
   const cancelarSuscripcion = useCallback(() => {
     invalidarVerificacion();

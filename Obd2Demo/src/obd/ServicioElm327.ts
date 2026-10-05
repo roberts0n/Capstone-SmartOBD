@@ -1,5 +1,5 @@
 import type { Subscription } from 'react-native-ble-plx';
-import type { ServicioBle } from '../ble/ServicioBle';
+import type { ServicioBle } from '../escaner/ServicioBle';
 import type {
   InformacionCaracteristicaGatt,
   MetricasRecepcionElm,
