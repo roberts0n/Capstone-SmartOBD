@@ -5,19 +5,20 @@ import {
   capturarSnapshotDiagnostico,
   validarInicioCapturaSnapshot,
 } from './CapturarSnapshotDiagnostico';
-import { guardarSnapshotDiagnostico } from './ServicioSnapshotsDiagnostico';
+import {
+  ErrorRecargaSnapshot,
+  guardarSnapshotDiagnostico,
+} from './ServicioSnapshotsDiagnostico';
 import type {
   CondicionMotorSnapshot,
   OpcionesCapturaSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
-} from './TiposCapturaSnapshot';
-import type {
   MotivoSnapshotParcial,
   TipoSnapshotDiagnostico,
 } from './TiposSnapshotDiagnostico';
 import { verificarMotorEnMarcha } from './VerificarCondicionMotor';
-import { ejecutarLecturaVin } from '../obd/EjecutarLecturaVin';
+import { ejecutarLecturaVin } from '../obd/LecturaVin';
 import { asignarVinVehiculo } from '../vehiculos/ServicioVehiculos';
 
 const COMANDOS_PREPARACION = ['ATE0', 'ATL0', 'ATS1', 'ATH0', 'ATSP0'] as const;
@@ -63,6 +64,11 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       'Verifica los canales de escritura y notificacion antes de capturar.',
     );
   }
+  if (!sesionEscaner.estaPreparado()) {
+    throw new Error(
+      'Verifica el escáner con ATI en esta conexión antes de capturar.',
+    );
+  }
   if (capturasEnCurso.has(dispositivo.id)) {
     throw new Error('Ya existe una captura en curso para este escaner.');
   }
@@ -71,6 +77,20 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
   const mismaConexion = () =>
     versionConexion === sesionEscaner.obtenerVersionConexion() &&
     sesionEscaner.conectado();
+  const comprobarCancelacion = () => {
+    if (cancelado())
+      throw new Error('La captura fue cancelada y no se guardo el snapshot.');
+  };
+  const enviarComprobado: SesionEscanerObd['enviarComando'] = async comando => {
+    comprobarCancelacion();
+    if (!mismaConexion())
+      throw new Error('La conexion del escaner cambio durante la captura.');
+    const respuesta = await sesionEscaner.enviarComando(comando);
+    comprobarCancelacion();
+    if (!mismaConexion())
+      throw new Error('La conexion del escaner cambio durante la captura.');
+    return respuesta;
+  };
 
   capturasEnCurso.add(dispositivo.id);
   try {
@@ -80,6 +100,7 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       cancelado,
       solicitud.alProgresar,
     );
+    comprobarCancelacion();
 
     let verificacionMotorInicial = null;
     if (solicitud.condicionMotor === 'en_marcha') {
@@ -90,7 +111,7 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
         mensaje: 'Comprobando que el motor este en marcha.',
       });
       verificacionMotorInicial = await verificarMotorEnMarcha(
-        sesionEscaner.enviarComando,
+        enviarComprobado,
         cancelado,
       );
       if (verificacionMotorInicial.estado === 'detenido') {
@@ -111,13 +132,15 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       total: null,
       mensaje: 'Consultando el VIN del vehiculo.',
     });
-    const lecturaVin = await ejecutarLecturaVin(sesionEscaner.enviarComando);
+    const lecturaVin = await ejecutarLecturaVin(enviarComprobado);
+    comprobarCancelacion();
     if (lecturaVin.vin) {
       await asignarVinVehiculo(
         solicitud.vehiculoId,
         lecturaVin.vin,
         solicitud.sesionTaller,
       );
+      comprobarCancelacion();
     }
 
     const opciones: OpcionesCapturaSnapshot = {
@@ -139,6 +162,7 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
     };
 
     const captura = await capturarSnapshotDiagnostico(opciones);
+    comprobarCancelacion();
     let verificacionMotorFinal = null;
     if (solicitud.condicionMotor === 'en_marcha' && !captura.cancelada) {
       solicitud.alProgresar?.({
@@ -148,7 +172,7 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
         mensaje: 'Comprobando que el motor siga en marcha.',
       });
       verificacionMotorFinal = await verificarMotorEnMarcha(
-        sesionEscaner.enviarComando,
+        enviarComprobado,
         cancelado,
       );
       if (verificacionMotorFinal.estado !== 'en-marcha') {
@@ -162,7 +186,7 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       }
     }
 
-    if (captura.cancelada) {
+    if (captura.cancelada || cancelado()) {
       throw new Error('La captura fue cancelada y no se guardo el snapshot.');
     }
     solicitud.alProgresar?.({
@@ -171,18 +195,25 @@ export async function ejecutarCapturaSnapshotDesdeEscaner(
       total: null,
       mensaje: 'Guardando el snapshot en el caso de diagnostico.',
     });
-    const snapshotGuardado = await guardarSnapshotDiagnostico(
-      captura.snapshot,
-      solicitud.sesionTaller,
-    );
-    return {
+    comprobarCancelacion();
+    const contexto = {
       captura,
-      snapshotGuardado,
       vinLeido: lecturaVin.vin,
       advertencias: lecturaVin.advertencia ? [lecturaVin.advertencia] : [],
       verificacionMotorInicial,
       verificacionMotorFinal,
     };
+    try {
+      const snapshotGuardado = await guardarSnapshotDiagnostico(
+        captura.snapshot,
+        solicitud.sesionTaller,
+      );
+      return { ...contexto, snapshotGuardado };
+    } catch (capturado) {
+      if (capturado instanceof ErrorRecargaSnapshot)
+        capturado.contexto = contexto;
+      throw capturado;
+    }
   } finally {
     capturasEnCurso.delete(dispositivo.id);
   }
@@ -204,7 +235,9 @@ async function prepararEscaner(
       throw new Error('La preparacion del escaner fue cancelada.');
     }
     if (!conectado() || !sesionEscaner.estaSincronizado()) {
-      throw new Error('La conexion se interrumpio mientras se preparaba el escaner.');
+      throw new Error(
+        'La conexion se interrumpio mientras se preparaba el escaner.',
+      );
     }
 
     alProgresar?.({
@@ -214,5 +247,7 @@ async function prepararEscaner(
       mensaje: `Preparando el escaner con ${comando}.`,
     });
     await sesionEscaner.enviarComando(comando);
+    if (cancelado())
+      throw new Error('La preparacion del escaner fue cancelada.');
   }
 }

@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -17,12 +12,10 @@ import { SelectorEscaneres } from '../componentes/SelectorEscaneres';
 import { PanelPruebaDtc } from '../componentes/PanelPruebaDtc';
 import { usePruebaDtc } from '../informes/usarPruebaDtc';
 import { version as versionAplicacion } from '../../package.json';
-import { useEscaneresGuardados } from '../escaneres/usarEscaneresGuardados';
 import {
   crearEscanerVerificado,
-  obtenerCombinacionesAutomaticas,
   recuperarCanales,
-} from '../escaneres/VerificacionElm';
+} from '../escaner/VerificacionElm';
 import {
   analizarRespuestaObd,
   type AnalisisRespuestaObd,
@@ -30,12 +23,15 @@ import {
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
 import { PanelPidsCompatibles } from '../componentes/PanelPidsCompatibles';
+import { PanelGraficoPids } from '../componentes/PanelGraficoPids';
+import { useMuestreoPids } from '../obd/usarMuestreoPids';
+import { useProteccionSalida } from '../componentes/ProteccionSalida';
 import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
 import {
   ejecutarDeteccionPids,
   ErrorEjecucionDeteccionPids,
-} from '../obd/EjecutarDeteccionPids';
-import type { BloquePidsInterpretado } from '../obd/DeteccionPids';
+  type BloquePidsInterpretado,
+} from '../obd/DeteccionPids';
 import { comprobarDisponibilidadVin, decodificarVin } from '../obd/LecturaVin';
 import { traducirRespuestaObd } from '../obd/ServicioElm327';
 import type {
@@ -82,7 +78,15 @@ const ETIQUETAS_ESTADO: Record<EstadoConexion, string> = {
  */
 export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
   const sesionEscaner = useSesionEscanerObd();
-  const escaneres = useEscaneresGuardados();
+  const escaneres = {
+    guardados: sesionEscaner.escaneresGuardados,
+    cargando: sesionEscaner.cargandoGuardados,
+    error: sesionEscaner.errorGuardados,
+    buscar: (id: string) =>
+      sesionEscaner.escaneresGuardados.find(elemento => elemento.id === id),
+    guardar: sesionEscaner.guardarEscaner,
+    olvidar: sesionEscaner.olvidarEscaner,
+  };
   const pruebaDtc = usePruebaDtc();
   const [guardadoEnCurso, establecerGuardadoEnCurso] = useState(false);
   const [mostrarHerramientasAvanzadas, establecerMostrarHerramientasAvanzadas] =
@@ -119,15 +123,45 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     establecer: establecerCatalogoVehiculo,
   } = useCatalogoVehiculo();
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
+  const muestreo = useMuestreoPids(sesionEscaner);
+  const solicitarSalida = useProteccionSalida({
+    ocupado:
+      conexionEnCurso ||
+      comandoEnCurso ||
+      guardadoEnCurso ||
+      pruebaDtc.guardando,
+    cancelar: muestreo.enCurso ? () => muestreo.detener() : undefined,
+    etiquetaCancelar: 'Detener lectura',
+    mensajeOcupado: muestreo.enCurso
+      ? 'Puedes detener la lectura y salir cuando termine el comando actual.'
+      : undefined,
+  });
 
   const bloqueoConexion = useRef(false);
   const bloqueoComando = useRef(false);
+  const versionActual = sesionEscaner.obtenerVersionConexion();
 
   useEffect(() => {
-    if (!dispositivoConectado) {
-      limpiarPids();
+    // la compatibilidad y sus escalas no pasan de una conexion a otra
+    limpiarPids();
+  }, [versionActual, limpiarPids]);
+
+  async function iniciarMuestreo(comando: string) {
+    if (
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      !contextoPids.current
+    )
+      return;
+    bloqueoComando.current = true;
+    establecerComandoEnCurso(true);
+    try {
+      await muestreo.iniciar(comando, contextoPids.current);
+    } finally {
+      bloqueoComando.current = false;
+      establecerComandoEnCurso(false);
     }
-  }, [dispositivoConectado, limpiarPids]);
+  }
 
   // GATT no indica cual canal pertenece a ELM327. Se muestran como candidatos
   // todas las caracteristicas que tecnicamente permiten TX o RX.
@@ -169,7 +203,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           canales.notificacion,
         );
         establecerMensajeVerificacion(
-          'Canales guardados restaurados. Verifica de nuevo con ATI si lo necesitas.',
+          'Canales guardados restaurados. Verifica ATI en esta conexión antes de usarlos en un caso.',
         );
       } else if (guardado) {
         establecerMensajeVerificacion(
@@ -388,84 +422,13 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     ) {
       return;
     }
-    const combinaciones = obtenerCombinacionesAutomaticas(caracteristicas);
-    if (combinaciones.length === 0) {
-      establecerMensajeVerificacion(
-        'No se encontraron combinaciones FFF1/FFF2 compatibles. Usa la selección manual.',
-      );
-      agregarRegistro(
-        'error',
-        'El GATT no contiene FFF1/FFF1 ni FFF2/FFF1 con las propiedades requeridas.',
-      );
-      return;
-    }
-
     bloqueoComando.current = true;
     establecerComandoEnCurso(true);
-    const version = sesionEscaner.obtenerVersionConexion();
-    let ultimoError = 'ATI no respondió en las combinaciones conocidas.';
     try {
-      for (const combinacion of combinaciones) {
-        if (version !== sesionEscaner.obtenerVersionConexion()) {
-          return;
-        }
-        sesionEscaner.seleccionarCanales(
-          combinacion.escritura,
-          combinacion.notificacion,
-        );
-        establecerMensajeVerificacion(
-          `Probando automáticamente ${combinacion.descripcion} con ATI…`,
-        );
-        agregarRegistro(
-          'informacion',
-          `Prueba automática de canales ${combinacion.descripcion}.`,
-        );
-
-        try {
-          sesionEscaner.cancelarSuscripcion();
-          if (!sesionEscaner.activarSuscripcion(combinacion.notificacion)) {
-            throw new Error('No fue posible activar el canal de recepción.');
-          }
-          const respuesta = await sesionEscaner.enviarComando('ATI', {
-            escritura: combinacion.escritura,
-            tiempoEsperaMs: 5000,
-          });
-          const registro = crearEscanerVerificado(
-            dispositivoConectado,
-            combinacion.escritura,
-            combinacion.notificacion,
-            respuesta.textoAscii,
-          );
-          await escaneres.guardar(registro);
-          if (version !== sesionEscaner.obtenerVersionConexion()) {
-            return;
-          }
-          establecerMensajeVerificacion(
-            `✓ Canales detectados: ${combinacion.descripcion}. ${registro.identificacionElm}.`,
-          );
-          agregarRegistro(
-            'exito',
-            `Canales ${combinacion.descripcion} verificados y guardados con ATI.`,
-          );
-          sesionEscaner.marcarConectado();
-          return;
-        } catch (capturado) {
-          ultimoError = convertirAError(capturado).message;
-          agregarRegistro(
-            'informacion',
-            `${combinacion.descripcion} no fue validado: ${ultimoError}`,
-          );
-        }
-      }
-
-      sesionEscaner.cancelarSuscripcion();
-      establecerMensajeVerificacion(
-        `No se detectaron canales automáticamente. Último resultado: ${ultimoError} Usa la selección manual.`,
-      );
-      agregarRegistro(
-        'error',
-        'Finalizaron las combinaciones automáticas sin una respuesta ATI válida.',
-      );
+      // uso la misma comprobacion que la pantalla normal, sin mantener dos versiones
+      await sesionEscaner.verificarCanalesAutomaticamente();
+    } catch {
+      // el contexto deja el detalle del intento en la consola
     } finally {
       bloqueoComando.current = false;
       establecerComandoEnCurso(false);
@@ -505,6 +468,18 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         notificacionSeleccionada,
         respuesta.textoAscii,
       );
+      if (
+        !sesionEscaner.confirmarVerificacion(
+          respuesta.textoAscii,
+          version,
+          escrituraSeleccionada,
+          notificacionSeleccionada,
+        )
+      ) {
+        throw new Error(
+          'La conexión o los canales cambiaron durante la verificación.',
+        );
+      }
       await escaneres.guardar(registro);
       if (version === sesionEscaner.obtenerVersionConexion()) {
         establecerMensajeVerificacion(
@@ -554,8 +529,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           }
           return respuesta;
         },
-        conectado: () =>
-          version === sesionEscaner.obtenerVersionConexion(),
+        conectado: () => version === sesionEscaner.obtenerVersionConexion(),
         sincronizado: sesionEscaner.estaSincronizado,
         alProgresar: progreso => {
           if (
@@ -567,11 +541,8 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         },
       });
       bloques = resultadoDeteccion.bloques;
-      const {
-        deteccion,
-        respuestasConfiguracion,
-        advertenciasConfiguracion,
-      } = resultadoDeteccion;
+      const { deteccion, respuestasConfiguracion, advertenciasConfiguracion } =
+        resultadoDeteccion;
       establecerCatalogoVehiculo(deteccion, respuestasConfiguracion);
       const resultado: ResultadoJsonObd = {
         fecha: new Date().toISOString(),
@@ -584,7 +555,9 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           ...Object.keys(respuestasConfiguracion),
         ].join(' -> '),
         respuestaCruda: [
-          ...bloques.map(bloque => `${bloque.comando}: ${bloque.respuestaCruda}`),
+          ...bloques.map(
+            bloque => `${bloque.comando}: ${bloque.respuestaCruda}`,
+          ),
           ...Object.entries(respuestasConfiguracion).map(
             ([comando, cruda]) => `${comando}: ${cruda}`,
           ),
@@ -874,7 +847,7 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           <Pressable
             accessibilityLabel="Volver al caso"
             accessibilityRole="button"
-            onPress={alVolver}
+            onPress={() => solicitarSalida(alVolver)}
             style={estilos.volverAlCaso}
           >
             <Text style={estilos.flechaVolver}>‹</Text>
@@ -884,7 +857,8 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
           <Text style={estilos.sobretitulo}>DIAGNOSTICO VEHICULAR</Text>
           <Text style={estilos.titulo}>Escáner SmartOBD</Text>
           <Text style={estilos.descripcionCabecera}>
-            Conecta el adaptador y revisa el estado del vehículo desde un solo lugar.
+            Conecta el adaptador y revisa el estado del vehículo desde un solo
+            lugar.
           </Text>
         </View>
         <View
@@ -923,14 +897,29 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
       </View>
 
       <View style={estilos.pasos}>
-        <Paso numero="1" etiqueta="Conectar" activo={Boolean(dispositivoConectado)} />
+        <Paso
+          numero="1"
+          etiqueta="Conectar"
+          activo={Boolean(dispositivoConectado)}
+        />
         <View style={estilos.lineaPaso} />
-        <Paso numero="2" etiqueta="Configurar" activo={Boolean(claveSuscripcion)} />
+        <Paso
+          numero="2"
+          etiqueta="Configurar"
+          activo={Boolean(claveSuscripcion)}
+        />
         <View style={estilos.lineaPaso} />
-        <Paso numero="3" etiqueta="Diagnosticar" activo={Boolean(ultimoAnalisis)} />
+        <Paso
+          numero="3"
+          etiqueta="Diagnosticar"
+          activo={Boolean(ultimoAnalisis)}
+        />
       </View>
 
-      <Seccion titulo="Conexión del adaptador" descripcion="Busca y conecta un ELM327 disponible por Bluetooth.">
+      <Seccion
+        titulo="Conexión del adaptador"
+        descripcion="Busca y conecta un ELM327 disponible por Bluetooth."
+      >
         <View style={estilos.filaBotones}>
           <BotonAccion
             etiqueta="Permisos / comprobar"
@@ -994,76 +983,100 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
 
       {mostrarHerramientasAvanzadas ? (
         <>
-      <Seccion titulo={`Servicios Bluetooth detectados (${caracteristicas.length})`}>
-        {caracteristicas.length === 0 ? (
-          <Text style={estilos.vacio}>
-            Conecta un dispositivo para enumerar servicios y características.
-          </Text>
-        ) : (
-          caracteristicas.map(elemento => (
-            <View key={clavePara(elemento)} style={estilos.tarjetaGatt}>
-              <Text style={estilos.monoespaciado}>
-                Servicio: {elemento.uuidServicio}
+          <Seccion
+            titulo={`Servicios Bluetooth detectados (${caracteristicas.length})`}
+          >
+            {caracteristicas.length === 0 ? (
+              <Text style={estilos.vacio}>
+                Conecta un dispositivo para enumerar servicios y
+                características.
               </Text>
-              <Text style={estilos.monoespaciado}>
-                Característica: {elemento.uuidCaracteristica}
-              </Text>
-              <Text style={estilos.propiedades}>
-                Lectura {siNo(elemento.permiteLectura)} · Escritura con
-                respuesta {siNo(elemento.permiteEscrituraConRespuesta)} · sin
-                respuesta {siNo(elemento.permiteEscrituraSinRespuesta)} ·
-                Notificación {siNo(elemento.permiteNotificacion)} · Indicación{' '}
-                {siNo(elemento.permiteIndicacion)}
-              </Text>
-            </View>
-          ))
-        )}
-      </Seccion>
+            ) : (
+              caracteristicas.map(elemento => (
+                <View key={clavePara(elemento)} style={estilos.tarjetaGatt}>
+                  <Text style={estilos.monoespaciado}>
+                    Servicio: {elemento.uuidServicio}
+                  </Text>
+                  <Text style={estilos.monoespaciado}>
+                    Característica: {elemento.uuidCaracteristica}
+                  </Text>
+                  <Text style={estilos.propiedades}>
+                    Lectura {siNo(elemento.permiteLectura)} · Escritura con
+                    respuesta {siNo(elemento.permiteEscrituraConRespuesta)} ·
+                    sin respuesta {siNo(elemento.permiteEscrituraSinRespuesta)}{' '}
+                    · Notificación {siNo(elemento.permiteNotificacion)} ·
+                    Indicación {siNo(elemento.permiteIndicacion)}
+                  </Text>
+                </View>
+              ))
+            )}
+          </Seccion>
 
-      <Seccion titulo="Configuración manual ELM327">
-        <Text style={estilos.etiqueta}>Candidatas para escritura</Text>
-        <OpcionesCaracteristica
-          candidatas={candidatasEscritura}
-          claveSeleccionada={claveEscritura}
-          alSeleccionar={sesionEscaner.elegirEscritura}
-          mensajeVacio="No se detectaron características escribibles."
-        />
-        <Text style={estilos.etiqueta}>
-          Candidatas para notificación o indicación
-        </Text>
-        <OpcionesCaracteristica
-          candidatas={candidatasNotificacion}
-          claveSeleccionada={claveNotificacion}
-          alSeleccionar={sesionEscaner.elegirNotificacion}
-          mensajeVacio="No se detectaron características notificables."
-        />
-        <BotonAccion
-          etiqueta={
-            claveSuscripcion ? 'Suscripción activa' : 'Suscribirse a RX'
-          }
-          onPress={() => sesionEscaner.activarSuscripcion()}
-          disabled={
-            !notificacionSeleccionada ||
-            !dispositivoConectado ||
-            claveSuscripcion === claveNotificacion
-          }
-        />
-        <BotonAccion
-          etiqueta="Verificar selección manual · ATI"
-          onPress={() => verificarYGuardar()}
-          disabled={
-            interfazOcupada ||
-            escaneres.cargando ||
-            !dispositivoConectado ||
-            !escrituraSeleccionada ||
-            !notificacionSeleccionada
-          }
-        />
-      </Seccion>
+          <Seccion titulo="Configuración manual ELM327">
+            <Text style={estilos.etiqueta}>Candidatas para escritura</Text>
+            <OpcionesCaracteristica
+              candidatas={candidatasEscritura}
+              claveSeleccionada={claveEscritura}
+              deshabilitado={interfazOcupada}
+              alSeleccionar={sesionEscaner.elegirEscritura}
+              mensajeVacio="No se detectaron características escribibles."
+            />
+            <Text style={estilos.etiqueta}>
+              Candidatas para notificación o indicación
+            </Text>
+            <OpcionesCaracteristica
+              candidatas={candidatasNotificacion}
+              claveSeleccionada={claveNotificacion}
+              deshabilitado={interfazOcupada}
+              alSeleccionar={sesionEscaner.elegirNotificacion}
+              mensajeVacio="No se detectaron características notificables."
+            />
+            <BotonAccion
+              etiqueta={
+                claveSuscripcion ? 'Suscripción activa' : 'Suscribirse a RX'
+              }
+              onPress={() => sesionEscaner.activarSuscripcion()}
+              disabled={
+                interfazOcupada ||
+                !notificacionSeleccionada ||
+                !dispositivoConectado ||
+                claveSuscripcion === claveNotificacion
+              }
+            />
+            <BotonAccion
+              etiqueta="Verificar selección manual · ATI"
+              onPress={() => verificarYGuardar()}
+              disabled={
+                interfazOcupada ||
+                escaneres.cargando ||
+                !dispositivoConectado ||
+                !escrituraSeleccionada ||
+                !notificacionSeleccionada
+              }
+            />
+          </Seccion>
         </>
       ) : null}
 
-      <Seccion titulo="Diagnóstico del vehículo" descripcion="Ejecuta lecturas y revisa resultados técnicos del vehículo.">
+      <PanelGraficoPids
+        pidsCompatibles={deteccionPids?.pidsInterpretables ?? null}
+        comandoActivo={muestreo.comando}
+        muestras={muestreo.muestras}
+        enCurso={muestreo.enCurso}
+        deteniendo={muestreo.deteniendo}
+        deshabilitado={interfazOcupada || !sesionEscaner.estaPreparado()}
+        frecuenciaHz={muestreo.frecuenciaHz}
+        error={muestreo.error}
+        mensaje={muestreo.mensaje}
+        alIniciar={comando => iniciarMuestreo(comando)}
+        alDetener={() => muestreo.detener()}
+        alLimpiar={muestreo.limpiar}
+      />
+
+      <Seccion
+        titulo="Diagnóstico del vehículo"
+        descripcion="Ejecuta lecturas y revisa resultados técnicos del vehículo."
+      >
         <Text style={estilos.ayuda}>
           Cada comando se envía como ASCII más retorno de carro. Las respuestas
           se acumulan hasta el prompt &gt;.
@@ -1249,7 +1262,10 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         </Text>
       </Seccion>
 
-      <Seccion titulo="Registro técnico" descripcion="Eventos de comunicación útiles para revisar una conexión.">
+      <Seccion
+        titulo="Registro técnico"
+        descripcion="Eventos de comunicación útiles para revisar una conexión."
+      >
         <View style={estilos.cabeceraConsola}>
           <Text style={estilos.ayuda}>{entradasConsola.length} eventos</Text>
           <BotonAccion
@@ -1359,7 +1375,9 @@ function Paso({
   return (
     <View style={estilos.paso}>
       <View style={[estilos.numeroPaso, activo && estilos.numeroPasoActivo]}>
-        <Text style={[estilos.textoNumeroPaso, activo && estilos.textoPasoActivo]}>
+        <Text
+          style={[estilos.textoNumeroPaso, activo && estilos.textoPasoActivo]}
+        >
           {activo ? '✓' : numero}
         </Text>
       </View>
@@ -1408,6 +1426,7 @@ interface PropiedadesOpcionesCaracteristica {
   claveSeleccionada: string | null;
   alSeleccionar: (elemento: InformacionCaracteristicaGatt) => void;
   mensajeVacio: string;
+  deshabilitado?: boolean;
 }
 
 // Selector tipo radio para candidatos TX o RX encontrados durante GATT.
@@ -1416,6 +1435,7 @@ function OpcionesCaracteristica({
   claveSeleccionada,
   alSeleccionar,
   mensajeVacio,
+  deshabilitado = false,
 }: PropiedadesOpcionesCaracteristica) {
   if (candidatas.length === 0) {
     return <Text style={estilos.vacio}>{mensajeVacio}</Text>;
@@ -1427,9 +1447,13 @@ function OpcionesCaracteristica({
           accessibilityRole="radio"
           accessibilityState={{
             checked: claveSeleccionada === clavePara(elemento),
+            disabled: deshabilitado,
           }}
+          disabled={deshabilitado}
           key={clavePara(elemento)}
-          onPress={() => alSeleccionar(elemento)}
+          onPress={() => {
+            if (!deshabilitado) alSeleccionar(elemento);
+          }}
           style={[
             estilos.opcion,
             claveSeleccionada === clavePara(elemento) &&
@@ -1551,7 +1575,12 @@ const estilos = StyleSheet.create({
   },
   insigniaConectada: { backgroundColor: '#11241F', borderColor: '#235E4E' },
   insigniaError: { backgroundColor: '#2A1717', borderColor: '#633434' },
-  puntoEstado: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#71717A' },
+  puntoEstado: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#71717A',
+  },
   puntoConectado: { backgroundColor: '#10A37F' },
   puntoError: { backgroundColor: '#FF6B63' },
   textoInsignia: { color: '#D4D4D8', fontSize: 10, fontWeight: '700' },
@@ -1575,8 +1604,18 @@ const estilos = StyleSheet.create({
   },
   textoIconoAdaptador: { color: '#5BE0BB', fontSize: 11, fontWeight: '900' },
   datosAdaptador: { flex: 1, marginLeft: 13 },
-  etiquetaEstado: { color: '#71717A', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
-  textoEstado: { fontSize: 15, fontWeight: '700', color: '#F4F4F5', marginTop: 3 },
+  etiquetaEstado: {
+    color: '#71717A',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  textoEstado: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F4F4F5',
+    marginTop: 3,
+  },
   secundario: { color: '#929299', fontSize: 11, marginTop: 4 },
   pasos: {
     flexDirection: 'row',
@@ -1600,7 +1639,12 @@ const estilos = StyleSheet.create({
   },
   numeroPasoActivo: { borderColor: '#10A37F', backgroundColor: '#153B32' },
   textoNumeroPaso: { color: '#85858C', fontSize: 10, fontWeight: '800' },
-  etiquetaPaso: { color: '#71717A', fontSize: 9, fontWeight: '600', marginTop: 5 },
+  etiquetaPaso: {
+    color: '#71717A',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 5,
+  },
   textoPasoActivo: { color: '#5BE0BB' },
   lineaPaso: { flex: 1, height: 1, backgroundColor: '#343439', marginTop: 12 },
   botonAvanzado: {
@@ -1632,7 +1676,12 @@ const estilos = StyleSheet.create({
     color: '#F4F4F5',
     marginBottom: 5,
   },
-  descripcionSeccion: { color: '#85858C', fontSize: 11, lineHeight: 17, marginBottom: 13 },
+  descripcionSeccion: {
+    color: '#85858C',
+    fontSize: 11,
+    lineHeight: 17,
+    marginBottom: 13,
+  },
   filaBotones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   boton: {
     backgroundColor: '#10A37F',

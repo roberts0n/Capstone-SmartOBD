@@ -9,6 +9,8 @@ interface Propiedades {
   alAbrirRegistroCliente: () => void;
   alAbrirRegistroVehiculo: () => void;
   alAbrirCasosRecepcion: () => void;
+  alAbrirClientesVehiculos: () => void;
+  alAbrirLimpieza: () => void;
 }
 
 type Destino =
@@ -16,28 +18,66 @@ type Destino =
   | 'registro_cliente'
   | 'registro_vehiculo'
   | 'casos'
+  | 'clientes_vehiculos'
+  | 'limpieza'
   | 'escaner';
 
 const CONTENIDO = {
   recepcion: {
     sobretitulo: 'Recepción',
-    titulo: '¿Qué necesitas registrar?',
-    descripcion: 'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
+    titulo: '¿Qué necesitas hacer?',
+    descripcion:
+      'Desde aquí puedes preparar el ingreso de un vehículo y hacer una revisión inicial.',
     opciones: [
-      { codigo: 'OT', titulo: 'Nueva orden de trabajo', detalle: 'Selecciona cliente, vehículo y mecánico', destino: 'orden' as Destino },
-      { codigo: 'CLI', titulo: 'Registrar cliente', detalle: 'Agrega una nueva persona al taller', destino: 'registro_cliente' as Destino },
-      { codigo: 'AUT', titulo: 'Registrar vehículo', detalle: 'Asigna un vehículo a un cliente registrado', destino: 'registro_vehiculo' as Destino },
-      { codigo: 'CAS', titulo: 'Casos de recepción', detalle: 'Consulta los ingresos registrados en el taller', destino: 'casos' as Destino },
+      {
+        codigo: 'CLI',
+        titulo: 'Registrar cliente',
+        detalle: 'Agrega una nueva persona al taller',
+        destino: 'registro_cliente' as Destino,
+      },
+      {
+        codigo: 'AUT',
+        titulo: 'Registrar vehículo',
+        detalle: 'Asigna un vehículo a un cliente registrado',
+        destino: 'registro_vehiculo' as Destino,
+      },
+      {
+        codigo: 'OT',
+        titulo: 'Nueva orden de trabajo',
+        detalle: 'Selecciona cliente y vehículo, y anota el motivo de ingreso',
+        destino: 'orden' as Destino,
+      },
+      {
+        codigo: 'CAS',
+        titulo: 'Casos de recepción',
+        detalle: 'Consulta los ingresos registrados en el taller',
+        destino: 'casos' as Destino,
+      },
+      {
+        codigo: 'REG',
+        titulo: 'Clientes y vehículos',
+        detalle: 'Consulta los registros del taller',
+        destino: 'clientes_vehiculos' as Destino,
+      },
+      {
+        codigo: 'DEL',
+        titulo: 'Eliminar datos de prueba',
+        detalle: 'Limpia registros seleccionados y sus datos asociados',
+        destino: 'limpieza' as Destino,
+      },
     ],
   },
   mecanico: {
     sobretitulo: 'Área de mecánica',
     titulo: 'Herramientas de trabajo',
-    descripcion: 'Elige la lectura que necesitas para revisar el vehículo.',
+    descripcion: 'Prepara la conexión con el vehículo.',
     opciones: [
-      { codigo: '01', titulo: 'Datos en tiempo real', detalle: 'RPM, temperatura y sensores compatibles', destino: 'escaner' as Destino },
-      { codigo: 'DTC', titulo: 'Códigos de falla', detalle: 'Lee e interpreta alertas almacenadas', destino: 'escaner' as Destino },
-      { codigo: 'VIN', titulo: 'Identificar vehículo', detalle: 'Consulta VIN y compatibilidad', destino: 'escaner' as Destino },
+      {
+        codigo: 'OBD',
+        titulo: 'Conectar escáner',
+        detalle: 'Selecciona el adaptador del vehículo',
+        destino: 'escaner' as Destino,
+      },
     ],
   },
 };
@@ -49,13 +89,17 @@ export function HerramientasRol({
   alAbrirRegistroCliente,
   alAbrirRegistroVehiculo,
   alAbrirCasosRecepcion,
+  alAbrirClientesVehiculos,
+  alAbrirLimpieza,
 }: Propiedades) {
-  const contenido = sesion.perfil === 'mecanico'
-    ? CONTENIDO.mecanico
-    : CONTENIDO.recepcion;
+  const contenido =
+    sesion.perfil === 'mecanico' ? CONTENIDO.mecanico : CONTENIDO.recepcion;
 
   return (
-    <ScrollView style={estilos.pantalla} contentContainerStyle={estilos.contenido}>
+    <ScrollView
+      style={estilos.pantalla}
+      contentContainerStyle={estilos.contenido}
+    >
       <Text style={estilos.sobretitulo}>{contenido.sobretitulo}</Text>
       <Text style={estilos.titulo}>{contenido.titulo}</Text>
       <Text style={estilos.descripcion}>{contenido.descripcion}</Text>
@@ -72,6 +116,8 @@ export function HerramientasRol({
               alAbrirRegistroCliente,
               alAbrirRegistroVehiculo,
               alAbrirCasosRecepcion,
+              alAbrirClientesVehiculos,
+              alAbrirLimpieza,
             )}
             style={({ pressed }) => [
               estilos.opcion,
@@ -100,28 +146,57 @@ function resolverDestino(
   alAbrirRegistroCliente: () => void,
   alAbrirRegistroVehiculo: () => void,
   alAbrirCasosRecepcion: () => void,
+  alAbrirClientesVehiculos: () => void,
+  alAbrirLimpieza: () => void,
 ): () => void {
   if (destino === 'orden') return alAbrirNuevaOrden;
   if (destino === 'registro_cliente') return alAbrirRegistroCliente;
   if (destino === 'registro_vehiculo') return alAbrirRegistroVehiculo;
   if (destino === 'casos') return alAbrirCasosRecepcion;
+  if (destino === 'clientes_vehiculos') return alAbrirClientesVehiculos;
+  if (destino === 'limpieza') return alAbrirLimpieza;
   return alAbrirEscaner;
 }
 
 const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 30 },
-  sobretitulo: { color: '#10A37F', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
+  sobretitulo: {
+    color: '#10A37F',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
   titulo: { color: '#F4F4F5', fontSize: 28, fontWeight: '700', marginTop: 8 },
-  descripcion: { color: '#A1A1AA', fontSize: 14, lineHeight: 21, marginTop: 10 },
+  descripcion: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 10,
+  },
   lista: { gap: 11, marginTop: 27 },
-  opcion: { minHeight: 82, flexDirection: 'row', alignItems: 'center', backgroundColor: '#171719', borderWidth: 1, borderColor: '#303034', borderRadius: 17, padding: 14 },
+  opcion: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#303034',
+    borderRadius: 17,
+    padding: 14,
+  },
   presionada: { opacity: 0.72 },
-  codigo: { width: 45, height: 45, borderRadius: 13, backgroundColor: '#153B32', alignItems: 'center', justifyContent: 'center' },
+  codigo: {
+    width: 45,
+    height: 45,
+    borderRadius: 13,
+    backgroundColor: '#153B32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   textoCodigo: { color: '#5BE0BB', fontSize: 11, fontWeight: '800' },
   textoOpcion: { flex: 1, marginHorizontal: 13 },
   tituloOpcion: { color: '#F0F0F2', fontSize: 14, fontWeight: '700' },
   detalle: { color: '#85858C', fontSize: 11, lineHeight: 16, marginTop: 4 },
   flecha: { color: '#71717A', fontSize: 27 },
 });
-

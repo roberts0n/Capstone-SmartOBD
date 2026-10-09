@@ -1,33 +1,28 @@
 import type { ClienteTaller } from '../clientes/TiposCliente';
 import { supabase } from '../servicios/clienteSupabase';
 import type { VehiculoTaller } from '../vehiculos/TiposVehiculo';
+import type { EstadoSnapshotDiagnostico } from '../diagnosticos/TiposSnapshotDiagnostico';
 import type {
   CasoDiagnostico,
   EstadoCasoDiagnostico,
+  PrioridadCasoDiagnostico,
 } from './TiposCasoDiagnostico';
 
 export interface CasoRecepcion {
   id: string;
   clienteId: string;
   vehiculoId: string;
+  recepcionResponsableId: string;
   cliente: string;
   vehiculo: string;
   patente: string;
   vin: string | null;
   motivoIngreso: string;
   estado: EstadoCasoDiagnostico;
+  prioridad: PrioridadCasoDiagnostico;
   mecanico: string | null;
+  snapshotIngreso: { id: string; estado: EstadoSnapshotDiagnostico } | null;
   creadoEn: string;
-}
-
-export interface CasoAsignadoRecepcion {
-  id: string;
-  cliente: string;
-  vehiculo: string;
-  patente: string;
-  mecanico: string;
-  creadoEn: string;
-  estado: 'no_revisado' | 'revisado';
 }
 
 interface FilaCaso {
@@ -40,6 +35,12 @@ interface FilaCaso {
 interface FilaAsignacion {
   caso_id: string;
   mecanico_id: string;
+}
+
+interface FilaSnapshotIngreso {
+  id: string;
+  caso_id: string;
+  estado: EstadoSnapshotDiagnostico;
 }
 
 interface FilaVehiculo {
@@ -63,6 +64,8 @@ interface FilaPerfil {
 
 interface FilaCasoRecepcion extends FilaCaso {
   motivo_ingreso: string;
+  recepcion_responsable_id: string;
+  prioridad: PrioridadCasoDiagnostico;
 }
 
 interface FilaVehiculoRecepcion extends FilaVehiculo {
@@ -78,28 +81,121 @@ export function prepararCasoRecepcion(
     id: caso.id,
     clienteId: cliente.id,
     vehiculoId: vehiculo.id,
+    recepcionResponsableId: caso.recepcionResponsableId,
     cliente: cliente.nombre,
     vehiculo: nombreVehiculo(vehiculo),
     patente: vehiculo.patente ?? 'Sin patente',
     vin: vehiculo.vin,
     motivoIngreso: caso.motivoIngreso,
     estado: caso.estado,
+    prioridad: caso.prioridad,
     mecanico: null,
+    snapshotIngreso: null,
     creadoEn: caso.creadoEn,
   };
 }
 
-export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
-  const { data: casos, error: errorCasos } = await supabase
+export interface ConsultaCasosRecepcion {
+  busqueda?: string;
+  filtro?: 'todos' | 'pendientes' | 'asignados' | 'cerrados';
+  desde?: number;
+  limite?: number;
+}
+
+export async function listarCasosRecepcion(
+  opciones?: ConsultaCasosRecepcion,
+): Promise<CasoRecepcion[]> {
+  return consultarCasosRecepcion(undefined, undefined, opciones);
+}
+
+export async function listarCasosVehiculo(
+  vehiculoId: string,
+): Promise<CasoRecepcion[]> {
+  const identificador = vehiculoId.trim();
+  if (!identificador)
+    throw new Error('Se necesita el identificador del vehiculo.');
+  return consultarCasosRecepcion(undefined, identificador);
+}
+
+export function tieneDiagnosticoIngresoPendiente(caso: CasoRecepcion): boolean {
+  return caso.estado === 'ingresado' && caso.snapshotIngreso === null;
+}
+
+export async function obtenerCasoRecepcion(
+  casoId: string,
+): Promise<CasoRecepcion | null> {
+  const identificador = casoId.trim();
+  if (!identificador) throw new Error('Se necesita el identificador del caso.');
+  const casos = await consultarCasosRecepcion(identificador);
+  return casos[0] ?? null;
+}
+
+async function consultarCasosRecepcion(
+  casoId?: string,
+  vehiculoId?: string,
+  opciones?: ConsultaCasosRecepcion,
+): Promise<CasoRecepcion[]> {
+  const texto = opciones?.busqueda?.trim() ?? '';
+  const desde = opciones?.desde ?? 0;
+  const limite = opciones?.limite ?? 21;
+  if (
+    texto.length > 120 ||
+    !Number.isSafeInteger(desde) ||
+    desde < 0 ||
+    !Number.isInteger(limite) ||
+    limite < 1 ||
+    limite > 100 ||
+    !Number.isSafeInteger(desde + limite)
+  )
+    throw new Error('La consulta de casos no es valida.');
+  const campos =
+    'id, vehiculo_id, recepcion_responsable_id, motivo_ingreso, estado, prioridad, creado_en';
+  let consulta = supabase
     .from('casos_diagnosticos')
-    .select('id, vehiculo_id, motivo_ingreso, estado, creado_en')
-    .order('creado_en', { ascending: false });
+    .select(
+      texto
+        ? `${campos},por_patente:vehiculos(id),por_cliente:vehiculos(id,clientes!inner(id))`
+        : campos,
+    );
+  if (texto) {
+    const patron = `%${texto.replace(/[\\%_]/g, caracter => `\\${caracter}`)}%`;
+    const patronPatente = `%${texto
+      .replace(/[\s.-]/g, '')
+      .replace(/[\\%_]/g, caracter => `\\${caracter}`)}%`;
+    // uso dos relaciones filtradas para buscar por cliente o patente antes de paginar
+    consulta = consulta
+      .ilike('por_patente.patente', patronPatente)
+      .ilike('por_cliente.clientes.nombre', patron)
+      .or('por_patente.not.is.null,por_cliente.not.is.null');
+  }
+  if (opciones?.filtro === 'pendientes')
+    consulta = consulta.in('estado', ['ingresado', 'diagnostico_inicial']);
+  else if (opciones?.filtro === 'asignados')
+    consulta = consulta.in('estado', [
+      'asignado',
+      'en_revision',
+      'diagnosticado',
+    ]);
+  else if (opciones?.filtro === 'cerrados')
+    consulta = consulta.eq('estado', 'cerrado');
+  // cuando vuelvo de asignar, consulto solo el caso que acabo de trabajar
+  if (casoId) consulta = consulta.eq('id', casoId);
+  // filtro en la base para no traer el historial de otros autos
+  if (vehiculoId) consulta = consulta.eq('vehiculo_id', vehiculoId);
+  consulta = consulta.order('creado_en', {
+    ascending: false,
+  });
+  if (opciones)
+    consulta = consulta
+      .order('id', { ascending: false })
+      .range(desde, desde + limite - 1);
+  const { data: casos, error: errorCasos } = await consulta;
 
   if (errorCasos) {
     throw new Error('No se pudieron consultar los casos de recepcion.');
   }
 
-  const filasCaso = (casos ?? []) as FilaCasoRecepcion[];
+  const filasCaso = (casos ?? []) as unknown as FilaCasoRecepcion[];
   if (filasCaso.length === 0) return [];
 
   const { data: vehiculos, error: errorVehiculos } = await supabase
@@ -112,24 +208,41 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
   }
 
   const filasVehiculo = (vehiculos ?? []) as FilaVehiculoRecepcion[];
-  const [resultadoClientes, resultadoAsignaciones] = await Promise.all([
-    supabase
-      .from('clientes')
-      .select('id, nombre')
-      .in('id', unicos(filasVehiculo.map(item => item.cliente_id))),
-    supabase
-      .from('asignaciones')
-      .select('caso_id, mecanico_id')
-      .in('caso_id', filasCaso.map(item => item.id))
-      .eq('estado', 'activa'),
-  ]);
+  const [resultadoClientes, resultadoAsignaciones, resultadoSnapshots] =
+    await Promise.all([
+      supabase
+        .from('clientes')
+        .select('id, nombre')
+        .in('id', unicos(filasVehiculo.map(item => item.cliente_id))),
+      supabase
+        .from('asignaciones')
+        .select('caso_id, mecanico_id')
+        .in(
+          'caso_id',
+          filasCaso.map(item => item.id),
+        )
+        .eq('estado', 'activa'),
+      // para el listado solo necesito saber que escaneo de ingreso tiene cada caso
+      supabase
+        .from('snapshots_diagnostico')
+        .select('id, caso_id, estado')
+        .in(
+          'caso_id',
+          filasCaso.map(item => item.id),
+        )
+        .eq('tipo', 'ingreso'),
+    ]);
 
+  if (resultadoSnapshots.error) {
+    throw new Error('No se pudo consultar el escaneo inicial de los casos.');
+  }
   if (resultadoClientes.error || resultadoAsignaciones.error) {
     throw new Error('No se pudo completar la informacion de los casos.');
   }
 
   const filasCliente = (resultadoClientes.data ?? []) as FilaCliente[];
-  const filasAsignacion = (resultadoAsignaciones.data ?? []) as FilaAsignacion[];
+  const filasAsignacion = (resultadoAsignaciones.data ??
+    []) as FilaAsignacion[];
   const idsMecanico = unicos(filasAsignacion.map(item => item.mecanico_id));
   let filasMecanico: FilaPerfil[] = [];
 
@@ -155,109 +268,39 @@ export async function listarCasosRecepcion(): Promise<CasoRecepcion[]> {
   const mecanicosPorId = new Map(
     filasMecanico.map(item => [item.id, item.nombre]),
   );
+  const snapshotsPorCaso = new Map(
+    ((resultadoSnapshots.data ?? []) as FilaSnapshotIngreso[]).map(item => [
+      item.caso_id,
+      { id: item.id, estado: item.estado },
+    ]),
+  );
 
   return filasCaso.flatMap(caso => {
     const vehiculo = vehiculosPorId.get(caso.vehiculo_id);
     if (!vehiculo) return [];
 
     const mecanicoId = asignacionesPorCaso.get(caso.id);
-    return [{
-      id: caso.id,
-      clienteId: vehiculo.cliente_id,
-      vehiculoId: vehiculo.id,
-      cliente:
-        clientesPorId.get(vehiculo.cliente_id) ?? 'Cliente no disponible',
-      vehiculo: nombreVehiculo(vehiculo),
-      patente: vehiculo.patente ?? 'Sin patente',
-      vin: vehiculo.vin,
-      motivoIngreso: caso.motivo_ingreso,
-      estado: caso.estado,
-      mecanico: mecanicoId
-        ? mecanicosPorId.get(mecanicoId) ?? 'Mecanico no disponible'
-        : null,
-      creadoEn: caso.creado_en,
-    }];
-  });
-}
-
-export async function listarCasosAsignadosRecepcion(): Promise<CasoAsignadoRecepcion[]> {
-  const { data: asignaciones, error: errorAsignaciones } = await supabase
-    .from('asignaciones')
-    .select('caso_id, mecanico_id')
-    .eq('estado', 'activa');
-
-  if (errorAsignaciones) {
-    throw new Error('No se pudieron consultar los casos asignados.');
-  }
-
-  const filasAsignacion = (asignaciones ?? []) as FilaAsignacion[];
-  if (filasAsignacion.length === 0) return [];
-
-  const { data: casos, error: errorCasos } = await supabase
-    .from('casos_diagnosticos')
-    .select('id, vehiculo_id, estado, creado_en')
-    .in('id', filasAsignacion.map(item => item.caso_id))
-    .order('creado_en', { ascending: false });
-
-  if (errorCasos) {
-    throw new Error('No se pudieron cargar los datos de los casos.');
-  }
-
-  const filasCaso = (casos ?? []) as FilaCaso[];
-  if (filasCaso.length === 0) return [];
-
-  const { data: vehiculos, error: errorVehiculos } = await supabase
-    .from('vehiculos')
-    .select('id, cliente_id, patente, marca, modelo')
-    .in('id', unicos(filasCaso.map(item => item.vehiculo_id)));
-
-  if (errorVehiculos) {
-    throw new Error('No se pudieron cargar los vehículos de los casos.');
-  }
-
-  const filasVehiculo = (vehiculos ?? []) as FilaVehiculo[];
-  if (filasVehiculo.length === 0) return [];
-
-  const [resultadoClientes, resultadoMecanicos] = await Promise.all([
-    supabase
-      .from('clientes')
-      .select('id, nombre')
-      .in('id', unicos(filasVehiculo.map(item => item.cliente_id))),
-    supabase
-      .from('perfiles')
-      .select('id, nombre')
-      .in('id', unicos(filasAsignacion.map(item => item.mecanico_id))),
-  ]);
-
-  if (resultadoClientes.error || resultadoMecanicos.error) {
-    throw new Error('No se pudo completar la información de los casos.');
-  }
-
-  const clientesPorId = new Map(
-    ((resultadoClientes.data ?? []) as FilaCliente[]).map(item => [item.id, item]),
-  );
-  const mecanicosPorId = new Map(
-    ((resultadoMecanicos.data ?? []) as FilaPerfil[]).map(item => [item.id, item]),
-  );
-  const vehiculosPorId = new Map(filasVehiculo.map(item => [item.id, item]));
-  const asignacionesPorCaso = new Map(filasAsignacion.map(item => [item.caso_id, item]));
-
-  return filasCaso.flatMap(caso => {
-    const vehiculo = vehiculosPorId.get(caso.vehiculo_id);
-    const asignacion = asignacionesPorCaso.get(caso.id);
-    if (!vehiculo || !asignacion) return [];
-
-    return [{
-      id: caso.id,
-      cliente: clientesPorId.get(vehiculo.cliente_id)?.nombre ?? 'Cliente no disponible',
-      vehiculo: [vehiculo.marca, vehiculo.modelo].filter(Boolean).join(' ') || 'Vehículo sin detalle',
-      patente: vehiculo.patente ?? 'Sin patente',
-      mecanico: mecanicosPorId.get(asignacion.mecanico_id)?.nombre ?? 'Mecánico no disponible',
-      creadoEn: caso.creado_en,
-      estado: caso.estado === 'diagnosticado' || caso.estado === 'cerrado'
-        ? 'revisado' as const
-        : 'no_revisado' as const,
-    }];
+    return [
+      {
+        id: caso.id,
+        clienteId: vehiculo.cliente_id,
+        vehiculoId: vehiculo.id,
+        recepcionResponsableId: caso.recepcion_responsable_id,
+        cliente:
+          clientesPorId.get(vehiculo.cliente_id) ?? 'Cliente no disponible',
+        vehiculo: nombreVehiculo(vehiculo),
+        patente: vehiculo.patente ?? 'Sin patente',
+        vin: vehiculo.vin,
+        motivoIngreso: caso.motivo_ingreso,
+        estado: caso.estado,
+        prioridad: caso.prioridad,
+        mecanico: mecanicoId
+          ? mecanicosPorId.get(mecanicoId) ?? 'Mecanico no disponible'
+          : null,
+        snapshotIngreso: snapshotsPorCaso.get(caso.id) ?? null,
+        creadoEn: caso.creado_en,
+      },
+    ];
   });
 }
 

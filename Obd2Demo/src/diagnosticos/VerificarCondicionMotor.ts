@@ -28,6 +28,9 @@ export async function verificarMotorEnMarcha(
 
     try {
       const respuesta = await enviar('010C');
+      if (cancelado()) {
+        throw new Error('La verificacion del motor fue cancelada.');
+      }
       const traduccion = traducirPidMode01('010C', respuesta.textoAscii);
       if (
         !traduccion ||
@@ -43,6 +46,7 @@ export async function verificarMotorEnMarcha(
       }
       lecturasRpm.push(traduccion.valor);
     } catch (capturado) {
+      if (cancelado()) throw capturado;
       return {
         estado: 'no-verificable',
         lecturasRpm,
@@ -51,9 +55,7 @@ export async function verificarMotorEnMarcha(
     }
   }
 
-  const enMarcha = lecturasRpm.every(
-    rpm => rpm >= RPM_MINIMAS_MOTOR_EN_MARCHA,
-  );
+  const enMarcha = lecturasRpm.every(rpm => rpm >= RPM_MINIMAS_MOTOR_EN_MARCHA);
   return enMarcha
     ? {
         estado: 'en-marcha',

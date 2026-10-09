@@ -11,7 +11,7 @@ import {
   clasificarDispositivo,
   nombreDispositivo,
   ordenarCandidatos,
-} from '../escaneres/PerfilesEscaner';
+} from '../escaner/PerfilesEscaner';
 import type { InformacionDispositivoBle } from '../tipos/ble';
 import type { EscanerGuardado, NivelCandidato } from '../tipos/escaner';
 

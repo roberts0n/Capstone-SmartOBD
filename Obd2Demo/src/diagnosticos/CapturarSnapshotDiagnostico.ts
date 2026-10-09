@@ -1,13 +1,11 @@
 import type { SesionTaller } from '../tipos/usuarioTaller';
-import type { ValorJson } from './TiposSnapshotDiagnostico';
 import type {
+  ValorJson,
   FalloCapturaSnapshot,
   OpcionesCapturaSnapshot,
   ProgresoCapturaSnapshot,
   ResultadoCapturaGuardada,
   ResultadoCapturaSnapshot,
-} from './TiposCapturaSnapshot';
-import type {
   MotivoSnapshotParcial,
   NuevoCodigoDtcSnapshot,
   NuevoValorPidSnapshot,
@@ -15,7 +13,7 @@ import type {
 import {
   ejecutarDeteccionPids,
   type ResultadoEjecucionDeteccionPids,
-} from '../obd/EjecutarDeteccionPids';
+} from '../obd/DeteccionPids';
 import { traducirPidMode01 } from '../obd/CatalogoPidsMode01';
 import {
   ejecutarPruebaDtc,

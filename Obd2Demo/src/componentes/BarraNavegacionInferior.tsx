@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { PerfilTaller } from '../tipos/usuarioTaller';
 
-export type DestinoBarra = 'inicio' | 'herramientas' | 'registro' | 'escaner' | 'cuenta';
+export type DestinoBarra = 'inicio' | 'herramientas' | 'registro' | 'cuenta';
 
 interface Propiedades {
   perfil: PerfilTaller;
@@ -20,19 +20,16 @@ const OPCIONES_POR_PERFIL: Record<PerfilTaller, Opcion[]> = {
   administrador: [
     { destino: 'inicio', etiqueta: 'Inicio', icono: '⌂' },
     { destino: 'registro', etiqueta: 'Personal', icono: 'USR' },
-    { destino: 'escaner', etiqueta: 'Escáner', icono: 'OBD' },
     { destino: 'cuenta', etiqueta: 'Cuenta', icono: '●' },
   ],
   recepcion: [
     { destino: 'inicio', etiqueta: 'Inicio', icono: '⌂' },
     { destino: 'herramientas', etiqueta: 'Recepción', icono: 'RX' },
-    { destino: 'escaner', etiqueta: 'Escáner', icono: 'OBD' },
     { destino: 'cuenta', etiqueta: 'Cuenta', icono: '●' },
   ],
   mecanico: [
     { destino: 'inicio', etiqueta: 'Inicio', icono: '⌂' },
     { destino: 'herramientas', etiqueta: 'Trabajo', icono: 'OT' },
-    { destino: 'escaner', etiqueta: 'Escáner', icono: 'OBD' },
     { destino: 'cuenta', etiqueta: 'Cuenta', icono: '●' },
   ],
 };
@@ -118,4 +115,3 @@ const estilos = StyleSheet.create({
     backgroundColor: '#10A37F',
   },
 });
-

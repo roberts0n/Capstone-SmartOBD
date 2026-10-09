@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,10 +15,11 @@ import {
   listarSnapshotsCaso,
   obtenerSnapshotDiagnostico,
 } from '../diagnosticos/ServicioSnapshotsDiagnostico';
-import type { CondicionMotorSnapshot } from '../diagnosticos/TiposCapturaSnapshot';
+import type { CondicionMotorSnapshot } from '../diagnosticos/TiposSnapshotDiagnostico';
 import type { SnapshotDiagnostico } from '../diagnosticos/TiposSnapshotDiagnostico';
 import { useSesionEscanerObd } from '../escaner/ContextoEscanerObd';
 import type { SesionTaller } from '../tipos/usuarioTaller';
+import { useProteccionSalida } from '../componentes/ProteccionSalida';
 
 interface Propiedades {
   caso: CasoRecepcion;
@@ -25,6 +27,7 @@ interface Propiedades {
   alVolver: () => void;
   alAbrirEscaner: () => void;
   alActualizarCaso: (caso: CasoRecepcion) => void;
+  alAsignarMecanico: () => void;
 }
 
 export function DetalleCasoRecepcion({
@@ -33,17 +36,28 @@ export function DetalleCasoRecepcion({
   alVolver,
   alAbrirEscaner,
   alActualizarCaso,
+  alAsignarMecanico,
 }: Propiedades) {
   const sesionEscaner = useSesionEscanerObd();
   const captura = useCapturaSnapshot();
+  const solicitarSalida = useProteccionSalida({
+    ocupado: captura.enCurso,
+    cancelar: captura.puedeCancelar ? captura.cancelar : undefined,
+  });
   const [confirmando, establecerConfirmando] = useState(false);
   const [consultando, establecerConsultando] = useState(true);
   const [snapshotIngreso, establecerSnapshotIngreso] =
     useState<SnapshotDiagnostico | null>(null);
-  const [errorConsulta, establecerErrorConsulta] = useState<string | null>(null);
+  const [errorConsulta, establecerErrorConsulta] = useState<string | null>(
+    null,
+  );
+  const [intentoConsulta, establecerIntentoConsulta] = useState(0);
+  const confirmacionAbierta = useRef(false);
+  const pantallaActiva = useRef(true);
 
   useEffect(() => {
     let activo = true;
+    pantallaActiva.current = true;
     async function consultarSnapshot() {
       establecerConsultando(true);
       establecerErrorConsulta(null);
@@ -53,6 +67,8 @@ export function DetalleCasoRecepcion({
         const detalle = ingreso
           ? await obtenerSnapshotDiagnostico(ingreso.id)
           : null;
+        if (ingreso && !detalle)
+          throw new Error('No se pudo recuperar el escaneo inicial.');
         if (activo) establecerSnapshotIngreso(detalle);
       } catch (capturado) {
         if (activo) establecerErrorConsulta(mensajeError(capturado));
@@ -64,15 +80,20 @@ export function DetalleCasoRecepcion({
     consultarSnapshot().catch(() => undefined);
     return () => {
       activo = false;
+      pantallaActiva.current = false;
     };
-  }, [caso.id]);
+  }, [caso.id, intentoConsulta]);
 
-  const escanerListo =
-    sesionEscaner.conectado() &&
-    Boolean(sesionEscaner.escrituraSeleccionada) &&
-    Boolean(sesionEscaner.notificacionSeleccionada);
+  const escanerListo = sesionEscaner.estaPreparado();
 
   async function comenzar(condicionMotor: CondicionMotorSnapshot) {
+    if (
+      !puedeCapturar ||
+      consultando ||
+      errorConsulta ||
+      !sesionEscaner.estaPreparado()
+    )
+      return;
     const resultado = await captura.iniciar({
       casoId: caso.id,
       vehiculoId: caso.vehiculoId,
@@ -80,18 +101,75 @@ export function DetalleCasoRecepcion({
       condicionMotor,
       sesionTaller: sesion,
     });
-    if (!resultado) return;
+    if (!resultado || !pantallaActiva.current) return;
 
+    mostrarResultado(resultado);
+  }
+
+  function mostrarResultado(resultado: NonNullable<typeof captura.resultado>) {
     establecerSnapshotIngreso(resultado.snapshotGuardado);
     establecerConfirmando(false);
     alActualizarCaso({
       ...caso,
       vin: resultado.vinLeido ?? caso.vin,
       estado: 'diagnostico_inicial',
+      snapshotIngreso: {
+        id: resultado.snapshotGuardado.id,
+        estado: resultado.snapshotGuardado.estado,
+      },
     });
   }
 
-  const puedeCapturar = caso.estado === 'ingresado' && !snapshotIngreso;
+  const esResponsable =
+    sesion.perfil === 'recepcion' &&
+    caso.recepcionResponsableId === sesion.usuarioId;
+  const admiteAsignacion =
+    esResponsable &&
+    !caso.mecanico &&
+    (caso.estado === 'ingresado' || caso.estado === 'diagnostico_inicial');
+  const puedeCapturar =
+    esResponsable &&
+    caso.estado === 'ingresado' &&
+    !snapshotIngreso &&
+    !captura.pendienteRecuperacion;
+
+  function prepararAsignacion() {
+    if (
+      !admiteAsignacion ||
+      consultando ||
+      errorConsulta ||
+      captura.enCurso ||
+      confirmacionAbierta.current
+    )
+      return;
+    if (snapshotIngreso) {
+      alAsignarMecanico();
+      return;
+    }
+    // si falta el escaneo, prefiero que recepcion lo confirme antes de entregar el caso
+    confirmacionAbierta.current = true;
+    Alert.alert(
+      'Asignar sin escaneo inicial',
+      'Este caso no tiene un escaneo de ingreso guardado. ¿Continuar con la asignación?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+          onPress: () => {
+            confirmacionAbierta.current = false;
+          },
+        },
+        {
+          text: 'Continuar',
+          onPress: () => {
+            confirmacionAbierta.current = false;
+            if (pantallaActiva.current) alAsignarMecanico();
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  }
   return (
     <ScrollView
       style={estilos.pantalla}
@@ -101,7 +179,7 @@ export function DetalleCasoRecepcion({
         <Pressable
           accessibilityLabel="Volver"
           accessibilityRole="button"
-          onPress={alVolver}
+          onPress={() => solicitarSalida(alVolver)}
           style={estilos.volver}
         >
           <Text style={estilos.flechaVolver}>‹</Text>
@@ -141,17 +219,18 @@ export function DetalleCasoRecepcion({
                 : 'Conecta y verifica el escáner para comenzar.'}
             </Text>
 
-            {!escanerListo ? (
+            {puedeCapturar && !errorConsulta && !escanerListo ? (
               <Boton etiqueta="Conectar escáner" alPresionar={alAbrirEscaner} />
-            ) : puedeCapturar && !confirmando ? (
+            ) : puedeCapturar && !errorConsulta && !confirmando ? (
               <Boton
                 etiqueta="Preparar escaneo inicial"
                 alPresionar={() => establecerConfirmando(true)}
               />
-            ) : puedeCapturar && confirmando ? (
+            ) : puedeCapturar && !errorConsulta && confirmando ? (
               <View style={estilos.confirmacion}>
                 <Text style={estilos.textoConfirmacion}>
-                  Mantén el vehículo detenido, ventilado y con el freno aplicado.
+                  Mantén el vehículo detenido, ventilado y con el freno
+                  aplicado.
                 </Text>
                 <Boton
                   etiqueta="Motor en marcha: verificar y comenzar"
@@ -167,7 +246,9 @@ export function DetalleCasoRecepcion({
               </View>
             ) : (
               <Text style={estilos.textoSecundario}>
-                Este caso ya avanzó y no admite otro escaneo de ingreso.
+                {esResponsable
+                  ? 'No se puede iniciar otro escaneo de ingreso en este momento.'
+                  : 'Solo la recepción responsable puede preparar este caso.'}
               </Text>
             )}
           </>
@@ -176,20 +257,65 @@ export function DetalleCasoRecepcion({
         {captura.enCurso && captura.progreso ? (
           <View style={estilos.progreso}>
             <ActivityIndicator color="#10A37F" />
-            <Text style={estilos.textoProgreso}>{captura.progreso.mensaje}</Text>
-            <Pressable onPress={captura.cancelar}>
-              <Text style={estilos.cancelar}>Cancelar</Text>
-            </Pressable>
+            <Text style={estilos.textoProgreso}>
+              {captura.progreso.mensaje}
+            </Text>
+            {captura.puedeCancelar ? (
+              <Pressable onPress={captura.cancelar}>
+                <Text style={estilos.cancelar}>Cancelar</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
-        {captura.error ? <Text style={estilos.error}>{captura.error}</Text> : null}
-        {errorConsulta ? <Text style={estilos.error}>{errorConsulta}</Text> : null}
+        {captura.error ? (
+          <Text style={estilos.error}>{captura.error}</Text>
+        ) : null}
+        {captura.pendienteRecuperacion ? (
+          <Boton
+            etiqueta="Recuperar resultado"
+            deshabilitado={captura.enCurso}
+            alPresionar={async () => {
+              const recuperado = await captura.recuperar();
+              if (recuperado && pantallaActiva.current)
+                mostrarResultado(recuperado);
+            }}
+          />
+        ) : null}
+        {!captura.enCurso &&
+        !captura.error &&
+        captura.progreso &&
+        !snapshotIngreso ? (
+          <Text style={estilos.textoSecundario}>
+            {captura.progreso.mensaje}
+          </Text>
+        ) : null}
+        {errorConsulta ? (
+          <Text style={estilos.error}>{errorConsulta}</Text>
+        ) : null}
+        {errorConsulta ? (
+          <Boton
+            etiqueta="Reintentar consulta"
+            alPresionar={() => establecerIntentoConsulta(valor => valor + 1)}
+          />
+        ) : null}
         {captura.resultado?.advertencias?.map(advertencia => (
           <Text key={advertencia} style={estilos.advertencia}>
             {advertencia}
           </Text>
         ))}
       </View>
+      {admiteAsignacion ? (
+        <Boton
+          etiqueta="Asignar mecánico"
+          alPresionar={prepararAsignacion}
+          deshabilitado={
+            consultando ||
+            Boolean(errorConsulta) ||
+            captura.enCurso ||
+            Boolean(captura.pendienteRecuperacion)
+          }
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -198,11 +324,39 @@ function ResumenSnapshot({ snapshot }: { snapshot: SnapshotDiagnostico }) {
   return (
     <View style={estilos.resumen}>
       <Text style={estilos.resultadoPrincipal}>
-        {snapshot.estado === 'completo' ? 'Escaneo completo' : 'Escaneo parcial'}
+        {snapshot.estado === 'completo'
+          ? 'Escaneo completo'
+          : 'Escaneo parcial'}
       </Text>
       <Text style={estilos.textoSecundario}>
-        {snapshot.valoresPid.length} lecturas · {snapshot.codigosDtc.length} DTC
+        {snapshot.valoresPid.length} lecturas ·{' '}
+        {new Set(snapshot.codigosDtc.map(item => item.codigo)).size} DTC
       </Text>
+      {(['03', '07', '0A'] as const).map(modo => {
+        const codigos = [
+          ...new Set(
+            snapshot.codigosDtc
+              .filter(item => item.modoObd === modo)
+              .map(item => item.codigo),
+          ),
+        ];
+        if (!codigos.length) return null;
+        return (
+          <Text key={modo} style={estilos.textoSecundario}>
+            {modo === '03'
+              ? 'Confirmados'
+              : modo === '07'
+              ? 'Pendientes'
+              : 'Permanentes'}
+            : {codigos.join(', ')}
+          </Text>
+        );
+      })}
+      {!snapshot.codigosDtc.length ? (
+        <Text style={estilos.textoSecundario}>
+          Sin códigos DTC registrados en esta captura.
+        </Text>
+      ) : null}
       {snapshot.motivoParcial ? (
         <Text style={estilos.advertencia}>
           Motivo: {nombreMotivoParcial(snapshot.motivoParcial)}

@@ -1,7 +1,7 @@
 import type { ContextoLecturaMode01 } from '../obd/CatalogoPidsMode01';
 import { traducirRespuestaObd } from '../obd/ServicioElm327';
 import type { RespuestaElm, ResultadoJsonObd } from '../tipos/ble';
-import { adaptarResultadoObd } from './AdaptarResultadoObd';
+import { adaptarResultadoObd } from './AdaptarResultadosObd';
 import {
   obtenerHerramientaObd,
   type NombreHerramientaObd,

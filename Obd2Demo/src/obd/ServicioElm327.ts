@@ -1,5 +1,5 @@
 import type { Subscription } from 'react-native-ble-plx';
-import type { ServicioBle } from '../ble/ServicioBle';
+import type { ServicioBle } from '../escaner/ServicioBle';
 import type {
   InformacionCaracteristicaGatt,
   MetricasRecepcionElm,
@@ -50,6 +50,7 @@ export class ServicioElm327 {
   private readonly acumuladorRespuesta = new AcumuladorRespuestaObd();
   private comandoPendiente: ComandoPendiente | null = null;
   private esperandoPromptTardio = false;
+  private versionSuscripcion = 0;
 
   constructor(private readonly servicioBle: ServicioBle) {}
 
@@ -63,10 +64,12 @@ export class ServicioElm327 {
     manejadores: ManejadoresNotificacionElm,
   ): void {
     this.cancelarSuscripcion();
+    const version = this.versionSuscripcion;
     this.suscripcionNotificacion = this.servicioBle.monitorear(
       idDispositivo,
       caracteristica,
       (error, valorBase64) => {
+        if (version !== this.versionSuscripcion) return;
         if (error) {
           this.esperandoPromptTardio = true;
           const errorNotificacion = new Error(error.message);
@@ -216,6 +219,7 @@ export class ServicioElm327 {
 
   /** Cancela RX y cualquier comando que aun este esperando una respuesta. */
   cancelarSuscripcion(): void {
+    this.versionSuscripcion += 1;
     this.suscripcionNotificacion?.remove();
     this.suscripcionNotificacion = null;
     this.rechazarPendiente(new Error('Suscripción ELM327 cancelada.'));

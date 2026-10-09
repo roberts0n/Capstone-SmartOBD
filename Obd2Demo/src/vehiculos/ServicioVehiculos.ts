@@ -25,6 +25,46 @@ interface FilaVehiculo {
 const CAMPOS_VEHICULO =
   'id, taller_id, cliente_id, vin, patente, marca, modelo, anio, combustible, antecedentes_vehiculo, creado_por, creado_en, actualizado_en';
 
+export type EdicionVehiculo = Omit<NuevoVehiculoTaller, 'clienteId' | 'vin'>;
+
+export async function actualizarVehiculo(
+  vehiculoId: string,
+  entrada: EdicionVehiculo,
+  sesion: SesionTaller,
+): Promise<VehiculoTaller> {
+  validarSesionRecepcion(sesion);
+  if (!vehiculoId.trim())
+    throw new Error('Se necesita el identificador del vehiculo.');
+  const patente = normalizarPatente(entrada.patente);
+  const marca = textoOpcional(entrada.marca);
+  const modelo = textoOpcional(entrada.modelo);
+  const combustible = validarCombustible(entrada.combustible);
+  validarAnio(entrada.anio);
+  if (!marca || !modelo || entrada.anio == null || !combustible)
+    throw new Error('Completa marca, modelo, ano y combustible.');
+  const { data, error } = await supabase
+    .from('vehiculos')
+    .update({
+      patente,
+      marca,
+      modelo,
+      anio: entrada.anio,
+      combustible,
+      antecedentes_vehiculo: textoOpcional(entrada.antecedentesVehiculo),
+    })
+    .eq('id', vehiculoId.trim())
+    .eq('taller_id', sesion.tallerId)
+    .select(CAMPOS_VEHICULO)
+    .maybeSingle();
+  if ((error as { code?: string } | null)?.code === '23505')
+    throw new Error('Ya existe un vehiculo con esa patente.');
+  if (error || !data)
+    throw new Error(
+      'No se pudo actualizar el vehiculo. Revisa los datos y tus permisos.',
+    );
+  return convertirVehiculo(data as FilaVehiculo);
+}
+
 export async function crearVehiculo(
   entrada: NuevoVehiculoTaller,
   sesion: SesionTaller,
@@ -39,6 +79,7 @@ export async function crearVehiculo(
   const vin = normalizarVin(entrada.vin);
   const combustible = validarCombustible(entrada.combustible);
   validarAnio(entrada.anio);
+  const patente = normalizarPatente(entrada.patente);
 
   const { data, error } = await supabase
     .from('vehiculos')
@@ -46,7 +87,7 @@ export async function crearVehiculo(
       taller_id: sesion.tallerId,
       cliente_id: clienteId,
       vin,
-      patente: normalizarPatente(entrada.patente),
+      patente,
       marca: textoOpcional(entrada.marca),
       modelo: textoOpcional(entrada.modelo),
       anio: entrada.anio ?? null,
@@ -180,8 +221,18 @@ function normalizarVin(valor: string | null | undefined): string | null {
   return vin;
 }
 
-function normalizarPatente(valor: string | null | undefined): string | null {
-  return valor?.replace(/[\s-]/g, '').toUpperCase() || null;
+export function normalizarPatente(valor: string | null | undefined): string {
+  const patente = valor?.replace(/[\s.-]/g, '').toUpperCase() ?? '';
+  // acepto separadores al escribir, pero guardo la patente sin ellos
+  if (
+    !/^[A-Za-z0-9\s.-]+$/.test(valor ?? '') ||
+    !/^(?:[A-Z]{2}[0-9]{4}|[BCDFGHJKLPRSTVWXYZ]{4}[0-9]{2})$/.test(patente)
+  ) {
+    throw new Error(
+      'Ingresa una patente chilena de auto, como AB1234 o BCDF12.',
+    );
+  }
+  return patente;
 }
 
 function validarAnio(anio: number | null | undefined): void {
@@ -239,6 +290,9 @@ function mensajeErrorCreacion(error: unknown): string {
   }
   if (codigo === '42501') {
     return 'Tu cuenta no tiene permiso para registrar vehiculos.';
+  }
+  if (codigo === '23514' || codigo === '23502') {
+    return 'Revisa los datos del vehiculo antes de guardar.';
   }
 
   return 'No se pudo registrar el vehiculo. Intenta nuevamente.';

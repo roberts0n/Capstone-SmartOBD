@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,14 +10,25 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { crearCliente } from '../clientes/ServicioClientes';
+import {
+  crearCliente,
+  actualizarCliente,
+  normalizarTelefonoChileno,
+  prepararTelefonoParaEntrada,
+} from '../clientes/ServicioClientes';
+import type { ClienteTaller } from '../clientes/TiposCliente';
 import type { SesionTaller } from '../tipos/usuarioTaller';
+import { useProteccionSalida } from '../componentes/ProteccionSalida';
 
 interface Propiedades {
   sesion: SesionTaller;
   alAgregarVehiculo: (clienteId: string) => void;
   alFinalizar: () => void;
   alVolver: () => void;
+  alClienteRegistrado?: (cliente: ClienteTaller) => void;
+  etiquetaFinalizar?: string;
+  clienteEditar?: ClienteTaller;
+  alGuardarEdicion?: (cliente: ClienteTaller) => void;
 }
 
 export function RegistrarCliente({
@@ -25,43 +36,88 @@ export function RegistrarCliente({
   alAgregarVehiculo,
   alFinalizar,
   alVolver,
+  alClienteRegistrado,
+  etiquetaFinalizar = 'Finalizar',
+  clienteEditar,
+  alGuardarEdicion,
 }: Propiedades) {
-  const [nombre, establecerNombre] = useState('');
-  const [telefono, establecerTelefono] = useState('');
-  const [correo, establecerCorreo] = useState('');
+  const [nombre, establecerNombre] = useState(clienteEditar?.nombre ?? '');
+  const [telefono, establecerTelefono] = useState(
+    prepararTelefonoParaEntrada(clienteEditar?.telefono ?? ''),
+  );
+  const [correo, establecerCorreo] = useState(clienteEditar?.correo ?? '');
   const [guardando, establecerGuardando] = useState(false);
   const [clienteCreado, establecerClienteCreado] = useState<{
     id: string;
     nombre: string;
   } | null>(null);
   const [error, establecerError] = useState<string | null>(null);
+  const operacionEnCurso = useRef(false);
+  const pantallaActiva = useRef(true);
+  const solicitarSalida = useProteccionSalida({
+    ocupado: guardando,
+    cambios:
+      !clienteCreado &&
+      (nombre !== (clienteEditar?.nombre ?? '') ||
+        telefono !==
+          prepararTelefonoParaEntrada(clienteEditar?.telefono ?? '') ||
+        correo !== (clienteEditar?.correo ?? '')),
+  });
+
+  useEffect(() => {
+    pantallaActiva.current = true;
+    return () => {
+      pantallaActiva.current = false;
+    };
+  }, []);
 
   async function registrar() {
+    if (operacionEnCurso.current || clienteCreado) return;
     if (nombre.trim().length < 2) {
       establecerError('Ingresa el nombre del cliente.');
       return;
     }
-    if (!telefono.trim()) {
-      establecerError('Ingresa un teléfono de contacto.');
+    let telefonoNormalizado: string;
+    try {
+      telefonoNormalizado = normalizarTelefonoChileno(telefono);
+    } catch (capturado) {
+      establecerError((capturado as Error).message);
       return;
     }
 
     establecerError(null);
+    operacionEnCurso.current = true;
     establecerGuardando(true);
     try {
-      const cliente = await crearCliente(
-        { nombre, telefono, correo: correo || null },
-        sesion,
-      );
+      const entrada = {
+        nombre,
+        telefono: telefonoNormalizado,
+        correo: correo || null,
+      };
+      const cliente = clienteEditar
+        ? await actualizarCliente(clienteEditar.id, entrada, sesion)
+        : await crearCliente(
+            { nombre, telefono: telefonoNormalizado, correo: correo || null },
+            sesion,
+          );
+      if (!pantallaActiva.current) return;
+      if (clienteEditar) {
+        alGuardarEdicion?.(cliente);
+        return;
+      }
       establecerClienteCreado({ id: cliente.id, nombre: cliente.nombre });
+      // aviso que ya existe, aunque despues se cancele el registro del auto
+      alClienteRegistrado?.(cliente);
     } catch (capturado) {
-      establecerError(
-        capturado instanceof Error
-          ? capturado.message
-          : 'No se pudo registrar el cliente.',
-      );
+      if (pantallaActiva.current)
+        establecerError(
+          capturado instanceof Error
+            ? capturado.message
+            : 'No se pudo registrar el cliente.',
+        );
     } finally {
-      establecerGuardando(false);
+      operacionEnCurso.current = false;
+      if (pantallaActiva.current) establecerGuardando(false);
     }
   }
 
@@ -72,7 +128,9 @@ export function RegistrarCliente({
           <Cabecera alVolver={alFinalizar} />
           <View style={estilos.confirmacion}>
             <Text style={estilos.tituloConfirmacion}>Cliente registrado</Text>
-            <Text style={estilos.nombreConfirmacion}>{clienteCreado.nombre}</Text>
+            <Text style={estilos.nombreConfirmacion}>
+              {clienteCreado.nombre}
+            </Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -92,7 +150,9 @@ export function RegistrarCliente({
               pressed && estilos.presionado,
             ]}
           >
-            <Text style={estilos.textoBotonSecundario}>Finalizar</Text>
+            <Text style={estilos.textoBotonSecundario}>
+              {etiquetaFinalizar}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -108,22 +168,31 @@ export function RegistrarCliente({
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
-        <Cabecera alVolver={alVolver} />
+        <Cabecera
+          alVolver={() => solicitarSalida(alVolver)}
+          titulo={clienteEditar ? 'Editar cliente' : 'Registrar cliente'}
+        />
         <Campo
           etiqueta="Nombre"
+          deshabilitado={guardando}
           valor={nombre}
           alCambiar={establecerNombre}
           placeholder="Nombre completo"
         />
         <Campo
           etiqueta="Teléfono"
+          deshabilitado={guardando}
           valor={telefono}
-          alCambiar={establecerTelefono}
-          placeholder="Ej. +56 9 1234 5678"
+          alCambiar={texto =>
+            establecerTelefono(prepararTelefonoParaEntrada(texto))
+          }
+          placeholder="9 1234 5678"
           teclado="phone-pad"
+          prefijo="+56"
         />
         <Campo
           etiqueta="Correo (opcional)"
+          deshabilitado={guardando}
           valor={correo}
           alCambiar={establecerCorreo}
           placeholder="cliente@correo.cl"
@@ -150,7 +219,11 @@ export function RegistrarCliente({
             <ActivityIndicator color="#061B15" size="small" />
           ) : null}
           <Text style={estilos.textoBoton}>
-            {guardando ? 'Guardando...' : 'Registrar cliente'}
+            {guardando
+              ? 'Guardando...'
+              : clienteEditar
+              ? 'Guardar cambios'
+              : 'Registrar cliente'}
           </Text>
         </Pressable>
       </ScrollView>
@@ -158,7 +231,13 @@ export function RegistrarCliente({
   );
 }
 
-function Cabecera({ alVolver }: { alVolver: () => void }) {
+function Cabecera({
+  alVolver,
+  titulo = 'Registrar cliente',
+}: {
+  alVolver: () => void;
+  titulo?: string;
+}) {
   return (
     <View style={estilos.cabecera}>
       <Pressable
@@ -169,7 +248,7 @@ function Cabecera({ alVolver }: { alVolver: () => void }) {
       >
         <Text style={estilos.flechaVolver}>‹</Text>
       </Pressable>
-      <Text style={estilos.titulo}>Registrar cliente</Text>
+      <Text style={estilos.titulo}>{titulo}</Text>
     </View>
   );
 }
@@ -180,26 +259,34 @@ function Campo({
   alCambiar,
   placeholder,
   teclado,
+  prefijo,
+  deshabilitado,
 }: {
   etiqueta: string;
   valor: string;
   alCambiar: (texto: string) => void;
   placeholder: string;
   teclado?: 'phone-pad' | 'email-address';
+  prefijo?: string;
+  deshabilitado?: boolean;
 }) {
   return (
     <View style={estilos.campo}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
-      <TextInput
-        accessibilityLabel={etiqueta}
-        autoCapitalize={teclado === 'email-address' ? 'none' : 'words'}
-        keyboardType={teclado}
-        onChangeText={alCambiar}
-        placeholder={placeholder}
-        placeholderTextColor="#77777F"
-        style={estilos.entrada}
-        value={valor}
-      />
+      <View style={prefijo ? estilos.entradaConPrefijo : undefined}>
+        {prefijo ? <Text style={estilos.prefijo}>{prefijo}</Text> : null}
+        <TextInput
+          editable={!deshabilitado}
+          accessibilityLabel={etiqueta}
+          autoCapitalize={teclado === 'email-address' ? 'none' : 'words'}
+          keyboardType={teclado}
+          onChangeText={alCambiar}
+          placeholder={placeholder}
+          placeholderTextColor="#77777F"
+          style={prefijo ? estilos.entradaTelefono : estilos.entrada}
+          value={valor}
+        />
+      </View>
     </View>
   );
 }
@@ -240,6 +327,23 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#303034',
     borderRadius: 12,
+    paddingHorizontal: 13,
+    fontSize: 14,
+  },
+  entradaConPrefijo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#303034',
+    borderRadius: 12,
+    paddingLeft: 13,
+  },
+  prefijo: { color: '#A1A1AA', fontSize: 14 },
+  entradaTelefono: {
+    flex: 1,
+    minHeight: 50,
+    color: '#F4F4F5',
     paddingHorizontal: 13,
     fontSize: 14,
   },
