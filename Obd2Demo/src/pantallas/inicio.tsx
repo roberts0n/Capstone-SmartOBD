@@ -1,12 +1,16 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PerfilTaller, SesionTaller } from '../tipos/usuarioTaller';
+import { InicioAdministrador } from './inicioAdministrador';
+import { InicioRecepcion } from './inicioRecepcion';
 
 interface PropiedadesInicio {
   sesion: SesionTaller;
   alAbrirEscaner: () => void;
   alAbrirRegistro: () => void;
   alAbrirCuenta: () => void;
+  alAbrirNuevaOrden: () => void;
+  alAbrirCasosRecepcion: () => void;
 }
 
 type DestinoAccion = 'escaner' | 'registro';
@@ -150,7 +154,31 @@ export function Inicio({
   alAbrirEscaner,
   alAbrirRegistro,
   alAbrirCuenta,
+  alAbrirNuevaOrden,
+  alAbrirCasosRecepcion,
 }: PropiedadesInicio) {
+  if (sesion.perfil === 'recepcion') {
+    return (
+      <InicioRecepcion
+        sesion={sesion}
+        alAbrirCuenta={alAbrirCuenta}
+        alAbrirNuevaOrden={alAbrirNuevaOrden}
+        alAbrirCasos={alAbrirCasosRecepcion}
+      />
+    );
+  }
+
+  if (sesion.perfil === 'administrador') {
+    return (
+      <InicioAdministrador
+        sesion={sesion}
+        alAbrirCuenta={alAbrirCuenta}
+        alAbrirRegistro={alAbrirRegistro}
+        alAbrirEscaner={alAbrirEscaner}
+      />
+    );
+  }
+
   const contenido = CONTENIDO[sesion.perfil];
 
   return (

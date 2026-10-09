@@ -166,6 +166,8 @@ function ContenidoAplicacion() {
             alAbrirEscaner={() => establecerRuta('escaner')}
             alAbrirRegistro={() => establecerRuta('registro')}
             alAbrirCuenta={() => establecerRuta('cuenta')}
+            alAbrirNuevaOrden={() => establecerRuta('nueva_orden')}
+            alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
           />
         )}
         {!inicializando &&
