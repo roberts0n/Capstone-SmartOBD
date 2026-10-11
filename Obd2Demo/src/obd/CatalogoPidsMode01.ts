@@ -116,13 +116,40 @@ export function traducirPidMode01(
   comando: string,
   respuestaCruda: string,
   contexto?: ContextoLecturaMode01,
+  opciones?: { cabecera: string | null },
 ): TraduccionObd | null {
   const definicion = obtenerDefinicionPidMode01(comando);
   if (!definicion) {
     return null;
   }
   const pid = Number.parseInt(definicion.comando.slice(2), 16);
-  const respuestas = extraerRespuestasPid(respuestaCruda, pid);
+  let respuestas = extraerRespuestasPid(respuestaCruda, pid);
+  // cuando sigo una curva, solo traduzco el origen que elegi para ella
+  if (opciones) {
+    respuestas = respuestas.filter(
+      respuesta => respuesta.cabecera === opciones.cabecera,
+    );
+    if (respuestas.length > 1) {
+      const primera = respuestas[0].datos;
+      const coinciden = respuestas.every(
+        respuesta =>
+          respuesta.datos.length === primera.length &&
+          respuesta.datos.every((byte, indice) => byte === primera[indice]),
+      );
+      if (opciones.cabecera === null || !coinciden) {
+        return {
+          valor: null,
+          unidad: null,
+          error:
+            opciones.cabecera === null
+              ? 'Hay varias respuestas sin cabeceras. No se puede identificar su origen.'
+              : `La ECU ${opciones.cabecera} entregó respuestas contradictorias para este PID.`,
+        };
+      }
+      // una repeticion identica con cabecera no representa dos mediciones
+      respuestas = respuestas.slice(0, 1);
+    }
+  }
   let detalle = '';
   for (const respuesta of respuestas) {
     try {

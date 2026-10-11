@@ -100,7 +100,7 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
       comando,
       estado: 'leyendo',
       informe: {
-        versionEsquema: 1,
+        versionEsquema: 2,
         versionAplicacion,
         inicio: new Date().toISOString(),
         fin: null,
@@ -126,6 +126,7 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
         },
         contexto: contextoPreparado,
         cabecerasConfirmadas: false,
+        seleccionOrigen: null,
         intervaloObjetivoMs: 500,
         cantidadConsultas: 0,
         limiteCapturas: 20,
@@ -254,6 +255,21 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
           sesion.estaPreparado(),
         sincronizado: sesion.estaSincronizado,
         signal: siguiente.abortar.signal,
+        alOrigen: seleccion => {
+          if (!montado.current || control.current !== siguiente) return;
+          establecerVista(anterior => ({
+            ...anterior,
+            informe: anterior.informe
+              ? {
+                  ...anterior.informe,
+                  seleccionOrigen: {
+                    ...seleccion,
+                    origenesDetectados: [...seleccion.origenesDetectados],
+                  },
+                }
+              : null,
+          }));
+        },
         alCaptura: captura =>
           guardarCaptura({
             ...captura,

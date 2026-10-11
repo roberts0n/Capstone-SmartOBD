@@ -4,7 +4,11 @@ import {
   type ContextoLecturaMode01,
 } from './CatalogoPidsMode01';
 import { extraerRespuestasPid } from './mode01/ExtraerRespuestaPid';
-import type { InformacionCaracteristicaGatt, RespuestaElm } from '../tipos/ble';
+import type {
+  InformacionCaracteristicaGatt,
+  RespuestaElm,
+  TraduccionObd,
+} from '../tipos/ble';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // parto con estas cuatro mediciones, sin asumir que todos los autos las entregan
@@ -37,8 +41,14 @@ export interface CapturaConsultaPid {
   error: string | null;
 }
 
+export interface SeleccionOrigenPid {
+  cabecera: string | null;
+  origenesDetectados: (string | null)[];
+  motivo: 'preferencia-7E8' | 'unico-origen-valido';
+}
+
 export interface InformeMuestreoPid {
-  versionEsquema: 1;
+  versionEsquema: 2;
   versionAplicacion: string;
   inicio: string;
   fin: string | null;
@@ -53,6 +63,7 @@ export interface InformeMuestreoPid {
   };
   contexto: ContextoLecturaMode01;
   cabecerasConfirmadas: boolean;
+  seleccionOrigen: SeleccionOrigenPid | null;
   intervaloObjetivoMs: number;
   cantidadConsultas: number;
   limiteCapturas: number;
@@ -107,6 +118,7 @@ export interface OpcionesMuestreoPid {
   signal: AbortSignal;
   alMuestra: (muestra: MuestraPid) => void;
   alCaptura?: (captura: CapturaConsultaPid) => void;
+  alOrigen?: (seleccion: SeleccionOrigenPid) => void;
   intervaloMs?: number;
   reloj?: () => number;
 }
@@ -131,7 +143,7 @@ export async function muestrearPid(
   const reloj = opciones.reloj ?? obtenerTiempoMs;
   const inicio = reloj();
   let fallosSeguidos = 0;
-  let origen: string | null | undefined;
+  let seleccion: SeleccionOrigenPid | null = null;
   const comprobarConexion = () => {
     if (!opciones.conectado())
       throw new Error('La conexión del escáner cambió. La lectura se detuvo.');
@@ -188,36 +200,47 @@ export async function muestrearPid(
       respuesta.textoAscii,
       Number.parseInt(comando.slice(2), 16),
     );
-    if (respuestas.length > 1) {
-      const mensaje =
-        'Hay varias respuestas para este PID. No se mezclan distintas ECU en una curva.';
-      registrar(mensaje);
-      throw new Error(mensaje);
+    let traduccion: TraduccionObd | null;
+    try {
+      if (!seleccion) {
+        const inicial = elegirOrigenPid(
+          comando,
+          respuesta.textoAscii,
+          contexto,
+        );
+        traduccion = inicial.traduccion;
+        seleccion = inicial.seleccion;
+        if (seleccion) opciones.alOrigen?.(seleccion);
+      } else if (
+        !respuestas.map(item => item.cabecera).includes(seleccion.cabecera)
+      ) {
+        traduccion = {
+          valor: null,
+          unidad: null,
+          error:
+            seleccion.cabecera === null
+              ? 'No llegó una medición del origen sin cabecera seleccionado. No se sustituye por otra ECU.'
+              : `No respondió la ECU ${seleccion.cabecera} al PID solicitado. No se sustituye por otra ECU.`,
+        };
+      } else {
+        traduccion = traducirPidMode01(
+          comando,
+          respuesta.textoAscii,
+          contexto,
+          { cabecera: seleccion.cabecera },
+        );
+      }
+    } catch (capturado) {
+      registrar(
+        capturado instanceof Error ? capturado.message : String(capturado),
+      );
+      throw capturado;
     }
-    if (
-      respuestas.length === 1 &&
-      origen !== undefined &&
-      respuestas[0].cabecera !== origen
-    ) {
-      const mensaje =
-        'Cambió la ECU que responde. La lectura se detuvo para no mezclar datos.';
-      registrar(mensaje);
-      throw new Error(mensaje);
-    }
-    const traduccion = traducirPidMode01(
-      comando,
-      respuesta.textoAscii,
-      contexto,
-    );
-    const valido =
-      !traduccion?.error &&
-      typeof traduccion?.valor === 'number' &&
-      Number.isFinite(traduccion.valor);
+    const valido = esMedicionValida(traduccion);
     const error = valido
       ? null
       : traduccion?.error ?? 'No se recibió una medición numérica válida.';
     registrar(error);
-    if (valido) origen = respuestas[0]?.cabecera;
     opciones.alMuestra({
       comando,
       tiempoTranscurridoMs: recibidoEn,
@@ -228,7 +251,8 @@ export async function muestrearPid(
     fallosSeguidos = valido ? 0 : fallosSeguidos + 1;
     if (fallosSeguidos >= 3)
       throw new Error(
-        'Se detuvo la lectura tras tres respuestas consecutivas sin medición válida.',
+        'Se detuvo la lectura tras tres respuestas consecutivas sin medición válida. ' +
+          error,
       );
     // cuento desde el envio, pero nunca adelanto el siguiente comando a su respuesta
     await esperarMuestreo(
@@ -236,6 +260,52 @@ export async function muestrearPid(
       opciones.signal,
     );
   }
+}
+
+function esMedicionValida(traduccion: TraduccionObd | null): boolean {
+  return (
+    !traduccion?.error &&
+    typeof traduccion?.valor === 'number' &&
+    Number.isFinite(traduccion.valor)
+  );
+}
+
+function elegirOrigenPid(
+  comando: string,
+  cruda: string,
+  contexto: ContextoLecturaMode01,
+): { seleccion: SeleccionOrigenPid | null; traduccion: TraduccionObd | null } {
+  const respuestas = extraerRespuestasPid(
+    cruda,
+    Number.parseInt(comando.slice(2), 16),
+  );
+  const origenes = [...new Set(respuestas.map(item => item.cabecera))];
+  const evaluadas = origenes.map(cabecera => ({
+    cabecera,
+    traduccion: traducirPidMode01(comando, cruda, contexto, { cabecera }),
+  }));
+  const validas = evaluadas.filter(item => esMedicionValida(item.traduccion));
+  // prefiero 7e8 cuando es valido, no la primera respuesta que alcanzo a llegar
+  const preferida = validas.find(item => item.cabecera === '7E8');
+  const elegida = preferida ?? (validas.length === 1 ? validas[0] : null);
+  if (!elegida && validas.length > 1) {
+    throw new Error(
+      'Respondieron varias ECU válidas, pero no se pudo elegir un origen automáticamente. Esta medición no está disponible.',
+    );
+  }
+  return {
+    seleccion: elegida
+      ? {
+          cabecera: elegida.cabecera,
+          origenesDetectados: origenes,
+          motivo: preferida ? 'preferencia-7E8' : 'unico-origen-valido',
+        }
+      : null,
+    traduccion: elegida
+      ? elegida.traduccion
+      : (evaluadas.find(item => item.cabecera === '7E8') ?? evaluadas[0])
+          ?.traduccion ?? traducirPidMode01(comando, cruda, contexto),
+  };
 }
 
 function unidadPid(comando: string): string {
