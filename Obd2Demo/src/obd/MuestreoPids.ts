@@ -4,7 +4,7 @@ import {
   type ContextoLecturaMode01,
 } from './CatalogoPidsMode01';
 import { extraerRespuestasPid } from './mode01/ExtraerRespuestaPid';
-import type { RespuestaElm } from '../tipos/ble';
+import type { InformacionCaracteristicaGatt, RespuestaElm } from '../tipos/ble';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
 
 // parto con estas cuatro mediciones, sin asumir que todos los autos las entregan
@@ -23,6 +23,81 @@ export interface MuestraPid {
   error: string | null;
 }
 
+export interface CapturaConsultaPid {
+  fecha: string;
+  comando: string;
+  fase: 'preparacion' | 'lectura';
+  tiempoTranscurridoMs: number;
+  respuestaCruda: string | null;
+  metricasRecepcion: RespuestaElm['metricasRecepcion'] | null;
+  respuestasDetectadas: {
+    cabecera: string | null;
+    datosHexadecimales: string;
+  }[];
+  error: string | null;
+}
+
+export interface InformeMuestreoPid {
+  versionEsquema: 1;
+  versionAplicacion: string;
+  inicio: string;
+  fin: string | null;
+  comando: string;
+  estado: 'en-curso' | 'detenido' | 'error';
+  error: string | null;
+  mensaje: string | null;
+  dispositivo: { id: string; nombre: string | null } | null;
+  canales: {
+    escritura: InformacionCaracteristicaGatt | null;
+    notificacion: InformacionCaracteristicaGatt | null;
+  };
+  contexto: ContextoLecturaMode01;
+  cabecerasConfirmadas: boolean;
+  intervaloObjetivoMs: number;
+  cantidadConsultas: number;
+  limiteCapturas: number;
+  capturas: CapturaConsultaPid[];
+}
+
+// guardo el texto tal como llego, incluso cuando no puedo dibujar una medicion
+export function crearCapturaConsultaPid(
+  comando: string,
+  respuesta: RespuestaElm | null,
+  tiempoTranscurridoMs: number,
+  error: string | null = null,
+  fase: CapturaConsultaPid['fase'] = 'lectura',
+): CapturaConsultaPid {
+  const respuestas =
+    respuesta && /^01[0-9A-F]{2}$/i.test(comando)
+      ? extraerRespuestasPid(
+          respuesta.textoAscii,
+          Number.parseInt(comando.slice(2), 16),
+        )
+      : [];
+  return {
+    fecha: new Date().toISOString(),
+    comando,
+    fase,
+    tiempoTranscurridoMs,
+    respuestaCruda: respuesta?.textoAscii ?? null,
+    metricasRecepcion: respuesta?.metricasRecepcion ?? null,
+    respuestasDetectadas: respuestas.map(item => ({
+      cabecera: item.cabecera,
+      datosHexadecimales: item.datos
+        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+        .join(' '),
+    })),
+    error,
+  };
+}
+
+export function nombreInformeMuestreo(informe: InformeMuestreoPid): string {
+  return `SmartOBD_PID_${informe.comando}_${informe.inicio.replace(
+    /[:.]/g,
+    '-',
+  )}.json`;
+}
+
 export interface OpcionesMuestreoPid {
   comando: string;
   contexto: ContextoLecturaMode01;
@@ -31,6 +106,7 @@ export interface OpcionesMuestreoPid {
   sincronizado: () => boolean;
   signal: AbortSignal;
   alMuestra: (muestra: MuestraPid) => void;
+  alCaptura?: (captura: CapturaConsultaPid) => void;
   intervaloMs?: number;
   reloj?: () => number;
 }
@@ -72,12 +148,15 @@ export async function muestrearPid(
     try {
       respuesta = await opciones.enviar(comando);
     } catch (capturado) {
-      if (opciones.signal.aborted) return;
-      comprobarConexion();
       const mensaje =
         capturado instanceof Error
           ? capturado.message
           : 'Falló la comunicación con el escáner.';
+      opciones.alCaptura?.(
+        crearCapturaConsultaPid(comando, null, reloj() - inicio, mensaje),
+      );
+      if (opciones.signal.aborted) return;
+      comprobarConexion();
       opciones.alMuestra({
         comando,
         tiempoTranscurridoMs: reloj() - inicio,
@@ -88,25 +167,43 @@ export async function muestrearPid(
       // no reintento un fallo de transporte porque puede quedar una respuesta tardia
       throw new Error(mensaje);
     }
-    if (opciones.signal.aborted) return;
-    comprobarConexion();
     const recibidoEn = reloj() - inicio;
+    const registrar = (error: string | null) =>
+      opciones.alCaptura?.(
+        crearCapturaConsultaPid(comando, respuesta, recibidoEn, error),
+      );
+    if (opciones.signal.aborted) {
+      registrar('Respuesta descartada: la lectura ya estaba detenida.');
+      return;
+    }
+    try {
+      comprobarConexion();
+    } catch (capturado) {
+      registrar(
+        capturado instanceof Error ? capturado.message : String(capturado),
+      );
+      throw capturado;
+    }
     const respuestas = extraerRespuestasPid(
       respuesta.textoAscii,
       Number.parseInt(comando.slice(2), 16),
     );
-    if (respuestas.length > 1)
-      throw new Error(
-        'Hay varias respuestas para este PID. No se mezclan distintas ECU en una curva.',
-      );
+    if (respuestas.length > 1) {
+      const mensaje =
+        'Hay varias respuestas para este PID. No se mezclan distintas ECU en una curva.';
+      registrar(mensaje);
+      throw new Error(mensaje);
+    }
     if (
       respuestas.length === 1 &&
       origen !== undefined &&
       respuestas[0].cabecera !== origen
-    )
-      throw new Error(
-        'Cambió la ECU que responde. La lectura se detuvo para no mezclar datos.',
-      );
+    ) {
+      const mensaje =
+        'Cambió la ECU que responde. La lectura se detuvo para no mezclar datos.';
+      registrar(mensaje);
+      throw new Error(mensaje);
+    }
     const traduccion = traducirPidMode01(
       comando,
       respuesta.textoAscii,
@@ -119,6 +216,7 @@ export async function muestrearPid(
     const error = valido
       ? null
       : traduccion?.error ?? 'No se recibió una medición numérica válida.';
+    registrar(error);
     if (valido) origen = respuestas[0]?.cabecera;
     opciones.alMuestra({
       comando,

@@ -5,6 +5,7 @@ import { obtenerDefinicionPidMode01 } from '../obd/CatalogoPidsMode01';
 import {
   PIDS_GRAFICABLES_INICIALES,
   type MuestraPid,
+  type InformeMuestreoPid,
 } from '../obd/MuestreoPids';
 
 interface Propiedades {
@@ -20,6 +21,10 @@ interface Propiedades {
   alIniciar: (comando: string) => void;
   alDetener: () => void;
   alLimpiar: () => void;
+  informe?: InformeMuestreoPid | null;
+  capturaOcupada?: boolean;
+  mensajeCaptura?: string | null;
+  alGuardarCaptura?: () => void;
 }
 
 export function PanelGraficoPids(props: Propiedades) {
@@ -27,6 +32,7 @@ export function PanelGraficoPids(props: Propiedades) {
     props.pidsCompatibles?.includes(pid),
   );
   const [seleccionado, establecerSeleccionado] = useState<string | null>(null);
+  const [mostrarCaptura, establecerMostrarCaptura] = useState(false);
   const primero = disponibles[0] ?? null;
   const seleccionDisponible =
     seleccionado !== null && disponibles.some(pid => pid === seleccionado);
@@ -35,6 +41,8 @@ export function PanelGraficoPids(props: Propiedades) {
   }, [seleccionDisponible, primero, props.enCurso]);
   const muestras = props.comandoActivo === seleccionado ? props.muestras : [];
   const ultima = muestras[muestras.length - 1];
+  const ultimaCaptura =
+    props.informe?.capturas[props.informe.capturas.length - 1];
   return (
     <View style={estilos.panel}>
       <Text style={estilos.titulo}>Lectura en vivo</Text>
@@ -126,6 +134,53 @@ export function PanelGraficoPids(props: Propiedades) {
             : 'Iniciar lectura'}
         </Text>
       </Pressable>
+      {props.informe && !props.enCurso ? (
+        <View style={estilos.captura}>
+          <Text style={estilos.secundario}>
+            Captura {props.informe.comando} · {props.informe.capturas.length} de{' '}
+            {props.informe.cantidadConsultas} consultas conservadas
+          </Text>
+          {props.informe.cabecerasConfirmadas ? (
+            <Text style={estilos.secundario}>Cabeceras activadas · ATH1</Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => establecerMostrarCaptura(!mostrarCaptura)}
+            style={estilos.botonSecundario}
+          >
+            <Text style={estilos.textoBoton}>
+              {mostrarCaptura
+                ? 'Ocultar captura técnica'
+                : 'Ver captura técnica'}
+            </Text>
+          </Pressable>
+          {mostrarCaptura ? (
+            <Text selectable style={estilos.json}>
+              {JSON.stringify(
+                ultimaCaptura ?? { error: props.informe.error, capturas: [] },
+                null,
+                2,
+              )}
+            </Text>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            disabled={props.capturaOcupada || !props.alGuardarCaptura}
+            onPress={props.alGuardarCaptura}
+            style={[
+              estilos.botonSecundario,
+              props.capturaOcupada && estilos.deshabilitado,
+            ]}
+          >
+            <Text style={estilos.textoBoton}>Guardar captura JSON</Text>
+          </Pressable>
+          {props.mensajeCaptura ? (
+            <Text accessibilityRole="alert" style={estilos.secundario}>
+              {props.mensajeCaptura}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -275,4 +330,20 @@ const estilos = StyleSheet.create({
   },
   textoBoton: { color: '#FFFFFF', fontWeight: '700' },
   deshabilitado: { opacity: 0.4 },
+  captura: { marginTop: 16, gap: 8 },
+  botonSecundario: {
+    borderColor: '#38383D',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 11,
+    alignItems: 'center',
+  },
+  json: {
+    color: '#D4D4D8',
+    backgroundColor: '#0D0D0E',
+    padding: 10,
+    borderRadius: 10,
+    fontFamily: 'monospace',
+    fontSize: 11,
+  },
 });

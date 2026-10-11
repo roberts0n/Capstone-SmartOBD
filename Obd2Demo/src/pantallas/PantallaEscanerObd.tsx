@@ -25,6 +25,8 @@ import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
 import { PanelPidsCompatibles } from '../componentes/PanelPidsCompatibles';
 import { PanelGraficoPids } from '../componentes/PanelGraficoPids';
 import { useMuestreoPids } from '../obd/usarMuestreoPids';
+import { nombreInformeMuestreo } from '../obd/MuestreoPids';
+import { guardarInformeJson } from '../informes/guardarInformeDtc';
 import { useProteccionSalida } from '../componentes/ProteccionSalida';
 import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
 import {
@@ -89,6 +91,9 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
   };
   const pruebaDtc = usePruebaDtc();
   const [guardadoEnCurso, establecerGuardadoEnCurso] = useState(false);
+  const [mensajeCaptura, establecerMensajeCaptura] = useState<string | null>(
+    null,
+  );
   const [mostrarHerramientasAvanzadas, establecerMostrarHerramientasAvanzadas] =
     useState(false);
   const {
@@ -155,11 +160,51 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
       return;
     bloqueoComando.current = true;
     establecerComandoEnCurso(true);
+    establecerMensajeCaptura(null);
     try {
-      await muestreo.iniciar(comando, contextoPids.current);
+      await muestreo.iniciar(comando, contextoPids.current, actualizado => {
+        // conservo las escalas con cabecera para las consultas que vengan despues
+        contextoPids.current = actualizado;
+      });
     } finally {
       bloqueoComando.current = false;
       establecerComandoEnCurso(false);
+    }
+  }
+
+  async function guardarCapturaMuestreo() {
+    const informe = muestreo.informe;
+    if (
+      !informe ||
+      muestreo.enCurso ||
+      bloqueoComando.current ||
+      bloqueoConexion.current ||
+      guardadoEnCurso ||
+      pruebaDtc.guardando
+    )
+      return;
+    bloqueoComando.current = true;
+    establecerGuardadoEnCurso(true);
+    establecerMensajeCaptura(null);
+    try {
+      const uri = await guardarInformeJson(
+        nombreInformeMuestreo(informe),
+        informe,
+      );
+      establecerMensajeCaptura(
+        uri
+          ? 'Captura JSON guardada.'
+          : 'Guardado cancelado. La captura sigue disponible.',
+      );
+    } catch (capturado) {
+      establecerMensajeCaptura(
+        capturado instanceof Error
+          ? capturado.message
+          : 'No se pudo guardar la captura.',
+      );
+    } finally {
+      bloqueoComando.current = false;
+      establecerGuardadoEnCurso(false);
     }
   }
 
@@ -1071,6 +1116,10 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         alIniciar={comando => iniciarMuestreo(comando)}
         alDetener={() => muestreo.detener()}
         alLimpiar={muestreo.limpiar}
+        informe={muestreo.informe}
+        capturaOcupada={interfazOcupada}
+        mensajeCaptura={mensajeCaptura}
+        alGuardarCaptura={() => guardarCapturaMuestreo()}
       />
 
       <Seccion
