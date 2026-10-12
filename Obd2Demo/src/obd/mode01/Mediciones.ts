@@ -88,6 +88,7 @@ export const MEDICIONES_MODE_01: readonly DefinicionPidMode01[] = [
     2,
     's',
     datos => entero16(datos),
+    false,
   ),
   simple(
     0x21,
@@ -283,6 +284,7 @@ export const MEDICIONES_MODE_01: readonly DefinicionPidMode01[] = [
     1,
     '%',
     datos => porcentaje(datos[0]),
+    false,
   ),
   simple(
     0x53,
@@ -323,6 +325,7 @@ export const MEDICIONES_MODE_01: readonly DefinicionPidMode01[] = [
     1,
     '%',
     datos => porcentaje(datos[0]),
+    false,
   ),
   simple(
     0x5c,

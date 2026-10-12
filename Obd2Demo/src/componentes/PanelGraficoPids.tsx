@@ -1,12 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, Path, Text as TextoSvg } from 'react-native-svg';
-import { obtenerDefinicionPidMode01 } from '../obd/CatalogoPidsMode01';
 import {
-  PIDS_GRAFICABLES_INICIALES,
-  type MuestraPid,
-  type InformeMuestreoPid,
-} from '../obd/MuestreoPids';
+  GraficoPid,
+  GraficoHistoricoAmpliado,
+  formatearTiempoGrafico,
+} from './GraficoPid';
+import {
+  obtenerMedicionesGraficables,
+  obtenerMedicionGraficaPid,
+  type MedicionGraficaPid,
+} from '../obd/CatalogoPidsMode01';
+import { type MuestraPid, type InformeMuestreoPid } from '../obd/MuestreoPids';
+import {
+  DURACIONES_REGISTRO_MS,
+  frecuenciaSeriePid,
+  type RegistroHistoricoPids,
+} from '../obd/RegistroHistoricoPids';
 
 interface Propiedades {
   pidsCompatibles: readonly string[] | null;
@@ -26,20 +35,143 @@ interface Propiedades {
   mensajeCaptura?: string | null;
   alGuardarCaptura?: () => void;
 }
+const MUESTRAS_VACIAS: readonly MuestraPid[] = [];
+
+// comparto el selector; solo cambia si elegimos una medicion o hasta tres
+const SelectorMediciones = memo(function OpcionesMediciones({
+  disponibles,
+  seleccionados,
+  multiple,
+  deshabilitado,
+  alSeleccionar,
+}: {
+  disponibles: readonly MedicionGraficaPid[];
+  seleccionados: readonly string[];
+  multiple: boolean;
+  deshabilitado: boolean;
+  alSeleccionar: (comando: string) => void;
+}) {
+  const grupos = useMemo(() => {
+    const agrupadas = new Map<string, MedicionGraficaPid[]>();
+    for (const medicion of disponibles) {
+      const grupo = agrupadas.get(medicion.categoria) ?? [];
+      grupo.push(medicion);
+      agrupadas.set(medicion.categoria, grupo);
+    }
+    return [...agrupadas.entries()];
+  }, [disponibles]);
+  const [categoriaAbierta, establecerCategoriaAbierta] = useState<
+    string | null
+  >(disponibles[0]?.categoria ?? null);
+  useEffect(() => {
+    if (
+      categoriaAbierta !== null &&
+      !grupos.some(([categoria]) => categoria === categoriaAbierta)
+    )
+      establecerCategoriaAbierta(grupos[0]?.[0] ?? null);
+  }, [grupos, categoriaAbierta]);
+  return (
+    <View>
+      {grupos.map(([categoria, mediciones]) => {
+        const abierta = categoriaAbierta === categoria;
+        const elegidas = mediciones.filter(item =>
+          seleccionados.includes(item.comando),
+        ).length;
+        return (
+          <View key={categoria} style={estilos.grupo}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Categoría ${categoria}`}
+              accessibilityState={{ expanded: abierta }}
+              onPress={() =>
+                establecerCategoriaAbierta(abierta ? null : categoria)
+              }
+              style={estilos.categoria}
+            >
+              <Text style={estilos.textoOpcion}>
+                {categoria} · {mediciones.length}
+              </Text>
+              <Text style={estilos.secundario}>
+                {elegidas ? `${elegidas} ✓ ` : ''}
+                {abierta ? '−' : '+'}
+              </Text>
+            </Pressable>
+            {abierta ? (
+              <View style={estilos.opciones}>
+                {mediciones.map(medicion => {
+                  const seleccionada = seleccionados.includes(medicion.comando);
+                  const bloquear =
+                    deshabilitado ||
+                    (multiple && !seleccionada && seleccionados.length >= 3);
+                  return (
+                    <Pressable
+                      key={medicion.comando}
+                      accessibilityRole={multiple ? 'checkbox' : 'radio'}
+                      accessibilityLabel={`${
+                        multiple ? 'Registrar' : 'Graficar'
+                      } ${medicion.comando}`}
+                      accessibilityState={{
+                        checked: seleccionada,
+                        disabled: bloquear,
+                      }}
+                      disabled={bloquear}
+                      onPress={() => {
+                        if (!bloquear) alSeleccionar(medicion.comando);
+                      }}
+                      style={[
+                        estilos.opcion,
+                        seleccionada && estilos.seleccionada,
+                        bloquear && estilos.deshabilitado,
+                      ]}
+                    >
+                      <Text style={estilos.textoOpcion}>
+                        {medicion.nombre} · {medicion.comando}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+});
 
 export function PanelGraficoPids(props: Propiedades) {
-  const disponibles = PIDS_GRAFICABLES_INICIALES.filter(pid =>
-    props.pidsCompatibles?.includes(pid),
+  const disponibles = useMemo(
+    () => obtenerMedicionesGraficables(props.pidsCompatibles),
+    [props.pidsCompatibles],
   );
   const [seleccionado, establecerSeleccionado] = useState<string | null>(null);
   const [mostrarCaptura, establecerMostrarCaptura] = useState(false);
-  const primero = disponibles[0] ?? null;
+  const primero = disponibles[0]?.comando ?? null;
   const seleccionDisponible =
-    seleccionado !== null && disponibles.some(pid => pid === seleccionado);
+    seleccionado !== null &&
+    disponibles.some(item => item.comando === seleccionado);
   useEffect(() => {
     if (!seleccionDisponible && !props.enCurso) establecerSeleccionado(primero);
   }, [seleccionDisponible, primero, props.enCurso]);
-  const muestras = props.comandoActivo === seleccionado ? props.muestras : [];
+  const seleccionados = useMemo(
+    () => (seleccionado ? [seleccionado] : []),
+    [seleccionado],
+  );
+  const alLimpiar = props.alLimpiar;
+  const seleccionar = useCallback(
+    (comando: string) => {
+      if (comando !== seleccionado) {
+        alLimpiar();
+        establecerSeleccionado(comando);
+      }
+    },
+    [seleccionado, alLimpiar],
+  );
+  const medicion = seleccionado
+    ? obtenerMedicionGraficaPid(seleccionado)
+    : null;
+  const muestras =
+    props.comandoActivo === seleccionado ? props.muestras : MUESTRAS_VACIAS;
   const ultima = muestras[muestras.length - 1];
   const ultimaCaptura =
     props.informe?.capturas[props.informe.capturas.length - 1];
@@ -52,46 +184,31 @@ export function PanelGraficoPids(props: Propiedades) {
         </Text>
       ) : disponibles.length === 0 ? (
         <Text style={estilos.secundario}>
-          No se detectó ninguno de los cuatro PID de esta prueba.
+          No se detectaron mediciones compatibles para graficar.
         </Text>
       ) : (
-        <View style={estilos.opciones}>
-          {disponibles.map(pid => (
-            <Pressable
-              key={pid}
-              accessibilityRole="radio"
-              accessibilityLabel={`Graficar ${pid}`}
-              accessibilityState={{
-                checked: seleccionado === pid,
-                disabled: props.enCurso || props.deshabilitado,
-              }}
-              disabled={props.enCurso || props.deshabilitado}
-              onPress={() => {
-                if (pid !== seleccionado) {
-                  props.alLimpiar();
-                  establecerSeleccionado(pid);
-                }
-              }}
-              style={[
-                estilos.opcion,
-                seleccionado === pid && estilos.seleccionada,
-              ]}
-            >
-              <Text style={estilos.textoOpcion}>
-                {obtenerDefinicionPidMode01(pid)?.nombre}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <SelectorMediciones
+          disponibles={disponibles}
+          seleccionados={seleccionados}
+          multiple={false}
+          deshabilitado={props.enCurso || props.deshabilitado}
+          alSeleccionar={seleccionar}
+        />
       )}
       <View style={estilos.cabeceraValor}>
+        {medicion ? (
+          <Text style={estilos.textoOpcion}>{medicion.nombre}</Text>
+        ) : null}
         <Text accessibilityLabel="Valor en vivo" style={estilos.valor}>
           {ultima?.valor == null
             ? '—'
             : ultima.valor.toLocaleString('es-CL', {
                 maximumFractionDigits: 2,
               })}
-          <Text style={estilos.unidad}> {ultima?.unidad ?? ''}</Text>
+          <Text style={estilos.unidad}>
+            {' '}
+            {ultima?.unidad ?? medicion?.unidad ?? ''}
+          </Text>
         </Text>
         <Text style={estilos.secundario}>
           {muestras.length && props.frecuenciaHz !== null
@@ -140,6 +257,11 @@ export function PanelGraficoPids(props: Propiedades) {
             Captura {props.informe.comando} · {props.informe.capturas.length} de{' '}
             {props.informe.cantidadConsultas} consultas conservadas
           </Text>
+          {props.informe.medicion ? (
+            <Text style={estilos.secundario}>
+              {props.informe.medicion.nombre} · {props.informe.medicion.unidad}
+            </Text>
+          ) : null}
           {props.informe.cabecerasConfirmadas ? (
             <Text style={estilos.secundario}>Cabeceras activadas · ATH1</Text>
           ) : null}
@@ -185,107 +307,255 @@ export function PanelGraficoPids(props: Propiedades) {
   );
 }
 
-function GraficoPid({ muestras }: { muestras: readonly MuestraPid[] }) {
-  const validas = muestras.filter(
-    (item): item is MuestraPid & { valor: number } => item.valor !== null,
+export interface PropiedadesRegistroHistorico {
+  pidsCompatibles: readonly string[] | null;
+  enCurso: boolean;
+  estado: string;
+  restanteMs: number;
+  deshabilitado: boolean;
+  ocupado: boolean;
+  registro: RegistroHistoricoPids | null;
+  error: string | null;
+  mensajeGuardado: string | null;
+  alIniciar: (comandos: readonly string[], duracionMs: number) => void;
+  alDetener: () => void;
+  alGuardar: () => void;
+}
+
+export function PanelRegistroHistoricoPids(
+  props: PropiedadesRegistroHistorico,
+) {
+  const disponibles = useMemo(
+    () => obtenerMedicionesGraficables(props.pidsCompatibles),
+    [props.pidsCompatibles],
   );
-  if (!validas.length)
-    return (
-      <View style={estilos.vacio}>
-        <Text style={estilos.secundario}>Sin muestras válidas.</Text>
-      </View>
+  const [seleccionados, establecerSeleccionados] = useState<string[]>([]);
+  const [duracion, establecerDuracion] = useState<number>(60000);
+  const [ampliado, establecerAmpliado] = useState<{
+    registro: RegistroHistoricoPids;
+    comando: string;
+  } | null>(null);
+  const cerrarAmpliado = useCallback(() => establecerAmpliado(null), []);
+  useEffect(() => {
+    cerrarAmpliado();
+  }, [props.registro, props.enCurso, cerrarAmpliado]);
+  const serieAmpliada =
+    ampliado?.registro === props.registro && !props.enCurso
+      ? props.registro?.series.find(
+          serie => serie.comando === ampliado?.comando,
+        )
+      : null;
+  useEffect(() => {
+    if (props.enCurso) return;
+    establecerSeleccionados(anteriores => {
+      const compatibles = anteriores.filter(pid =>
+        disponibles.some(disponible => disponible.comando === pid),
+      );
+      return compatibles.length
+        ? compatibles
+        : disponibles.length
+        ? [disponibles[0].comando]
+        : [];
+    });
+  }, [disponibles, props.enCurso]);
+  const seleccionar = useCallback((comando: string) => {
+    establecerSeleccionados(anteriores =>
+      anteriores.includes(comando)
+        ? anteriores.filter(item => item !== comando)
+        : anteriores.length < 3
+        ? [...anteriores, comando]
+        : anteriores,
     );
-  const izquierda = 54,
-    derecha = 320,
-    arriba = 18,
-    abajo = 165;
-  const ultimaMarca = muestras[muestras.length - 1].tiempoTranscurridoMs;
-  const inicio = Math.max(0, ultimaMarca - 60000);
-  const final = Math.max(inicio + 10000, ultimaMarca);
-  const valores = validas.map(item => item.valor);
-  const menor = Math.min(...valores),
-    mayor = Math.max(...valores);
-  const margen = Math.max((mayor - menor) * 0.1, Math.abs(mayor) * 0.02, 0.5);
-  const minimo = menor - margen,
-    maximo = mayor + margen;
-  const x = (tiempo: number) =>
-    izquierda + ((tiempo - inicio) * (derecha - izquierda)) / (final - inicio);
-  const y = (valor: number) =>
-    abajo - ((valor - minimo) * (abajo - arriba)) / (maximo - minimo);
-  let comenzar = true;
-  const segmentos: string[] = [];
-  for (const muestra of muestras) {
-    if (muestra.valor === null) {
-      comenzar = true;
-      continue;
-    }
-    // un error corta la curva, no lo dibujo como cero ni uno dos tramos separados
-    segmentos.push(
-      `${comenzar ? 'M' : 'L'}${x(muestra.tiempoTranscurridoMs).toFixed(2)},${y(
-        muestra.valor,
-      ).toFixed(2)}`,
-    );
-    comenzar = false;
-  }
+  }, []);
+  const ventana = useMemo(
+    () => ({
+      inicio: 0,
+      fin: Math.max(1000, props.registro?.duracionRealMs ?? 1000),
+    }),
+    [props.registro],
+  );
+  const bloquear = props.enCurso || props.deshabilitado;
   return (
-    <View
-      accessibilityLabel="Gráfico de evolución del PID"
-      style={estilos.grafico}
-    >
-      <Svg width="100%" height={205} viewBox="0 0 340 205">
-        {[0, 0.5, 1].map(fraccion => {
-          const valor = minimo + (maximo - minimo) * fraccion;
-          return (
-            <React.Fragment key={fraccion}>
-              <Line
-                x1={izquierda}
-                x2={derecha}
-                y1={y(valor)}
-                y2={y(valor)}
-                stroke="#303034"
-              />
-              <TextoSvg
-                x={izquierda - 7}
-                y={y(valor) + 4}
-                textAnchor="end"
-                fill="#929299"
-                fontSize={10}
-              >
-                {valor.toFixed(1)}
-              </TextoSvg>
-            </React.Fragment>
-          );
-        })}
-        <Path
-          d={segmentos.join(' ')}
-          stroke="#5BE0BB"
-          strokeWidth={2}
-          fill="none"
-        />
-        {validas.map(muestra => (
-          <Circle
-            key={muestra.tiempoTranscurridoMs}
-            cx={x(muestra.tiempoTranscurridoMs)}
-            cy={y(muestra.valor)}
-            r={2}
-            fill="#5BE0BB"
+    <View style={estilos.panel}>
+      <Text style={estilos.titulo}>Registro histórico</Text>
+      {disponibles.length === 0 ? (
+        <Text style={estilos.secundario}>
+          Detecta los PID compatibles para registrar.
+        </Text>
+      ) : (
+        <>
+          <SelectorMediciones
+            disponibles={disponibles}
+            seleccionados={seleccionados}
+            multiple
+            deshabilitado={bloquear}
+            alSeleccionar={seleccionar}
           />
-        ))}
-        {[0, 0.5, 1].map(fraccion => (
-          <TextoSvg
-            key={fraccion}
-            x={izquierda + (derecha - izquierda) * fraccion}
-            y={188}
-            textAnchor={
-              fraccion === 0 ? 'start' : fraccion === 1 ? 'end' : 'middle'
-            }
-            fill="#929299"
-            fontSize={10}
+          {seleccionados.length ? (
+            <Text style={[estilos.secundario, estilos.separacion]}>
+              {seleccionados
+                .map(comando => obtenerMedicionGraficaPid(comando)?.nombre)
+                .join(' · ')}
+            </Text>
+          ) : null}
+          <Text style={[estilos.secundario, estilos.separacion]}>
+            Hasta 3 PID · Duración
+          </Text>
+          <View style={estilos.opciones}>
+            {DURACIONES_REGISTRO_MS.map(ms => (
+              <Pressable
+                key={ms}
+                accessibilityRole="radio"
+                accessibilityLabel={`Duración ${ms / 60000} minutos`}
+                accessibilityState={{
+                  checked: duracion === ms,
+                  disabled: bloquear,
+                }}
+                disabled={bloquear}
+                onPress={() => establecerDuracion(ms)}
+                style={[
+                  estilos.opcion,
+                  duracion === ms && estilos.seleccionada,
+                ]}
+              >
+                <Text style={estilos.textoOpcion}>{ms / 60000} min</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+      {props.enCurso ? (
+        <Text style={[estilos.secundario, estilos.separacion]}>
+          {props.estado === 'preparando'
+            ? 'Preparando escáner…'
+            : props.estado === 'deteniendo' || props.restanteMs === 0
+            ? 'Finalizando consulta…'
+            : `Tiempo restante · ${formatearTiempoGrafico(
+                props.restanteMs,
+                true,
+              )}`}
+        </Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        disabled={
+          props.enCurso
+            ? props.estado === 'deteniendo'
+            : props.deshabilitado || seleccionados.length === 0
+        }
+        onPress={() =>
+          props.enCurso
+            ? props.alDetener()
+            : props.alIniciar([...seleccionados], duracion)
+        }
+        style={[
+          estilos.boton,
+          (props.enCurso
+            ? props.estado === 'deteniendo'
+            : props.deshabilitado || seleccionados.length === 0) &&
+            estilos.deshabilitado,
+        ]}
+      >
+        <Text style={estilos.textoBoton}>
+          {props.enCurso
+            ? props.estado === 'deteniendo'
+              ? 'Deteniendo…'
+              : 'Detener registro'
+            : 'Iniciar registro'}
+        </Text>
+      </Pressable>
+      {props.error ? (
+        <Text accessibilityRole="alert" style={estilos.error}>
+          {props.error}
+        </Text>
+      ) : null}
+      {props.registro && !props.enCurso ? (
+        <View style={estilos.captura}>
+          <Text style={estilos.textoOpcion}>
+            {props.registro.estado === 'completo'
+              ? 'Registro completo'
+              : 'Registro parcial'}{' '}
+            · {formatearTiempoGrafico(props.registro.duracionRealMs)}
+          </Text>
+          <Text style={estilos.secundario}>{props.registro.motivoFin}</Text>
+          {props.registro.series.map(serie => {
+            const frecuencia = frecuenciaSeriePid(serie);
+            return (
+              <View key={serie.comando} style={estilos.serieHistorica}>
+                <View style={estilos.cabeceraHistorica}>
+                  <Text style={[estilos.textoOpcion, estilos.nombreHistorico]}>
+                    {serie.nombre} · {serie.unidad}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ampliar gráfico ${serie.comando}`}
+                    disabled={serie.muestras.length === 0}
+                    onPress={() => {
+                      if (props.registro)
+                        establecerAmpliado({
+                          registro: props.registro,
+                          comando: serie.comando,
+                        });
+                    }}
+                    style={[
+                      estilos.ampliar,
+                      serie.muestras.length === 0 && estilos.deshabilitado,
+                    ]}
+                  >
+                    <Text style={estilos.textoOpcion}>Ampliar</Text>
+                  </Pressable>
+                </View>
+                <Text style={estilos.secundario}>
+                  {
+                    serie.muestras.filter(muestra => muestra.valor !== null)
+                      .length
+                  }{' '}
+                  mediciones
+                  {frecuencia === null
+                    ? ''
+                    : ` · ${frecuencia.toFixed(2)} lecturas/s`}
+                </Text>
+                <GraficoPid
+                  muestras={serie.muestras}
+                  ventana={ventana}
+                  historico
+                  altura={230}
+                />
+                {serie.error ? (
+                  <Text style={estilos.error}>{serie.error}</Text>
+                ) : null}
+              </View>
+            );
+          })}
+          <Pressable
+            accessibilityRole="button"
+            disabled={props.ocupado}
+            onPress={props.alGuardar}
+            style={[
+              estilos.botonSecundario,
+              props.ocupado && estilos.deshabilitado,
+            ]}
           >
-            {((inicio + (final - inicio) * fraccion) / 1000).toFixed(0)} s
-          </TextoSvg>
-        ))}
-      </Svg>
+            <Text style={estilos.textoBoton}>Guardar registro JSON</Text>
+          </Pressable>
+          <Text style={estilos.secundario}>
+            El registro está en memoria. Expórtalo antes de salir o iniciar
+            otro.
+          </Text>
+          {props.mensajeGuardado ? (
+            <Text accessibilityRole="alert" style={estilos.secundario}>
+              {props.mensajeGuardado}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      {serieAmpliada && props.registro ? (
+        <GraficoHistoricoAmpliado
+          serie={serieAmpliada}
+          duracionMs={props.registro.duracionRealMs}
+          alCerrar={cerrarAmpliado}
+        />
+      ) : null}
     </View>
   );
 }
@@ -306,6 +576,14 @@ const estilos = StyleSheet.create({
     marginBottom: 12,
   },
   opciones: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  grupo: { marginBottom: 8 },
+  categoria: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
   opcion: {
     borderWidth: 1,
     borderColor: '#38383D',
@@ -318,8 +596,20 @@ const estilos = StyleSheet.create({
   valor: { color: '#F4F4F5', fontSize: 29, fontWeight: '700' },
   unidad: { color: '#929299', fontSize: 14 },
   secundario: { color: '#929299', fontSize: 12, lineHeight: 18 },
-  grafico: { backgroundColor: '#0D0D0E', borderRadius: 10, marginBottom: 12 },
-  vacio: { minHeight: 205, alignItems: 'center', justifyContent: 'center' },
+  serieHistorica: { marginTop: 12, marginBottom: 8, gap: 8 },
+  cabeceraHistorica: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  nombreHistorico: { flex: 1, fontSize: 14 },
+  ampliar: {
+    borderWidth: 1,
+    borderColor: '#38383D',
+    borderRadius: 10,
+    padding: 10,
+  },
   error: { color: '#FFB4AB', fontSize: 12, lineHeight: 18, marginBottom: 8 },
   boton: {
     backgroundColor: '#10A37F',
@@ -331,6 +621,7 @@ const estilos = StyleSheet.create({
   textoBoton: { color: '#FFFFFF', fontWeight: '700' },
   deshabilitado: { opacity: 0.4 },
   captura: { marginTop: 16, gap: 8 },
+  separacion: { marginTop: 12, marginBottom: 8 },
   botonSecundario: {
     borderColor: '#38383D',
     borderWidth: 1,

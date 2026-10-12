@@ -16,10 +16,7 @@ import {
 } from './ServicioBle';
 import { combinarAnuncios } from './PerfilesEscaner';
 import { useEscaneresGuardados } from './usarEscaneresGuardados';
-import {
-  identificarElm,
-  verificarCanalesElm,
-} from './VerificacionElm';
+import { identificarElm, verificarCanalesElm } from './VerificacionElm';
 import { ServicioElm327 } from '../obd/ServicioElm327';
 import type {
   EntradaConsola,
@@ -35,6 +32,9 @@ import type {
 
 const MENSAJE_SIN_VERIFICAR = 'Sin verificar en esta conexión.';
 const ContextoEscanerObd = createContext<SesionEscanerObd | null>(null);
+const ContextoRegistrosEscaner = createContext<
+  readonly EntradaConsola[] | null
+>(null);
 
 export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   const [servicioBle] = useState(() => new ServicioBle());
@@ -77,6 +77,29 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
   const [entradasConsola, establecerEntradasConsola] = useState<
     EntradaConsola[]
   >([]);
+  const registrosPendientes = useRef<EntradaConsola[]>([]);
+  const publicacionRegistros = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const registrosActivos = useRef(true);
+
+  useEffect(() => {
+    registrosActivos.current = true;
+    return () => {
+      registrosActivos.current = false;
+      if (publicacionRegistros.current !== null)
+        clearTimeout(publicacionRegistros.current);
+      publicacionRegistros.current = null;
+    };
+  }, []);
+
+  const limpiarRegistros = useCallback(() => {
+    if (publicacionRegistros.current !== null)
+      clearTimeout(publicacionRegistros.current);
+    publicacionRegistros.current = null;
+    registrosPendientes.current = [];
+    establecerEntradasConsola([]);
+  }, []);
 
   const dispositivoRef = useRef<InformacionDispositivoBle | null>(null);
   const escrituraRef = useRef<InformacionCaracteristicaGatt | null>(null);
@@ -106,16 +129,24 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
 
   const agregarRegistro = useCallback(
     (nivel: EntradaConsola['nivel'], mensaje: string) => {
+      if (!registrosActivos.current) return;
       const entrada: EntradaConsola = {
         id: ++secuenciaRegistro.current,
         marcaTiempo: new Date().toLocaleTimeString(),
         nivel,
         mensaje,
       };
-      establecerEntradasConsola(anteriores => [
-        ...anteriores.slice(-199),
-        entrada,
-      ]);
+      registrosPendientes.current.push(entrada);
+      if (registrosPendientes.current.length > 200)
+        registrosPendientes.current.shift();
+      // junto los eventos antes de mostrarlos, sin retrasar la recepcion del escaner
+      if (publicacionRegistros.current === null) {
+        publicacionRegistros.current = setTimeout(() => {
+          publicacionRegistros.current = null;
+          if (registrosActivos.current)
+            establecerEntradasConsola([...registrosPendientes.current]);
+        }, 500);
+      }
     },
     [],
   );
@@ -752,7 +783,6 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       claveSuscripcion,
       conexionEnCurso,
       mensajeVerificacion,
-      entradasConsola,
       prepararBluetooth,
       iniciarEscaneo,
       detenerEscaneo,
@@ -772,7 +802,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       marcarError,
       marcarConectado: () => establecerEstadoConexion('conectado'),
       agregarRegistro,
-      limpiarRegistros: () => establecerEntradasConsola([]),
+      limpiarRegistros,
     }),
     [
       estadoPermisos,
@@ -802,7 +832,7 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
       elegirEscritura,
       elegirNotificacion,
       enviarComando,
-      entradasConsola,
+      limpiarRegistros,
       escrituraSeleccionada,
       estadoBluetooth,
       estadoConexion,
@@ -819,7 +849,9 @@ export function ProveedorEscanerObd({ children }: PropsWithChildren) {
 
   return (
     <ContextoEscanerObd.Provider value={valor}>
-      {children}
+      <ContextoRegistrosEscaner.Provider value={entradasConsola}>
+        {children}
+      </ContextoRegistrosEscaner.Provider>
     </ContextoEscanerObd.Provider>
   );
 }
@@ -832,6 +864,12 @@ export function useSesionEscanerObd(): SesionEscanerObd {
     );
   }
   return contexto;
+}
+
+export function useRegistrosEscanerObd(): readonly EntradaConsola[] {
+  const registros = useContext(ContextoRegistrosEscaner);
+  if (!registros) throw new Error('La consola necesita ProveedorEscanerObd.');
+  return registros;
 }
 
 function clavePara(elemento: InformacionCaracteristicaGatt): string {

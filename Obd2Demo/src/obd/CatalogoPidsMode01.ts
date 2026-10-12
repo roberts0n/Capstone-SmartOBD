@@ -8,6 +8,7 @@ import type {
   ContextoFormulaPid,
   ContextoLecturaMode01,
   DefinicionPidMode01,
+  CategoriaPid,
 } from './mode01/TiposPid';
 export type {
   DefinicionPidMode01,
@@ -24,6 +25,82 @@ export const CATALOGO_PIDS_MODE_01: readonly DefinicionPidMode01[] = [
 const DEFINICIONES_POR_COMANDO = new Map(
   CATALOGO_PIDS_MODE_01.map(definicion => [definicion.comando, definicion]),
 );
+
+export interface MedicionGraficaPid {
+  comando: string;
+  nombre: string;
+  categoria: CategoriaPid;
+  unidad: string;
+  campo: string | null;
+}
+
+export function obtenerMedicionGraficaPid(
+  comando: string,
+): MedicionGraficaPid | null {
+  const definicion = obtenerDefinicionPidMode01(comando);
+  if (!definicion?.grafica) return null;
+  return {
+    comando: definicion.comando,
+    nombre: definicion.grafica.nombre ?? definicion.nombre,
+    categoria: definicion.categoria,
+    unidad: definicion.grafica.unidad,
+    campo: definicion.grafica.campo ?? null,
+  };
+}
+
+// dejo primero las mediciones que ya probamos, sin otra lista de pid permitidos
+const ORDEN_GRAFICAS = ['010C', '0104', '010B', '0105'];
+const MEDICIONES_GRAFICABLES = CATALOGO_PIDS_MODE_01.flatMap(definicion => {
+  const medicion = obtenerMedicionGraficaPid(definicion.comando);
+  return medicion ? [medicion] : [];
+}).sort((a, b) => {
+  const prioridad = (comando: string) => {
+    const indice = ORDEN_GRAFICAS.indexOf(comando);
+    return indice < 0 ? ORDEN_GRAFICAS.length : indice;
+  };
+  return (
+    prioridad(a.comando) - prioridad(b.comando) ||
+    a.comando.localeCompare(b.comando)
+  );
+});
+
+export function obtenerMedicionesGraficables(
+  pidsCompatibles: readonly string[] | null,
+): readonly MedicionGraficaPid[] {
+  return MEDICIONES_GRAFICABLES.filter(medicion =>
+    pidsCompatibles?.includes(medicion.comando),
+  );
+}
+
+// aprovecho la traduccion habitual y saco solo la magnitud que dibujaremos
+export function extraerMedicionGrafica(
+  comando: string,
+  traduccion: TraduccionObd | null,
+): TraduccionObd {
+  const medicion = obtenerMedicionGraficaPid(comando);
+  if (!medicion)
+    return {
+      valor: null,
+      unidad: null,
+      error: 'Ese PID no tiene una medición gráfica definida.',
+    };
+  const valorTraducido = traduccion?.valor;
+  const valor =
+    typeof valorTraducido === 'number'
+      ? valorTraducido
+      : medicion.campo && valorTraducido && typeof valorTraducido === 'object'
+      ? (valorTraducido as Record<string, unknown>)[medicion.campo]
+      : null;
+  if (traduccion?.error || typeof valor !== 'number' || !Number.isFinite(valor))
+    return {
+      valor: null,
+      unidad: medicion.unidad,
+      error:
+        traduccion?.error ??
+        `No se recibió un valor numérico válido para ${medicion.nombre}.`,
+    };
+  return { valor, unidad: medicion.unidad, error: null };
+}
 
 export function obtenerDefinicionPidMode01(
   comando: string,

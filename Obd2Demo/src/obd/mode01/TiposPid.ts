@@ -17,12 +17,19 @@ export interface ResultadoPid {
   unidad: string | null;
 }
 
+export interface DefinicionGraficaPid {
+  nombre?: string;
+  unidad: string;
+  campo?: string;
+}
+
 export interface DefinicionPidMode01 {
   comando: string;
   nombre: string;
   categoria: CategoriaPid;
   bytesEsperados: number;
   bytesMaximos?: number;
+  grafica?: DefinicionGraficaPid;
   interpretar: (
     datos: readonly number[],
     contexto?: ContextoFormulaPid,
@@ -51,12 +58,14 @@ export function simple(
   bytesEsperados: number,
   unidad: string,
   calcular: (datos: readonly number[], contexto: ContextoFormulaPid) => number,
+  graficable = categoria !== 'Estados y configuracion',
 ): DefinicionPidMode01 {
   return {
     comando: `01${hex(pid)}`,
     nombre,
     categoria,
     bytesEsperados,
+    ...(graficable ? { grafica: { unidad } } : {}),
     interpretar: (datos, contexto = {}) => ({
       valor: redondear(calcular(datos, contexto)),
       unidad,

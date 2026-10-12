@@ -1,5 +1,6 @@
 import {
-  obtenerDefinicionPidMode01,
+  obtenerMedicionGraficaPid,
+  extraerMedicionGrafica,
   traducirPidMode01,
   type ContextoLecturaMode01,
 } from './CatalogoPidsMode01';
@@ -10,14 +11,6 @@ import type {
   TraduccionObd,
 } from '../tipos/ble';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
-
-// parto con estas cuatro mediciones, sin asumir que todos los autos las entregan
-export const PIDS_GRAFICABLES_INICIALES = [
-  '010C',
-  '0104',
-  '010B',
-  '0105',
-] as const;
 
 export interface MuestraPid {
   comando: string;
@@ -53,6 +46,7 @@ export interface InformeMuestreoPid {
   inicio: string;
   fin: string | null;
   comando: string;
+  medicion?: { nombre: string; unidad: string; campo: string | null };
   estado: 'en-curso' | 'detenido' | 'error';
   error: string | null;
   mensaje: string | null;
@@ -127,9 +121,8 @@ export async function muestrearPid(
   opciones: OpcionesMuestreoPid,
 ): Promise<void> {
   const comando = opciones.comando.trim().toUpperCase();
-  const definicion = obtenerDefinicionPidMode01(comando);
-  if (!PIDS_GRAFICABLES_INICIALES.some(pid => pid === comando) || !definicion)
-    throw new Error('Ese PID no forma parte de la selección gráfica inicial.');
+  if (!obtenerMedicionGraficaPid(comando))
+    throw new Error('Ese PID no tiene una medición gráfica definida.');
   if (!opciones.contexto.pidsSoportados.includes(comando))
     throw new Error('El vehículo no declara compatible ese PID.');
   const intervalo = opciones.intervaloMs ?? 500;
@@ -196,40 +189,18 @@ export async function muestrearPid(
       );
       throw capturado;
     }
-    const respuestas = extraerRespuestasPid(
-      respuesta.textoAscii,
-      Number.parseInt(comando.slice(2), 16),
-    );
     let traduccion: TraduccionObd | null;
     try {
-      if (!seleccion) {
-        const inicial = elegirOrigenPid(
-          comando,
-          respuesta.textoAscii,
-          contexto,
-        );
-        traduccion = inicial.traduccion;
-        seleccion = inicial.seleccion;
-        if (seleccion) opciones.alOrigen?.(seleccion);
-      } else if (
-        !respuestas.map(item => item.cabecera).includes(seleccion.cabecera)
-      ) {
-        traduccion = {
-          valor: null,
-          unidad: null,
-          error:
-            seleccion.cabecera === null
-              ? 'No llegó una medición del origen sin cabecera seleccionado. No se sustituye por otra ECU.'
-              : `No respondió la ECU ${seleccion.cabecera} al PID solicitado. No se sustituye por otra ECU.`,
-        };
-      } else {
-        traduccion = traducirPidMode01(
-          comando,
-          respuesta.textoAscii,
-          contexto,
-          { cabecera: seleccion.cabecera },
-        );
-      }
+      const lectura = interpretarMedicionPid(
+        comando,
+        respuesta.textoAscii,
+        contexto,
+        seleccion,
+      );
+      traduccion = lectura.traduccion;
+      if (!seleccion && lectura.seleccion)
+        opciones.alOrigen?.(lectura.seleccion);
+      seleccion = lectura.seleccion;
     } catch (capturado) {
       registrar(
         capturado instanceof Error ? capturado.message : String(capturado),
@@ -262,12 +233,44 @@ export async function muestrearPid(
   }
 }
 
-function esMedicionValida(traduccion: TraduccionObd | null): boolean {
+export function esMedicionValida(traduccion: TraduccionObd | null): boolean {
   return (
     !traduccion?.error &&
     typeof traduccion?.valor === 'number' &&
     Number.isFinite(traduccion.valor)
   );
+}
+
+// comparto la eleccion de origen entre la lectura en vivo y el registro historico
+export function interpretarMedicionPid(
+  comando: string,
+  cruda: string,
+  contexto: ContextoLecturaMode01,
+  seleccion: SeleccionOrigenPid | null,
+): { seleccion: SeleccionOrigenPid | null; traduccion: TraduccionObd | null } {
+  if (!seleccion) return elegirOrigenPid(comando, cruda, contexto);
+  const respuestas = extraerRespuestasPid(
+    cruda,
+    Number.parseInt(comando.slice(2), 16),
+  );
+  return {
+    seleccion,
+    traduccion: respuestas.some(item => item.cabecera === seleccion.cabecera)
+      ? extraerMedicionGrafica(
+          comando,
+          traducirPidMode01(comando, cruda, contexto, {
+            cabecera: seleccion.cabecera,
+          }),
+        )
+      : {
+          valor: null,
+          unidad: null,
+          error:
+            seleccion.cabecera === null
+              ? 'No llegó una medición del origen sin cabecera seleccionado. No se sustituye por otra ECU.'
+              : `No respondió la ECU ${seleccion.cabecera} al PID solicitado. No se sustituye por otra ECU.`,
+        },
+  };
 }
 
 function elegirOrigenPid(
@@ -282,7 +285,10 @@ function elegirOrigenPid(
   const origenes = [...new Set(respuestas.map(item => item.cabecera))];
   const evaluadas = origenes.map(cabecera => ({
     cabecera,
-    traduccion: traducirPidMode01(comando, cruda, contexto, { cabecera }),
+    traduccion: extraerMedicionGrafica(
+      comando,
+      traducirPidMode01(comando, cruda, contexto, { cabecera }),
+    ),
   }));
   const validas = evaluadas.filter(item => esMedicionValida(item.traduccion));
   // prefiero 7e8 cuando es valido, no la primera respuesta que alcanzo a llegar
@@ -304,21 +310,22 @@ function elegirOrigenPid(
     traduccion: elegida
       ? elegida.traduccion
       : (evaluadas.find(item => item.cabecera === '7E8') ?? evaluadas[0])
-          ?.traduccion ?? traducirPidMode01(comando, cruda, contexto),
+          ?.traduccion ??
+        extraerMedicionGrafica(
+          comando,
+          traducirPidMode01(comando, cruda, contexto),
+        ),
   };
 }
 
-function unidadPid(comando: string): string {
-  return comando === '010C'
-    ? 'rpm'
-    : comando === '0104'
-    ? '%'
-    : comando === '010B'
-    ? 'kPa'
-    : '°C';
+export function unidadPid(comando: string): string {
+  return obtenerMedicionGraficaPid(comando)?.unidad ?? '';
 }
 
-function esperarMuestreo(ms: number, signal: AbortSignal): Promise<void> {
+export function esperarMuestreo(
+  ms: number,
+  signal: AbortSignal,
+): Promise<void> {
   if (signal.aborted || ms <= 0) return Promise.resolve();
   return new Promise(resolver => {
     const terminar = () => {

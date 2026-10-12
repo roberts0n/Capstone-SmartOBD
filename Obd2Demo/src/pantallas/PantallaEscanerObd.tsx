@@ -1,4 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import {
   Alert,
   Pressable,
@@ -23,12 +33,21 @@ import {
 } from '../obd/AnalisisRespuestaObd';
 import { calcularMetricasFlujoObd } from '../obd/MetricasFlujoObd';
 import { PanelPidsCompatibles } from '../componentes/PanelPidsCompatibles';
-import { PanelGraficoPids } from '../componentes/PanelGraficoPids';
+import {
+  PanelGraficoPids,
+  PanelRegistroHistoricoPids,
+} from '../componentes/PanelGraficoPids';
+import {
+  nombreRegistroPids,
+  useRegistroHistoricoPids,
+} from '../obd/RegistroHistoricoPids';
 import { useMuestreoPids } from '../obd/usarMuestreoPids';
 import { nombreInformeMuestreo } from '../obd/MuestreoPids';
 import { guardarInformeJson } from '../informes/guardarInformeDtc';
 import { useProteccionSalida } from '../componentes/ProteccionSalida';
 import { useCatalogoVehiculo } from '../obd/mode01/usarCatalogoVehiculo';
+import type { ContextoLecturaMode01 } from '../obd/CatalogoPidsMode01';
+import type { SesionEscanerObd } from '../escaner/TiposSesionEscaner';
 import {
   ejecutarDeteccionPids,
   ErrorEjecucionDeteccionPids,
@@ -46,7 +65,10 @@ import type {
   ResultadoJsonObd,
 } from '../tipos/ble';
 import { obtenerTiempoMs } from '../utilidades/medicionTiempo';
-import { useSesionEscanerObd } from '../escaner/ContextoEscanerObd';
+import {
+  useRegistrosEscanerObd,
+  useSesionEscanerObd,
+} from '../escaner/ContextoEscanerObd';
 
 // secuencia minima recomendada para dejar ELM327 en un formato de respuesta
 // predecible: sin eco ni saltos de linea, con espacios para diagnostico,
@@ -91,9 +113,9 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
   };
   const pruebaDtc = usePruebaDtc();
   const [guardadoEnCurso, establecerGuardadoEnCurso] = useState(false);
-  const [mensajeCaptura, establecerMensajeCaptura] = useState<string | null>(
-    null,
-  );
+  const [lecturaEnCurso, establecerLecturaEnCurso] = useState(false);
+  const lectura = useRef<ControlLecturaEnVivo | null>(null);
+  const historico = useRef<ControlLecturaEnVivo | null>(null);
   const [mostrarHerramientasAvanzadas, establecerMostrarHerramientasAvanzadas] =
     useState(false);
   const {
@@ -110,7 +132,6 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     claveSuscripcion,
     conexionEnCurso,
     mensajeVerificacion,
-    entradasConsola,
     agregarRegistro,
     establecerMensajeVerificacion,
   } = sesionEscaner;
@@ -128,16 +149,23 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     establecer: establecerCatalogoVehiculo,
   } = useCatalogoVehiculo();
   const [comandoEnCurso, establecerComandoEnCurso] = useState(false);
-  const muestreo = useMuestreoPids(sesionEscaner);
+  const cambiarLectura = useCallback((enCurso: boolean) => {
+    establecerLecturaEnCurso(enCurso);
+    establecerComandoEnCurso(enCurso);
+  }, []);
+  const detenerLectura = useCallback(() => {
+    lectura.current?.detener();
+    historico.current?.detener();
+  }, []);
   const solicitarSalida = useProteccionSalida({
     ocupado:
       conexionEnCurso ||
       comandoEnCurso ||
       guardadoEnCurso ||
       pruebaDtc.guardando,
-    cancelar: muestreo.enCurso ? () => muestreo.detener() : undefined,
+    cancelar: lecturaEnCurso ? detenerLectura : undefined,
     etiquetaCancelar: 'Detener lectura',
-    mensajeOcupado: muestreo.enCurso
+    mensajeOcupado: lecturaEnCurso
       ? 'Puedes detener la lectura y salir cuando termine el comando actual.'
       : undefined,
   });
@@ -150,63 +178,6 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
     // la compatibilidad y sus escalas no pasan de una conexion a otra
     limpiarPids();
   }, [versionActual, limpiarPids]);
-
-  async function iniciarMuestreo(comando: string) {
-    if (
-      bloqueoComando.current ||
-      bloqueoConexion.current ||
-      !contextoPids.current
-    )
-      return;
-    bloqueoComando.current = true;
-    establecerComandoEnCurso(true);
-    establecerMensajeCaptura(null);
-    try {
-      await muestreo.iniciar(comando, contextoPids.current, actualizado => {
-        // conservo las escalas con cabecera para las consultas que vengan despues
-        contextoPids.current = actualizado;
-      });
-    } finally {
-      bloqueoComando.current = false;
-      establecerComandoEnCurso(false);
-    }
-  }
-
-  async function guardarCapturaMuestreo() {
-    const informe = muestreo.informe;
-    if (
-      !informe ||
-      muestreo.enCurso ||
-      bloqueoComando.current ||
-      bloqueoConexion.current ||
-      guardadoEnCurso ||
-      pruebaDtc.guardando
-    )
-      return;
-    bloqueoComando.current = true;
-    establecerGuardadoEnCurso(true);
-    establecerMensajeCaptura(null);
-    try {
-      const uri = await guardarInformeJson(
-        nombreInformeMuestreo(informe),
-        informe,
-      );
-      establecerMensajeCaptura(
-        uri
-          ? 'Captura JSON guardada.'
-          : 'Guardado cancelado. La captura sigue disponible.',
-      );
-    } catch (capturado) {
-      establecerMensajeCaptura(
-        capturado instanceof Error
-          ? capturado.message
-          : 'No se pudo guardar la captura.',
-      );
-    } finally {
-      bloqueoComando.current = false;
-      establecerGuardadoEnCurso(false);
-    }
-  }
 
   // GATT no indica cual canal pertenece a ELM327. Se muestran como candidatos
   // todas las caracteristicas que tecnicamente permiten TX o RX.
@@ -1103,23 +1074,31 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         </>
       ) : null}
 
-      <PanelGraficoPids
+      <LecturaEnVivo
+        ref={lectura}
+        sesion={sesionEscaner}
         pidsCompatibles={deteccionPids?.pidsInterpretables ?? null}
-        comandoActivo={muestreo.comando}
-        muestras={muestreo.muestras}
-        enCurso={muestreo.enCurso}
-        deteniendo={muestreo.deteniendo}
+        contexto={contextoPids}
+        bloqueoComando={bloqueoComando}
+        bloqueoConexion={bloqueoConexion}
         deshabilitado={interfazOcupada || !sesionEscaner.estaPreparado()}
-        frecuenciaHz={muestreo.frecuenciaHz}
-        error={muestreo.error}
-        mensaje={muestreo.mensaje}
-        alIniciar={comando => iniciarMuestreo(comando)}
-        alDetener={() => muestreo.detener()}
-        alLimpiar={muestreo.limpiar}
-        informe={muestreo.informe}
-        capturaOcupada={interfazOcupada}
-        mensajeCaptura={mensajeCaptura}
-        alGuardarCaptura={() => guardarCapturaMuestreo()}
+        ocupado={interfazOcupada}
+        guardadoDtc={pruebaDtc.guardando}
+        alCambiarLectura={cambiarLectura}
+        alCambiarGuardado={establecerGuardadoEnCurso}
+      />
+      <RegistroHistoricoEnPantalla
+        ref={historico}
+        sesion={sesionEscaner}
+        pidsCompatibles={deteccionPids?.pidsInterpretables ?? null}
+        contexto={contextoPids}
+        bloqueoComando={bloqueoComando}
+        bloqueoConexion={bloqueoConexion}
+        deshabilitado={interfazOcupada || !sesionEscaner.estaPreparado()}
+        ocupado={interfazOcupada}
+        guardadoDtc={pruebaDtc.guardando}
+        alCambiarLectura={cambiarLectura}
+        alCambiarGuardado={establecerGuardadoEnCurso}
       />
 
       <Seccion
@@ -1311,37 +1290,282 @@ export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
         </Text>
       </Seccion>
 
-      <Seccion
-        titulo="Registro técnico"
-        descripcion="Eventos de comunicación útiles para revisar una conexión."
-      >
-        <View style={estilos.cabeceraConsola}>
-          <Text style={estilos.ayuda}>{entradasConsola.length} eventos</Text>
-          <BotonAccion
-            etiqueta="Limpiar"
-            onPress={sesionEscaner.limpiarRegistros}
-            compacto
-          />
-        </View>
-        <View style={estilos.consola}>
-          {entradasConsola.length === 0 ? (
-            <Text style={estilos.textoConsola}>Sin eventos todavía.</Text>
-          ) : (
-            entradasConsola.map(entrada => (
-              <Text
-                key={entrada.id}
-                style={[estilos.textoConsola, colorConsola(entrada.nivel)]}
-              >
-                [{entrada.marcaTiempo}] {entrada.nivel.toUpperCase()} ·{' '}
-                {entrada.mensaje}
-              </Text>
-            ))
-          )}
-        </View>
-      </Seccion>
+      <ConsolaEscaner />
     </ScrollView>
   );
 }
+
+interface ControlLecturaEnVivo {
+  detener: () => void;
+}
+
+interface PropiedadesLecturaEnVivo {
+  sesion: SesionEscanerObd;
+  pidsCompatibles: readonly string[] | null;
+  contexto: RefObject<ContextoLecturaMode01 | undefined>;
+  bloqueoComando: RefObject<boolean>;
+  bloqueoConexion: RefObject<boolean>;
+  deshabilitado: boolean;
+  ocupado: boolean;
+  guardadoDtc: boolean;
+  alCambiarLectura: (enCurso: boolean) => void;
+  alCambiarGuardado: (enCurso: boolean) => void;
+}
+
+// dejo las muestras aqui para que no actualicen los comandos ni la consola
+const LecturaEnVivo = memo(
+  forwardRef<ControlLecturaEnVivo, PropiedadesLecturaEnVivo>(
+    function BloqueLecturaEnVivo(props, ref) {
+      const muestreo = useMuestreoPids(props.sesion);
+      const [guardando, establecerGuardando] = useState(false);
+      const [mensajeCaptura, establecerMensajeCaptura] = useState<
+        string | null
+      >(null);
+      const montado = useRef(true);
+      useEffect(() => {
+        montado.current = true;
+        return () => {
+          montado.current = false;
+        };
+      }, []);
+      useImperativeHandle(ref, () => ({ detener: muestreo.detener }), [
+        muestreo.detener,
+      ]);
+
+      async function iniciar(comando: string) {
+        if (
+          props.deshabilitado ||
+          props.guardadoDtc ||
+          props.bloqueoComando.current ||
+          props.bloqueoConexion.current ||
+          !props.contexto.current
+        )
+          return;
+        props.bloqueoComando.current = true;
+        props.alCambiarLectura(true);
+        establecerMensajeCaptura(null);
+        try {
+          await muestreo.iniciar(
+            comando,
+            props.contexto.current,
+            actualizado => {
+              props.contexto.current = actualizado;
+            },
+          );
+        } finally {
+          props.bloqueoComando.current = false;
+          if (montado.current) props.alCambiarLectura(false);
+        }
+      }
+
+      async function guardar() {
+        const informe = muestreo.informe;
+        if (
+          !informe ||
+          muestreo.enCurso ||
+          props.ocupado ||
+          props.bloqueoComando.current ||
+          props.bloqueoConexion.current ||
+          guardando ||
+          props.guardadoDtc
+        )
+          return;
+        props.bloqueoComando.current = true;
+        establecerGuardando(true);
+        props.alCambiarGuardado(true);
+        establecerMensajeCaptura(null);
+        try {
+          const uri = await guardarInformeJson(
+            nombreInformeMuestreo(informe),
+            informe,
+          );
+          if (montado.current)
+            establecerMensajeCaptura(
+              uri
+                ? 'Captura JSON guardada.'
+                : 'Guardado cancelado. La captura sigue disponible.',
+            );
+        } catch (capturado) {
+          if (montado.current)
+            establecerMensajeCaptura(
+              capturado instanceof Error
+                ? capturado.message
+                : 'No se pudo guardar la captura.',
+            );
+        } finally {
+          props.bloqueoComando.current = false;
+          if (montado.current) {
+            establecerGuardando(false);
+            props.alCambiarGuardado(false);
+          }
+        }
+      }
+
+      return (
+        <PanelGraficoPids
+          pidsCompatibles={props.pidsCompatibles}
+          comandoActivo={muestreo.comando}
+          muestras={muestreo.muestras}
+          enCurso={muestreo.enCurso}
+          deteniendo={muestreo.deteniendo}
+          deshabilitado={props.deshabilitado}
+          frecuenciaHz={muestreo.frecuenciaHz}
+          error={muestreo.error}
+          mensaje={muestreo.mensaje}
+          alIniciar={iniciar}
+          alDetener={muestreo.detener}
+          alLimpiar={muestreo.limpiar}
+          informe={muestreo.informe}
+          capturaOcupada={guardando || props.guardadoDtc || props.ocupado}
+          mensajeCaptura={mensajeCaptura}
+          alGuardarCaptura={guardar}
+        />
+      );
+    },
+  ),
+);
+
+const RegistroHistoricoEnPantalla = memo(
+  forwardRef<ControlLecturaEnVivo, PropiedadesLecturaEnVivo>(
+    function BloqueRegistroHistorico(props, ref) {
+      const historico = useRegistroHistoricoPids(props.sesion);
+      const [guardando, establecerGuardando] = useState(false);
+      const [mensajeGuardado, establecerMensajeGuardado] = useState<
+        string | null
+      >(null);
+      const montado = useRef(true);
+      useEffect(() => {
+        montado.current = true;
+        return () => {
+          montado.current = false;
+        };
+      }, []);
+      useImperativeHandle(ref, () => ({ detener: historico.detener }), [
+        historico.detener,
+      ]);
+      async function iniciar(comandos: readonly string[], duracion: number) {
+        if (
+          props.deshabilitado ||
+          props.guardadoDtc ||
+          props.bloqueoComando.current ||
+          props.bloqueoConexion.current ||
+          !props.contexto.current
+        )
+          return;
+        props.bloqueoComando.current = true;
+        props.alCambiarLectura(true);
+        establecerMensajeGuardado(null);
+        try {
+          await historico.iniciar(
+            comandos,
+            duracion,
+            props.contexto.current,
+            actualizado => {
+              props.contexto.current = actualizado;
+            },
+          );
+        } finally {
+          props.bloqueoComando.current = false;
+          if (montado.current) props.alCambiarLectura(false);
+        }
+      }
+      async function guardar() {
+        if (
+          !historico.registro ||
+          historico.enCurso ||
+          props.ocupado ||
+          props.guardadoDtc ||
+          guardando ||
+          props.bloqueoComando.current ||
+          props.bloqueoConexion.current
+        )
+          return;
+        props.bloqueoComando.current = true;
+        props.alCambiarGuardado(true);
+        establecerGuardando(true);
+        establecerMensajeGuardado(null);
+        try {
+          const uri = await guardarInformeJson(
+            nombreRegistroPids(historico.registro),
+            historico.registro,
+          );
+          if (montado.current)
+            establecerMensajeGuardado(
+              uri
+                ? 'Registro JSON guardado.'
+                : 'Guardado cancelado. El registro sigue disponible.',
+            );
+        } catch (error) {
+          if (montado.current)
+            establecerMensajeGuardado(
+              error instanceof Error
+                ? error.message
+                : 'No se pudo guardar el registro.',
+            );
+        } finally {
+          props.bloqueoComando.current = false;
+          if (montado.current) {
+            establecerGuardando(false);
+            props.alCambiarGuardado(false);
+          }
+        }
+      }
+      return (
+        <PanelRegistroHistoricoPids
+          pidsCompatibles={props.pidsCompatibles}
+          enCurso={historico.enCurso}
+          estado={historico.estado}
+          restanteMs={historico.restanteMs}
+          deshabilitado={props.deshabilitado}
+          ocupado={props.ocupado || props.guardadoDtc || guardando}
+          registro={historico.registro}
+          error={historico.error}
+          mensajeGuardado={mensajeGuardado}
+          alIniciar={iniciar}
+          alDetener={historico.detener}
+          alGuardar={guardar}
+        />
+      );
+    },
+  ),
+);
+
+const ConsolaEscaner = memo(function MostrarConsolaEscaner() {
+  const entradas = useRegistrosEscanerObd();
+  const { limpiarRegistros } = useSesionEscanerObd();
+  return (
+    <Seccion
+      titulo="Registro técnico"
+      descripcion="Eventos de comunicación útiles para revisar una conexión."
+    >
+      <View style={estilos.cabeceraConsola}>
+        <Text style={estilos.ayuda}>{entradas.length} eventos</Text>
+        <BotonAccion etiqueta="Limpiar" onPress={limpiarRegistros} compacto />
+      </View>
+      <View style={estilos.consola}>
+        {entradas.length === 0 ? (
+          <Text style={estilos.textoConsola}>Sin eventos todavía.</Text>
+        ) : (
+          entradas.map(entrada => (
+            <LineaConsola key={entrada.id} entrada={entrada} />
+          ))
+        )}
+      </View>
+    </Seccion>
+  );
+});
+
+const LineaConsola = memo(function MostrarLineaConsola({
+  entrada,
+}: {
+  entrada: EntradaConsola;
+}) {
+  return (
+    <Text style={[estilos.textoConsola, colorConsola(entrada.nivel)]}>
+      [{entrada.marcaTiempo}] {entrada.nivel.toUpperCase()} · {entrada.mensaje}
+    </Text>
+  );
+});
 
 // Presenta una linea logica sin mezclarla con fragmentos BLE vecinos.
 function DetalleLineaObd({ linea }: { linea: DiagnosticoLineaObd }) {

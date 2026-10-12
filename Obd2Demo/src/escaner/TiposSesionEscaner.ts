@@ -59,7 +59,6 @@ export interface SesionEscanerObd {
   claveSuscripcion: string | null;
   conexionEnCurso: boolean;
   mensajeVerificacion: string;
-  entradasConsola: EntradaConsola[];
   prepararBluetooth: () => Promise<boolean>;
   iniciarEscaneo: () => Promise<void>;
   detenerEscaneo: () => void;

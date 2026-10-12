@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { SesionEscanerObd } from '../escaner/TiposSesionEscaner';
 import type { ContextoLecturaMode01 } from './CatalogoPidsMode01';
-import { obtenerConsultasConfiguracion } from './CatalogoPidsMode01';
+import {
+  obtenerConsultasConfiguracion,
+  obtenerMedicionGraficaPid,
+} from './CatalogoPidsMode01';
 import {
   crearCapturaConsultaPid,
   muestrearPid,
@@ -34,6 +37,7 @@ const VISTA_INICIAL: VistaMuestreo = {
 
 export function useMuestreoPids(sesion: SesionEscanerObd) {
   const [vista, establecerVista] = useState<VistaMuestreo>(VISTA_INICIAL);
+  const informeActual = useRef<InformeMuestreoPid | null>(null);
   const montado = useRef(true);
   const control = useRef<{
     abortar: AbortController;
@@ -73,6 +77,16 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
     alPrepararContexto?: (actualizado: ContextoLecturaMode01) => void,
   ): Promise<void> {
     if (control.current) return;
+    const medicion = obtenerMedicionGraficaPid(comando);
+    if (!medicion || !contexto.pidsSoportados.includes(medicion.comando)) {
+      establecerVista(anterior => ({
+        ...anterior,
+        estado: 'error',
+        error: 'Ese PID no está disponible para graficar en este vehículo.',
+      }));
+      return;
+    }
+    comando = medicion.comando;
     if (
       estadoApp.current === 'background' ||
       estadoApp.current === 'inactive'
@@ -95,59 +109,62 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
       pidsSoportados: [...contexto.pidsSoportados],
       respuestasConfiguracion: { ...contexto.respuestasConfiguracion },
     };
+    const informe: InformeMuestreoPid = {
+      versionEsquema: 2,
+      versionAplicacion,
+      inicio: new Date().toISOString(),
+      fin: null,
+      comando,
+      medicion: {
+        nombre: medicion.nombre,
+        unidad: medicion.unidad,
+        campo: medicion.campo,
+      },
+      estado: 'en-curso',
+      error: null,
+      mensaje: null,
+      dispositivo: sesion.dispositivoConectado
+        ? {
+            id: sesion.dispositivoConectado.id,
+            nombre:
+              sesion.dispositivoConectado.nombre ??
+              sesion.dispositivoConectado.nombreLocal,
+          }
+        : null,
+      canales: {
+        escritura: sesion.escrituraSeleccionada
+          ? { ...sesion.escrituraSeleccionada }
+          : null,
+        notificacion: sesion.notificacionSeleccionada
+          ? { ...sesion.notificacionSeleccionada }
+          : null,
+      },
+      contexto: contextoPreparado,
+      cabecerasConfirmadas: false,
+      seleccionOrigen: null,
+      intervaloObjetivoMs: 500,
+      cantidadConsultas: 0,
+      limiteCapturas: 20,
+      capturas: [],
+    };
+    informeActual.current = informe;
     establecerVista({
       ...VISTA_INICIAL,
       comando,
       estado: 'leyendo',
-      informe: {
-        versionEsquema: 2,
-        versionAplicacion,
-        inicio: new Date().toISOString(),
-        fin: null,
-        comando,
-        estado: 'en-curso',
-        error: null,
-        mensaje: null,
-        dispositivo: sesion.dispositivoConectado
-          ? {
-              id: sesion.dispositivoConectado.id,
-              nombre:
-                sesion.dispositivoConectado.nombre ??
-                sesion.dispositivoConectado.nombreLocal,
-            }
-          : null,
-        canales: {
-          escritura: sesion.escrituraSeleccionada
-            ? { ...sesion.escrituraSeleccionada }
-            : null,
-          notificacion: sesion.notificacionSeleccionada
-            ? { ...sesion.notificacionSeleccionada }
-            : null,
-        },
-        contexto: contextoPreparado,
-        cabecerasConfirmadas: false,
-        seleccionOrigen: null,
-        intervaloObjetivoMs: 500,
-        cantidadConsultas: 0,
-        limiteCapturas: 20,
-        capturas: [],
-      },
     });
+    let fallo = false;
+    let errorFinal: string | null = null;
+    let errorMedicion: string | null = null;
     const guardarCaptura = (captura: CapturaConsultaPid) => {
       if (!montado.current || control.current !== siguiente) return;
-      establecerVista(anterior => ({
-        ...anterior,
-        informe: anterior.informe
-          ? {
-              ...anterior.informe,
-              cantidadConsultas: anterior.informe.cantidadConsultas + 1,
-              // conservo las ultimas consultas y siempre queda incluida la que fallo
-              capturas: [...anterior.informe.capturas, captura].slice(
-                -anterior.informe.limiteCapturas,
-              ),
-            }
-          : null,
-      }));
+      // guardo el informe en memoria; la curva no necesita refrescarlo por consulta
+      const actual = informeActual.current;
+      if (!actual || actual !== informe) return;
+      actual.cantidadConsultas += 1;
+      actual.capturas.push(captura);
+      if (actual.capturas.length > actual.limiteCapturas)
+        actual.capturas.shift();
     };
     const comprobarSesion = () => {
       if (
@@ -212,16 +229,8 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
       // dejo las cabeceras visibles; no invento cual era el ajuste previo del adaptador
       contextoPreparado.respuestasConfiguracion = {};
       alPrepararContexto?.(contextoPreparado);
-      establecerVista(anterior => ({
-        ...anterior,
-        informe: anterior.informe
-          ? {
-              ...anterior.informe,
-              cabecerasConfirmadas: true,
-              contexto: { ...contextoPreparado, respuestasConfiguracion: {} },
-            }
-          : null,
-      }));
+      informe.cabecerasConfirmadas = true;
+      informe.contexto = { ...contextoPreparado, respuestasConfiguracion: {} };
       if (siguiente.abortar.signal.aborted) return;
       // las escalas tambien necesitan cabeceras para seguir asociadas a su ecu
       for (const consulta of obtenerConsultasConfiguracion(
@@ -235,15 +244,7 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
           [consulta]: respuestaConfiguracion.textoAscii,
         };
         alPrepararContexto?.({ ...contextoPreparado });
-        establecerVista(anterior => ({
-          ...anterior,
-          informe: anterior.informe
-            ? {
-                ...anterior.informe,
-                contexto: { ...contextoPreparado },
-              }
-            : null,
-        }));
+        informe.contexto = { ...contextoPreparado };
       }
       await muestrearPid({
         comando,
@@ -257,18 +258,10 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
         signal: siguiente.abortar.signal,
         alOrigen: seleccion => {
           if (!montado.current || control.current !== siguiente) return;
-          establecerVista(anterior => ({
-            ...anterior,
-            informe: anterior.informe
-              ? {
-                  ...anterior.informe,
-                  seleccionOrigen: {
-                    ...seleccion,
-                    origenesDetectados: [...seleccion.origenesDetectados],
-                  },
-                }
-              : null,
-          }));
+          informe.seleccionOrigen = {
+            ...seleccion,
+            origenesDetectados: [...seleccion.origenesDetectados],
+          };
         },
         alCaptura: captura =>
           guardarCaptura({
@@ -282,6 +275,7 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
             siguiente.abortar.signal.aborted
           )
             return;
+          errorMedicion = muestra.error;
           establecerVista(anterior => ({
             ...anterior,
             // conservo un minuto reciente y un tope de puntos, no una grabacion ilimitada
@@ -299,39 +293,27 @@ export function useMuestreoPids(sesion: SesionEscanerObd) {
           }));
         },
       });
-      if (montado.current && control.current === siguiente)
-        establecerVista(anterior => ({
-          ...anterior,
-          estado: 'detenido',
-          mensaje: siguiente.motivo ?? 'Lectura detenida.',
-        }));
     } catch (capturado) {
-      if (montado.current && control.current === siguiente)
-        establecerVista(anterior => ({
-          ...anterior,
-          estado: siguiente.abortar.signal.aborted ? 'detenido' : 'error',
-          error: siguiente.abortar.signal.aborted
-            ? anterior.error
-            : capturado instanceof Error
-            ? capturado.message
-            : 'No se pudo continuar la lectura.',
-          mensaje: siguiente.motivo,
-        }));
+      fallo = !siguiente.abortar.signal.aborted;
+      errorFinal = fallo
+        ? capturado instanceof Error
+          ? capturado.message
+          : 'No se pudo continuar la lectura.'
+        : errorMedicion;
     } finally {
+      informe.fin = new Date().toISOString();
+      informe.estado = fallo ? 'error' : 'detenido';
+      informe.error = fallo ? errorFinal : errorMedicion;
+      informe.mensaje =
+        siguiente.motivo ?? (fallo ? null : 'Lectura detenida.');
       if (montado.current && control.current === siguiente)
         establecerVista(anterior => ({
           ...anterior,
-          estado: anterior.estado === 'error' ? 'error' : 'detenido',
-          mensaje: siguiente.motivo ?? anterior.mensaje,
-          informe: anterior.informe
-            ? {
-                ...anterior.informe,
-                fin: new Date().toISOString(),
-                estado: anterior.estado === 'error' ? 'error' : 'detenido',
-                error: anterior.error,
-                mensaje: siguiente.motivo ?? anterior.mensaje,
-              }
-            : null,
+          estado: fallo ? 'error' : 'detenido',
+          error: informe.error,
+          mensaje: informe.mensaje,
+          // publico una copia al terminar, incluyendo la respuesta que pudo llegar al detener
+          informe: { ...informe, capturas: [...informe.capturas] },
         }));
       if (control.current === siguiente) control.current = null;
     }

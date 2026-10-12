@@ -2,6 +2,8 @@ package com.obd2demo
 
 import android.app.Activity
 import android.content.Intent
+import android.view.Window
+import android.view.WindowManager
 import com.facebook.react.bridge.*
 import com.facebook.react.BaseReactPackage
 import com.facebook.react.module.model.ReactModuleInfo
@@ -14,6 +16,41 @@ class InformesDtcModule(private val contexto: ReactApplicationContext) : ReactCo
   private var pendiente: Guardado? = null
   private val escritor = Executors.newSingleThreadExecutor()
   private val codigoSolicitud = 48231
+  private var ventanaRegistro: Window? = null
+  private var banderaPrevia = false
+  private var solicitudesPantalla = 0
+
+  private fun liberarPantalla() {
+    if (!banderaPrevia) ventanaRegistro?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    ventanaRegistro = null
+    banderaPrevia = false
+  }
+
+  @ReactMethod
+  fun mantenerPantallaEncendida(activa: Boolean, promesa: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        if (activa) {
+          val ventana = contexto.currentActivity?.window
+            ?: throw IllegalStateException("Abre la aplicacion antes de registrar.")
+          if (ventanaRegistro !== ventana) {
+            liberarPantalla()
+            banderaPrevia = (ventana.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0
+            ventanaRegistro = ventana
+          }
+          // evito el apagado automatico solo mientras estamos registrando
+          ventana.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          solicitudesPantalla += 1
+        } else {
+          solicitudesPantalla = maxOf(0, solicitudesPantalla - 1)
+          if (solicitudesPantalla == 0) liberarPantalla()
+        }
+        promesa.resolve(null)
+      } catch (error: Exception) {
+        promesa.reject("ERROR_PANTALLA", "No se pudo configurar la pantalla para el registro.", error)
+      }
+    }
+  }
 
   private val eventos = object : BaseActivityEventListener() {
     override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
@@ -78,6 +115,7 @@ class InformesDtcModule(private val contexto: ReactApplicationContext) : ReactCo
   }
 
   override fun invalidate() {
+    UiThreadUtil.runOnUiThread { solicitudesPantalla = 0; liberarPantalla() }
     contexto.removeActivityEventListener(eventos)
     pendiente?.promesa?.reject("MODULO_CERRADO", "El modulo se cerro antes de guardar.")
     pendiente = null

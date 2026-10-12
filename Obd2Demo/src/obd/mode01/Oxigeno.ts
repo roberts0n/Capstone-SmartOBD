@@ -17,6 +17,12 @@ export const OXIGENO_MODE_01: readonly DefinicionPidMode01[] = [
       nombre: `Sensor de oxígeno ${indice + 1}: voltaje y ajuste`,
       categoria: 'Oxigeno y mezcla',
       bytesEsperados: 2,
+      // para esta curva tomo el voltaje, no el objeto completo ni su ajuste
+      grafica: {
+        nombre: `Voltaje del sensor de oxígeno ${indice + 1}`,
+        unidad: 'V',
+        campo: 'voltaje',
+      },
       interpretar: (datos, contexto = {}) => ({
         valor: {
           sensor: nombreSensor(indice, contexto),
@@ -91,6 +97,14 @@ export const OXIGENO_MODE_01: readonly DefinicionPidMode01[] = [
         categoria: 'Oxigeno y mezcla',
         bytesEsperados: 1,
         bytesMaximos: 2,
+        // sigo el banco indicado; el otro banco conserva su traduccion normal
+        grafica: {
+          nombre: `Ajuste ${
+            indice % 2 === 0 ? 'corto' : 'largo'
+          } de combustible ${indice >= 4 ? 'secundario ' : ''}banco ${banco}`,
+          unidad: '%',
+          campo: `banco${banco}`,
+        },
         interpretar: datos =>
           datos.length === 1
             ? { valor: redondear(ajuste(datos[0])), unidad: '%' }
