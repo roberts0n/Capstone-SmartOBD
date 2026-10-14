@@ -22,6 +22,10 @@ import { RegistrarCliente } from './src/pantallas/registrarCliente';
 import { RegistrarVehiculo } from './src/pantallas/registrarVehiculo';
 import { CasosRecepcion } from './src/pantallas/casosRecepcion';
 import { DetalleCasoRecepcion } from './src/pantallas/detalleCasoRecepcion';
+import { CasosMecanico } from './src/pantallas/casosMecanico';
+import { DetalleCasoMecanico } from './src/pantallas/detalleCasoMecanico';
+import { MedicionesCaso } from './src/pantallas/medicionesCaso';
+import type { ConsultaCasosMecanico } from './src/casos/ServicioCasosMecanico';
 import { AsignarMecanico } from './src/pantallas/asignarMecanico';
 import { EliminarDatosPrueba } from './src/pantallas/eliminarDatosPrueba';
 import { ClientesVehiculos } from './src/pantallas/clientesVehiculos';
@@ -69,13 +73,19 @@ type Ruta =
   | 'editar_cliente'
   | 'editar_vehiculo'
   | 'detalle_caso_recepcion'
+  | 'detalle_caso_mecanico'
+  | 'mediciones_caso'
   | 'asignar_mecanico'
   | 'conectar_escaner'
   | 'pruebas_escaner'
   | 'eliminar_datos_prueba';
 
 type OrigenRegistro = 'herramientas' | 'nueva_orden';
-type OrigenConexion = 'inicio' | 'herramientas' | 'detalle_caso_recepcion';
+type OrigenConexion =
+  | 'inicio'
+  | 'herramientas'
+  | 'detalle_caso_recepcion'
+  | 'mediciones_caso';
 type OrigenCaso = 'casos_recepcion' | 'detalle_cliente';
 
 // dejo las pruebas disponibles en nuestras apk internas; para distribuir la app final lo cambio a false
@@ -92,6 +102,11 @@ function ContenidoAplicacion() {
   const [sesion, establecerSesion] = useState<SesionTaller | null>(null);
   const [casoRecepcion, establecerCasoRecepcion] =
     useState<CasoRecepcion | null>(null);
+  const [casoMecanicoId, establecerCasoMecanicoId] = useState<string | null>(
+    null,
+  );
+  const [consultaCasosMecanico, establecerConsultaCasosMecanico] =
+    useState<ConsultaCasosMecanico>({});
   const [origenCaso, establecerOrigenCaso] =
     useState<OrigenCaso>('casos_recepcion');
   const [vehiculoConsultaId, establecerVehiculoConsultaId] = useState<
@@ -163,6 +178,8 @@ function ContenidoAplicacion() {
     await cerrarSesionTaller();
     establecerSesion(null);
     establecerCasoRecepcion(null);
+    establecerCasoMecanicoId(null);
+    establecerConsultaCasosMecanico({});
     establecerClienteInicialVehiculoId(null);
     establecerBorradorOrden(crearBorradorOrdenTrabajo());
     establecerOrigenRegistro('herramientas');
@@ -191,6 +208,7 @@ function ContenidoAplicacion() {
     solicitarSalida(() => {
       const continuar = () => {
         establecerCasoRecepcion(null);
+        establecerCasoMecanicoId(null);
         establecerClienteInicialVehiculoId(null);
         establecerBorradorOrden(crearBorradorOrdenTrabajo());
         establecerOrigenRegistro('herramientas');
@@ -288,6 +306,11 @@ function ContenidoAplicacion() {
                 ? 'detalle_cliente'
                 : 'casos_recepcion',
             );
+          } else if (ruta === 'mediciones_caso') {
+            establecerRuta('detalle_caso_mecanico');
+          } else if (ruta === 'detalle_caso_mecanico') {
+            establecerCasoMecanicoId(null);
+            establecerRuta('herramientas');
           } else if (ruta === 'detalle_cliente')
             establecerRuta('clientes_vehiculos');
           else if (ruta === 'pruebas_escaner') establecerRuta('cuenta');
@@ -324,6 +347,8 @@ function ContenidoAplicacion() {
     ruta === 'editar_cliente' ||
     ruta === 'editar_vehiculo' ||
     ruta === 'detalle_caso_recepcion' ||
+    ruta === 'detalle_caso_mecanico' ||
+    ruta === 'mediciones_caso' ||
     ruta === 'asignar_mecanico' ||
     ruta === 'eliminar_datos_prueba'
       ? 'herramientas'
@@ -378,16 +403,14 @@ function ContenidoAplicacion() {
                 establecerOrigenRegistro('herramientas');
                 establecerRuta('nueva_orden');
               }}
-              alAbrirCasosRecepcion={() =>
-                establecerRuta('casos_recepcion')
-              }
+              alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
             />
           )}
         {!inicializando &&
           ruta === 'herramientas' &&
           sesion &&
           !sesion.debeCambiarPassword &&
-          sesion.perfil !== 'administrador' && (
+          sesion.perfil === 'recepcion' && (
             <HerramientasRol
               sesion={sesion}
               alAbrirEscaner={() => abrirConexion('herramientas')}
@@ -419,6 +442,53 @@ function ContenidoAplicacion() {
                 establecerBorradorOrden(crearBorradorOrdenTrabajo());
                 establecerRuta('eliminar_datos_prueba');
               }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'herramientas' &&
+          sesion?.perfil === 'mecanico' &&
+          !sesion.debeCambiarPassword && (
+            <CasosMecanico
+              key={sesion.usuarioId}
+              sesion={sesion}
+              consultaInicial={consultaCasosMecanico}
+              alCambiarConsulta={establecerConsultaCasosMecanico}
+              alAbrirCaso={casoId => {
+                establecerCasoMecanicoId(casoId);
+                establecerRuta('detalle_caso_mecanico');
+              }}
+            />
+          )}
+        {!inicializando &&
+          ruta === 'detalle_caso_mecanico' &&
+          sesion?.perfil === 'mecanico' &&
+          !sesion.debeCambiarPassword &&
+          casoMecanicoId && (
+            <DetalleCasoMecanico
+              key={`${sesion.usuarioId}:${casoMecanicoId}`}
+              casoId={casoMecanicoId}
+              sesion={sesion}
+              alAbrirMediciones={() => establecerRuta('mediciones_caso')}
+              alVolver={() => {
+                establecerCasoMecanicoId(null);
+                establecerRuta('herramientas');
+              }}
+            />
+          )}
+        {!inicializando &&
+          (ruta === 'mediciones_caso' ||
+            (ruta === 'conectar_escaner' &&
+              origenConexion === 'mediciones_caso')) &&
+          sesion?.perfil === 'mecanico' &&
+          !sesion.debeCambiarPassword &&
+          casoMecanicoId && (
+            <MedicionesCaso
+              key={`${sesion.usuarioId}:${casoMecanicoId}`}
+              casoId={casoMecanicoId}
+              sesion={sesion}
+              visible={ruta === 'mediciones_caso'}
+              alVolver={() => establecerRuta('detalle_caso_mecanico')}
+              alConectar={() => abrirConexion('mediciones_caso')}
             />
           )}
         {!inicializando &&

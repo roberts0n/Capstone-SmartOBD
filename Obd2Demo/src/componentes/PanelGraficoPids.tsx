@@ -13,7 +13,6 @@ import {
 import { type MuestraPid, type InformeMuestreoPid } from '../obd/MuestreoPids';
 import {
   DURACIONES_REGISTRO_MS,
-  frecuenciaSeriePid,
   type RegistroHistoricoPids,
 } from '../obd/RegistroHistoricoPids';
 
@@ -34,6 +33,7 @@ interface Propiedades {
   capturaOcupada?: boolean;
   mensajeCaptura?: string | null;
   alGuardarCaptura?: () => void;
+  usoTaller?: boolean;
 }
 const MUESTRAS_VACIAS: readonly MuestraPid[] = [];
 
@@ -44,12 +44,14 @@ const SelectorMediciones = memo(function OpcionesMediciones({
   multiple,
   deshabilitado,
   alSeleccionar,
+  usoTaller,
 }: {
   disponibles: readonly MedicionGraficaPid[];
   seleccionados: readonly string[];
   multiple: boolean;
   deshabilitado: boolean;
   alSeleccionar: (comando: string) => void;
+  usoTaller?: boolean;
 }) {
   const grupos = useMemo(() => {
     const agrupadas = new Map<string, MedicionGraficaPid[]>();
@@ -125,7 +127,8 @@ const SelectorMediciones = memo(function OpcionesMediciones({
                       ]}
                     >
                       <Text style={estilos.textoOpcion}>
-                        {medicion.nombre} · {medicion.comando}
+                        {medicion.nombre}
+                        {usoTaller ? '' : ` · ${medicion.comando}`}
                       </Text>
                     </Pressable>
                   );
@@ -175,6 +178,13 @@ export function PanelGraficoPids(props: Propiedades) {
   const ultima = muestras[muestras.length - 1];
   const ultimaCaptura =
     props.informe?.capturas[props.informe.capturas.length - 1];
+  if (
+    props.usoTaller &&
+    props.pidsCompatibles === null &&
+    !muestras.length &&
+    !props.enCurso
+  )
+    return null;
   return (
     <View style={estilos.panel}>
       <Text style={estilos.titulo}>Lectura en vivo</Text>
@@ -193,6 +203,7 @@ export function PanelGraficoPids(props: Propiedades) {
           multiple={false}
           deshabilitado={props.enCurso || props.deshabilitado}
           alSeleccionar={seleccionar}
+          usoTaller={props.usoTaller}
         />
       )}
       <View style={estilos.cabeceraValor}>
@@ -320,6 +331,7 @@ export interface PropiedadesRegistroHistorico {
   alIniciar: (comandos: readonly string[], duracionMs: number) => void;
   alDetener: () => void;
   alGuardar: () => void;
+  usoTaller?: boolean;
 }
 
 export function PanelRegistroHistoricoPids(
@@ -331,20 +343,6 @@ export function PanelRegistroHistoricoPids(
   );
   const [seleccionados, establecerSeleccionados] = useState<string[]>([]);
   const [duracion, establecerDuracion] = useState<number>(60000);
-  const [ampliado, establecerAmpliado] = useState<{
-    registro: RegistroHistoricoPids;
-    comando: string;
-  } | null>(null);
-  const cerrarAmpliado = useCallback(() => establecerAmpliado(null), []);
-  useEffect(() => {
-    cerrarAmpliado();
-  }, [props.registro, props.enCurso, cerrarAmpliado]);
-  const serieAmpliada =
-    ampliado?.registro === props.registro && !props.enCurso
-      ? props.registro?.series.find(
-          serie => serie.comando === ampliado?.comando,
-        )
-      : null;
   useEffect(() => {
     if (props.enCurso) return;
     establecerSeleccionados(anteriores => {
@@ -367,14 +365,14 @@ export function PanelRegistroHistoricoPids(
         : anteriores,
     );
   }, []);
-  const ventana = useMemo(
-    () => ({
-      inicio: 0,
-      fin: Math.max(1000, props.registro?.duracionRealMs ?? 1000),
-    }),
-    [props.registro],
-  );
   const bloquear = props.enCurso || props.deshabilitado;
+  if (
+    props.usoTaller &&
+    props.pidsCompatibles === null &&
+    !props.registro &&
+    !props.enCurso
+  )
+    return null;
   return (
     <View style={estilos.panel}>
       <Text style={estilos.titulo}>Registro histórico</Text>
@@ -390,6 +388,7 @@ export function PanelRegistroHistoricoPids(
             multiple
             deshabilitado={bloquear}
             alSeleccionar={seleccionar}
+            usoTaller={props.usoTaller}
           />
           {seleccionados.length ? (
             <Text style={[estilos.secundario, estilos.separacion]}>
@@ -478,70 +477,30 @@ export function PanelRegistroHistoricoPids(
             · {formatearTiempoGrafico(props.registro.duracionRealMs)}
           </Text>
           <Text style={estilos.secundario}>{props.registro.motivoFin}</Text>
-          {props.registro.series.map(serie => {
-            const frecuencia = frecuenciaSeriePid(serie);
-            return (
-              <View key={serie.comando} style={estilos.serieHistorica}>
-                <View style={estilos.cabeceraHistorica}>
-                  <Text style={[estilos.textoOpcion, estilos.nombreHistorico]}>
-                    {serie.nombre} · {serie.unidad}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Ampliar gráfico ${serie.comando}`}
-                    disabled={serie.muestras.length === 0}
-                    onPress={() => {
-                      if (props.registro)
-                        establecerAmpliado({
-                          registro: props.registro,
-                          comando: serie.comando,
-                        });
-                    }}
-                    style={[
-                      estilos.ampliar,
-                      serie.muestras.length === 0 && estilos.deshabilitado,
-                    ]}
-                  >
-                    <Text style={estilos.textoOpcion}>Ampliar</Text>
-                  </Pressable>
-                </View>
-                <Text style={estilos.secundario}>
-                  {
-                    serie.muestras.filter(muestra => muestra.valor !== null)
-                      .length
-                  }{' '}
-                  mediciones
-                  {frecuencia === null
-                    ? ''
-                    : ` · ${frecuencia.toFixed(2)} lecturas/s`}
-                </Text>
-                <GraficoPid
-                  muestras={serie.muestras}
-                  ventana={ventana}
-                  historico
-                  altura={230}
-                />
-                {serie.error ? (
-                  <Text style={estilos.error}>{serie.error}</Text>
-                ) : null}
-              </View>
-            );
-          })}
-          <Pressable
-            accessibilityRole="button"
-            disabled={props.ocupado}
-            onPress={props.alGuardar}
-            style={[
-              estilos.botonSecundario,
-              props.ocupado && estilos.deshabilitado,
-            ]}
-          >
-            <Text style={estilos.textoBoton}>Guardar registro JSON</Text>
-          </Pressable>
-          <Text style={estilos.secundario}>
-            El registro está en memoria. Expórtalo antes de salir o iniciar
-            otro.
-          </Text>
+          <GraficosRegistroPids
+            series={props.registro.series}
+            duracionMs={props.registro.duracionRealMs}
+            identidad={props.registro}
+          />
+          {!props.usoTaller ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                disabled={props.ocupado}
+                onPress={props.alGuardar}
+                style={[
+                  estilos.botonSecundario,
+                  props.ocupado && estilos.deshabilitado,
+                ]}
+              >
+                <Text style={estilos.textoBoton}>Guardar registro JSON</Text>
+              </Pressable>
+              <Text style={estilos.secundario}>
+                El registro está en memoria. Expórtalo antes de salir o iniciar
+                otro.
+              </Text>
+            </>
+          ) : null}
           {props.mensajeGuardado ? (
             <Text accessibilityRole="alert" style={estilos.secundario}>
               {props.mensajeGuardado}
@@ -549,14 +508,89 @@ export function PanelRegistroHistoricoPids(
           ) : null}
         </View>
       ) : null}
-      {serieAmpliada && props.registro ? (
+    </View>
+  );
+}
+
+interface SerieGrafico {
+  comando: string;
+  nombre: string;
+  unidad: string;
+  muestras: readonly MuestraPid[];
+  error?: string | null;
+}
+
+// dibujo igual una captura recien terminada y una recuperada, sin inventar datos tecnicos
+export function GraficosRegistroPids({
+  series,
+  duracionMs,
+  identidad,
+}: {
+  series: readonly SerieGrafico[];
+  duracionMs: number;
+  identidad?: unknown;
+}) {
+  const [ampliada, establecerAmpliada] = useState<SerieGrafico | null>(null);
+  useEffect(() => establecerAmpliada(null), [series, identidad]);
+  const ventana = useMemo(
+    () => ({ inicio: 0, fin: Math.max(1000, duracionMs) }),
+    [duracionMs],
+  );
+  return (
+    <>
+      {series.map(serie => {
+        const validas = serie.muestras.filter(
+          muestra => muestra.valor !== null,
+        );
+        const intervalo =
+          validas.length > 1
+            ? validas[validas.length - 1].tiempoTranscurridoMs -
+              validas[0].tiempoTranscurridoMs
+            : 0;
+        return (
+          <View key={serie.comando} style={estilos.serieHistorica}>
+            <View style={estilos.cabeceraHistorica}>
+              <Text style={[estilos.textoOpcion, estilos.nombreHistorico]}>
+                {serie.nombre} · {serie.unidad}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Ampliar gráfico ${serie.comando}`}
+                disabled={!serie.muestras.length}
+                onPress={() => establecerAmpliada(serie)}
+                style={estilos.ampliar}
+              >
+                <Text style={estilos.textoOpcion}>Ampliar</Text>
+              </Pressable>
+            </View>
+            <Text style={estilos.secundario}>
+              {validas.length} mediciones
+              {intervalo > 0
+                ? ` · ${(((validas.length - 1) * 1000) / intervalo).toFixed(
+                    2,
+                  )} lecturas/s`
+                : ''}
+            </Text>
+            <GraficoPid
+              muestras={serie.muestras}
+              ventana={ventana}
+              historico
+              altura={230}
+            />
+            {serie.error ? (
+              <Text style={estilos.error}>{serie.error}</Text>
+            ) : null}
+          </View>
+        );
+      })}
+      {ampliada && series.includes(ampliada) ? (
         <GraficoHistoricoAmpliado
-          serie={serieAmpliada}
-          duracionMs={props.registro.duracionRealMs}
-          alCerrar={cerrarAmpliado}
+          serie={ampliada}
+          duracionMs={duracionMs}
+          alCerrar={() => establecerAmpliada(null)}
         />
       ) : null}
-    </View>
+    </>
   );
 }
 

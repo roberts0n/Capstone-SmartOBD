@@ -240,6 +240,10 @@ export function EliminarDatosPrueba({ sesion, alVolver, alEliminar, alCambiarOpe
             <View style={estilos.conteo} key={clave}><Text style={estilos.secundario}>{titulo}</Text>
               <Text style={estilos.texto}>{resumen.cantidades[clave]}</Text></View>
           ))}
+          {resumen.cantidades.registrosMediciones !== undefined && (
+            <View style={estilos.conteo}><Text style={estilos.secundario}>Registros históricos</Text>
+              <Text style={estilos.texto}>{resumen.cantidades.registrosMediciones}</Text></View>
+          )}
           <Text style={estilos.secundario}>Cuentas y catálogo PID se conservan.</Text>
           <TextInput accessibilityLabel="Confirmación de eliminación" style={estilos.entrada} value={confirmacion}
             onChangeText={establecerConfirmacion} editable={!ocupada} autoCorrect={false} autoCapitalize="characters"

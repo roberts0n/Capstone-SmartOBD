@@ -7,7 +7,7 @@ import type {
   PrioridadCasoDiagnostico,
 } from './TiposCasoDiagnostico';
 
-interface FilaCasoDiagnostico {
+export interface FilaCasoDiagnostico {
   id: string;
   taller_id: string;
   vehiculo_id: string;
@@ -22,7 +22,7 @@ interface FilaCasoDiagnostico {
   cerrado_en: string | null;
 }
 
-const CAMPOS_CASO =
+export const CAMPOS_CASO =
   'id, taller_id, vehiculo_id, motivo_ingreso, sintomas_informados, estado, prioridad, recepcion_responsable_id, conclusion_tecnica, creado_en, actualizado_en, cerrado_en';
 
 export async function crearCasoDiagnostico(
@@ -90,7 +90,7 @@ function validarCreacion(
   }
 }
 
-function convertirCaso(fila: FilaCasoDiagnostico): CasoDiagnostico {
+export function convertirCaso(fila: FilaCasoDiagnostico): CasoDiagnostico {
   return {
     id: fila.id,
     tallerId: fila.taller_id,

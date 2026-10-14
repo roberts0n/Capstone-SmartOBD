@@ -13,6 +13,8 @@ interface CondicionesSalida {
   cancelar?: () => void;
   etiquetaCancelar?: string;
   mensajeOcupado?: string;
+  mensajeCambios?: string;
+  activa?: boolean;
 }
 type SolicitarSalida = (continuar: () => void) => void;
 const ContextoSalida = createContext<{
@@ -58,8 +60,14 @@ export function useProteccionSalida(
   const activa = useRef(true);
   const solicitar = useCallback<SolicitarSalida>(continuar => {
     if (!activa.current || confirmando.current) return;
-    const { ocupado, cambios, cancelar, etiquetaCancelar, mensajeOcupado } =
-      actuales.current;
+    const {
+      ocupado,
+      cambios,
+      cancelar,
+      etiquetaCancelar,
+      mensajeOcupado,
+      mensajeCambios,
+    } = actuales.current;
     if (ocupado) {
       Alert.alert(
         'Operación en curso',
@@ -86,7 +94,7 @@ export function useProteccionSalida(
     confirmando.current = true;
     Alert.alert(
       'Salir sin guardar',
-      'Se perderán los cambios de este formulario.',
+      mensajeCambios ?? 'Se perderán los cambios de este formulario.',
       [
         {
           text: 'Seguir editando',
@@ -110,12 +118,13 @@ export function useProteccionSalida(
   }, []);
   const registrar = contexto?.registrar;
   useLayoutEffect(() => {
-    activa.current = true;
-    const retirar = registrar?.(solicitar);
+    activa.current = condiciones.activa !== false;
+    const retirar =
+      condiciones.activa === false ? undefined : registrar?.(solicitar);
     return () => {
       activa.current = false;
       retirar?.();
     };
-  }, [registrar, solicitar]);
+  }, [registrar, solicitar, condiciones.activa]);
   return solicitar;
 }

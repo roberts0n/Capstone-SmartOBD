@@ -17,6 +17,7 @@ export interface ResumenEliminacionPrueba {
     snapshots: number;
     valoresPid: number;
     codigosDtc: number;
+    registrosMediciones?: number;
   };
 }
 
@@ -75,7 +76,9 @@ function validarResumen(data: unknown, tipo: TipoRegistroPrueba, id: string): Re
       typeof resumen.etiqueta !== 'string' || !resumen.etiqueta.trim() ||
       typeof resumen.huella !== 'string' || !/^[a-f0-9]{32}$/.test(resumen.huella) ||
       !resumen.cantidades || claves.some(clave =>
-        !Number.isSafeInteger(resumen.cantidades[clave]) || resumen.cantidades[clave] < 0)) {
+        !Number.isSafeInteger(resumen.cantidades[clave]) || (resumen.cantidades[clave] ?? -1) < 0) ||
+      (resumen.cantidades.registrosMediciones !== undefined &&
+        (!Number.isSafeInteger(resumen.cantidades.registrosMediciones) || resumen.cantidades.registrosMediciones < 0))) {
     throw new Error('No se pudo confirmar el alcance. Actualiza la vista previa.');
   }
   return resumen;
