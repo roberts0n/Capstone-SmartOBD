@@ -1,7 +1,0 @@
-project_id = "Obd2Demo"
-
-[functions.crear-usuario-taller]
-verify_jwt = true
-
-[functions.cambiar-password-inicial]
-verify_jwt = true
