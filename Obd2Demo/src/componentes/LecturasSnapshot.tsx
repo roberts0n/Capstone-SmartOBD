@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type {
@@ -376,7 +377,7 @@ function Campo({ campo }: { campo: CampoLectura }) {
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   contenedor: { gap: 16 },
   boton: {
     minHeight: 48,
@@ -424,4 +425,4 @@ const estilos = StyleSheet.create({
     gap: 12,
   },
   monitores: { gap: 10 },
-});
+}));

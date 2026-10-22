@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { PerfilTaller } from '../tipos/usuarioTaller';
@@ -52,6 +53,7 @@ export function BarraNavegacionInferior({
             onPress={() => alNavegar(opcion.destino)}
             style={({ pressed }) => [
               estilos.opcion,
+              activa && estilos.opcionActiva,
               pressed && estilos.presionada,
             ]}
           >
@@ -71,23 +73,33 @@ export function BarraNavegacionInferior({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   barra: {
-    minHeight: 68,
+    minHeight: 70,
     flexDirection: 'row',
     backgroundColor: '#121214',
-    borderTopWidth: 1,
-    borderTopColor: '#2A2A2E',
+    borderWidth: 1,
+    borderColor: '#2A2A2E',
+    borderRadius: 22,
+    marginHorizontal: 18,
+    marginBottom: 10,
     paddingHorizontal: 8,
     paddingTop: 7,
     paddingBottom: 5,
+    shadowColor: '#09090B',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 5,
   },
   opcion: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    borderRadius: 16,
   },
+  opcionActiva: { backgroundColor: '#287FFF' },
   presionada: { opacity: 0.65 },
   icono: {
     minWidth: 29,
@@ -97,7 +109,7 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconoActivo: { backgroundColor: '#153B32' },
+  iconoActivo: { backgroundColor: 'transparent' },
   textoIcono: {
     color: '#85858C',
     fontSize: 11,
@@ -105,13 +117,13 @@ const estilos = StyleSheet.create({
     fontWeight: '800',
   },
   etiqueta: { color: '#85858C', fontSize: 10, fontWeight: '600', marginTop: 3 },
-  textoActivo: { color: '#5BE0BB' },
+  textoActivo: { color: '#FEFEFE' },
   indicador: {
     position: 'absolute',
     bottom: -5,
     width: 22,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#10A37F',
+    backgroundColor: 'transparent',
   },
-});
+}));

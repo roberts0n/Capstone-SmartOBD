@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, {
   forwardRef,
   memo,
@@ -1794,7 +1795,7 @@ function colorConsola(nivel: EntradaConsola['nivel']) {
   }
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenedor: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 40 },
   cabeceraPrincipal: {
@@ -2118,4 +2119,4 @@ const estilos = StyleSheet.create({
   exitoConsola: { color: '#A7F3D0' },
   consolaRx: { color: '#93C5FD' },
   consolaTx: { color: '#FDE68A' },
-});
+}));

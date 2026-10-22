@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -141,7 +142,7 @@ export function CasosRecepcion({
         <RefreshControl
           refreshing={actualizando}
           onRefresh={() => cargar(true)}
-          tintColor="#13C296"
+          tintColor="#287FFF"
         />
       }
       style={estilos.pantalla}
@@ -192,7 +193,7 @@ export function CasosRecepcion({
       </View>
 
       {cargando ? (
-        <ActivityIndicator color="#13C296" style={estilos.cargando} />
+        <ActivityIndicator color="#287FFF" style={estilos.cargando} />
       ) : error ? (
         <View style={estilos.mensaje}>
           <Text accessibilityRole="alert" style={estilos.error}>
@@ -346,7 +347,7 @@ function formatearFecha(fecha: string): string {
   }).format(new Date(fecha));
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   buscador: {
     minHeight: 48,
@@ -447,6 +448,6 @@ const estilos = StyleSheet.create({
   },
   datoSecundario: { flex: 1, color: '#85858C', fontSize: 11 },
   fecha: { color: '#85858C', fontSize: 11 },
-});
+}));
 
 export default CasosRecepcion;

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -216,7 +217,7 @@ export function RegistrarCliente({
           ]}
         >
           {guardando ? (
-            <ActivityIndicator color="#061B15" size="small" />
+            <ActivityIndicator color="#FFFFFF" size="small" />
           ) : null}
           <Text style={estilos.textoBoton}>
             {guardando
@@ -291,7 +292,7 @@ function Campo({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   contenidoConfirmacion: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
@@ -381,6 +382,6 @@ const estilos = StyleSheet.create({
   nombreConfirmacion: { color: '#F4F4F5', fontSize: 18, marginTop: 8 },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.55 },
-});
+}));
 
 export default RegistrarCliente;

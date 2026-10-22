@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -106,7 +107,7 @@ export function CasosMecanico({
         <RefreshControl
           refreshing={actualizando}
           onRefresh={() => cargar(true)}
-          tintColor="#13C296"
+          tintColor="#287FFF"
         />
       }
     >
@@ -141,7 +142,12 @@ export function CasosMecanico({
                 filtro === opcion && estilos.filtroActivo,
               ]}
             >
-              <Text style={estilos.textoFiltro}>
+              <Text
+                style={[
+                  estilos.textoFiltro,
+                  filtro === opcion && estilos.textoFiltroActivo,
+                ]}
+              >
                 {opcion === 'pendientes'
                   ? 'Pendientes'
                   : opcion === 'en_revision'
@@ -153,7 +159,7 @@ export function CasosMecanico({
         )}
       </View>
       {cargando ? (
-        <ActivityIndicator color="#13C296" style={estilos.cargando} />
+        <ActivityIndicator color="#287FFF" style={estilos.cargando} />
       ) : error ? (
         <View style={estilos.mensaje}>
           <Text accessibilityRole="alert" style={estilos.error}>
@@ -250,74 +256,82 @@ export function CasosMecanico({
   );
 }
 
-const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
-  contenido: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 36 },
-  titulo: {
-    color: '#F4F4F5',
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 22,
-  },
-  buscador: {
-    minHeight: 48,
-    color: '#F4F4F5',
-    backgroundColor: '#171719',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#303034',
-    paddingHorizontal: 13,
-  },
-  filtros: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginVertical: 15,
-  },
-  filtro: {
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    borderRadius: 9,
-    backgroundColor: '#27272B',
-  },
-  filtroActivo: { backgroundColor: '#176B56' },
-  textoFiltro: { color: '#F4F4F5', fontSize: 12 },
-  cargando: { marginTop: 40 },
-  lista: { gap: 11 },
-  tarjeta: {
-    backgroundColor: '#171719',
-    borderWidth: 1,
-    borderColor: '#2D2D31',
-    borderRadius: 15,
-    padding: 15,
-  },
-  fila: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  vehiculo: { flex: 1, color: '#F1F1F3', fontSize: 15, fontWeight: '700' },
-  estado: { color: '#66DFBD', fontSize: 11 },
-  patente: { color: '#13C296', fontSize: 13, fontWeight: '700', marginTop: 6 },
-  cliente: { color: '#C7C7CC', fontSize: 13, marginTop: 10 },
-  motivo: { color: '#96969D', fontSize: 12, lineHeight: 18, marginTop: 8 },
-  prioridad: { color: '#96969D', fontSize: 11, marginTop: 12 },
-  mensaje: {
-    padding: 22,
-    borderRadius: 15,
-    backgroundColor: '#171719',
-    gap: 12,
-  },
-  secundario: { color: '#96969D', fontSize: 13 },
-  error: { color: '#FF9C94', fontSize: 12 },
-  enlace: {
-    color: '#4DDBB7',
-    fontSize: 12,
-    fontWeight: '700',
-    paddingVertical: 8,
-  },
-  paginacion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 18,
-  },
-  deshabilitado: { opacity: 0.4 },
-  presionada: { opacity: 0.75 },
-});
+const estilos = StyleSheet.create(
+  crearEstilosTematicos({
+    pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
+    contenido: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 36 },
+    titulo: {
+      color: '#F4F4F5',
+      fontSize: 26,
+      fontWeight: '700',
+      marginBottom: 22,
+    },
+    buscador: {
+      minHeight: 48,
+      color: '#F4F4F5',
+      backgroundColor: '#171719',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#303034',
+      paddingHorizontal: 13,
+    },
+    filtros: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginVertical: 15,
+    },
+    filtro: {
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+      borderRadius: 9,
+      backgroundColor: '#27272B',
+    },
+    filtroActivo: { backgroundColor: '#176B56' },
+    textoFiltro: { color: '#F4F4F5', fontSize: 12 },
+    textoFiltroActivo: { color: '#FEFEFE', fontWeight: '700' },
+    cargando: { marginTop: 40 },
+    lista: { gap: 11 },
+    tarjeta: {
+      backgroundColor: '#171719',
+      borderWidth: 1,
+      borderColor: '#2D2D31',
+      borderRadius: 15,
+      padding: 15,
+    },
+    fila: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    vehiculo: { flex: 1, color: '#F1F1F3', fontSize: 15, fontWeight: '700' },
+    estado: { color: '#66DFBD', fontSize: 11 },
+    patente: {
+      color: '#13C296',
+      fontSize: 13,
+      fontWeight: '700',
+      marginTop: 6,
+    },
+    cliente: { color: '#C7C7CC', fontSize: 13, marginTop: 10 },
+    motivo: { color: '#96969D', fontSize: 12, lineHeight: 18, marginTop: 8 },
+    prioridad: { color: '#96969D', fontSize: 11, marginTop: 12 },
+    mensaje: {
+      padding: 22,
+      borderRadius: 15,
+      backgroundColor: '#171719',
+      gap: 12,
+    },
+    secundario: { color: '#96969D', fontSize: 13 },
+    error: { color: '#FF9C94', fontSize: 12 },
+    enlace: {
+      color: '#4DDBB7',
+      fontSize: 12,
+      fontWeight: '700',
+      paddingVertical: 8,
+    },
+    paginacion: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 18,
+    },
+    deshabilitado: { opacity: 0.4 },
+    presionada: { opacity: 0.75 },
+  }),
+);

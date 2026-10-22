@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -136,7 +137,7 @@ export function MedicionesCaso({
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
-        {mediciones.cargando ? <ActivityIndicator color="#13C296" /> : null}
+        {mediciones.cargando ? <ActivityIndicator color="#287FFF" /> : null}
         {mediciones.caso ? (
           <>
             <View style={estilos.tarjeta}>
@@ -321,7 +322,7 @@ export function MedicionesCaso({
             ) : (
               <>
                 {mediciones.cargandoRegistros ? (
-                  <ActivityIndicator color="#13C296" />
+                  <ActivityIndicator color="#287FFF" />
                 ) : null}
                 {mediciones.errorRegistros ? (
                   <Text accessibilityRole="alert" style={estilos.error}>
@@ -454,7 +455,7 @@ function Boton({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   cabecera: {
     flexDirection: 'row',
@@ -516,4 +517,4 @@ const estilos = StyleSheet.create({
     padding: 12,
   },
   deshabilitado: { opacity: 0.4 },
-});
+}));

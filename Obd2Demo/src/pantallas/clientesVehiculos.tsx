@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -125,7 +126,7 @@ export function ClientesVehiculos({
           <RefreshControl
             refreshing={actualizando}
             onRefresh={() => cargar(true)}
-            tintColor="#13C296"
+            tintColor="#287FFF"
           />
         }
         renderItem={({ item }) => (
@@ -149,7 +150,7 @@ export function ClientesVehiculos({
         )}
         ListEmptyComponent={
           cargando ? (
-            <ActivityIndicator color="#13C296" style={estilos.cargando} />
+            <ActivityIndicator color="#287FFF" style={estilos.cargando} />
           ) : error ? (
             <View style={estilos.mensaje}>
               <Text accessibilityRole="alert" style={estilos.error}>
@@ -207,7 +208,7 @@ export function ClientesVehiculos({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   encabezado: { paddingHorizontal: 20, paddingTop: 20 },
   cabecera: {
@@ -277,4 +278,4 @@ const estilos = StyleSheet.create({
   },
   numeroPagina: { color: '#A1A1AA', fontSize: 13 },
   deshabilitada: { opacity: 0.4 },
-});
+}));

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -208,7 +209,7 @@ export function DetalleCasoRecepcion({
         <Text style={estilos.tituloSeccion}>Escaneo inicial</Text>
 
         {consultando ? (
-          <ActivityIndicator color="#10A37F" style={estilos.cargando} />
+          <ActivityIndicator color="#287FFF" style={estilos.cargando} />
         ) : snapshotIngreso ? (
           <ResumenSnapshot snapshot={snapshotIngreso} />
         ) : (
@@ -256,7 +257,7 @@ export function DetalleCasoRecepcion({
 
         {captura.enCurso && captura.progreso ? (
           <View style={estilos.progreso}>
-            <ActivityIndicator color="#10A37F" />
+            <ActivityIndicator color="#287FFF" />
             <Text style={estilos.textoProgreso}>
               {captura.progreso.mensaje}
             </Text>
@@ -429,7 +430,7 @@ function mensajeError(capturado: unknown): string {
   return capturado instanceof Error ? capturado.message : String(capturado);
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -516,6 +517,6 @@ const estilos = StyleSheet.create({
   advertencia: { color: '#E6B85C', fontSize: 12, lineHeight: 18, marginTop: 8 },
   resumen: { marginTop: 12 },
   resultadoPrincipal: { color: '#66DFBD', fontSize: 14, fontWeight: '700' },
-});
+}));
 
 export default DetalleCasoRecepcion;

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
@@ -594,7 +595,7 @@ export function GraficosRegistroPids({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   panel: {
     backgroundColor: '#171719',
     borderWidth: 1,
@@ -671,4 +672,4 @@ const estilos = StyleSheet.create({
     fontFamily: 'monospace',
     fontSize: 11,
   },
-});
+}));

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -314,7 +315,7 @@ export function ConectarEscaner({ alVolver, alPreparado }: Propiedades) {
       ) : null}
       {ocupado ? (
         <View style={estilos.progreso}>
-          <ActivityIndicator color="#10A37F" />
+          <ActivityIndicator color="#287FFF" />
           <Text style={estilos.secundario}>
             {sesion.estadoPreparacion === 'verificando'
               ? 'Verificando escáner…'
@@ -461,7 +462,7 @@ function mensajeError(capturado: unknown) {
   return capturado instanceof Error ? capturado.message : String(capturado);
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { padding: 20, paddingBottom: 32, gap: 12 },
   enlace: { color: '#5BE0BB', fontSize: 14, paddingVertical: 8 },
@@ -521,4 +522,4 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
   },
-});
+}));

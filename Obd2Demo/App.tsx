@@ -1,3 +1,5 @@
+import { ProveedorTema, useTema } from './src/tema/TemaAplicacion';
+import { crearEstilosTematicos } from './src/tema/tokensTema';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -96,6 +98,7 @@ const PRUEBAS_INTERNAS_HABILITADAS = true;
 function ContenidoAplicacion() {
   const solicitarSalida = useSolicitudSalida();
   const sesionEscaner = useSesionEscanerObd();
+  const { modo, colores, cargarTemaUsuario } = useTema();
   const [ruta, establecerRuta] = useState<Ruta>('login');
   const [origenConexion, establecerOrigenConexion] =
     useState<OrigenConexion>('inicio');
@@ -143,6 +146,8 @@ function ContenidoAplicacion() {
       try {
         const sesionRecuperada = await recuperarSesionTaller();
         if (activa && sesionRecuperada) {
+          await cargarTemaUsuario(sesionRecuperada.usuarioId);
+          if (!activa) return;
           establecerSesion(sesionRecuperada);
           establecerRuta('inicio');
         }
@@ -163,10 +168,11 @@ function ContenidoAplicacion() {
     return () => {
       activa = false;
     };
-  }, []);
+  }, [cargarTemaUsuario]);
 
   async function ingresar(correo: string, contrasena: string) {
     const siguienteSesion = await iniciarSesionTaller(correo, contrasena);
+    await cargarTemaUsuario(siguienteSesion.usuarioId);
     establecerSesion(siguienteSesion);
     establecerMensajeSistema(null);
     establecerRuta('inicio');
@@ -176,6 +182,7 @@ function ContenidoAplicacion() {
     // al salir cierro tambien el enlace con el auto para no dejar una sesion ajena activa
     await sesionEscaner.desconectar().catch(() => undefined);
     await cerrarSesionTaller();
+    await cargarTemaUsuario(null);
     establecerSesion(null);
     establecerCasoRecepcion(null);
     establecerCasoMecanicoId(null);
@@ -362,14 +369,18 @@ function ContenidoAplicacion() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#0D0D0E" />
+      <StatusBar
+        barStyle={modo === 'oscuro' ? 'light-content' : 'dark-content'}
+        backgroundColor={colores.fondo}
+      />
       <SafeAreaView
+        key={modo}
         style={estilos.contenedor}
         edges={['top', 'right', 'bottom', 'left']}
       >
         {inicializando && (
           <View style={estilos.cargando}>
-            <ActivityIndicator color="#10A37F" size="large" />
+            <ActivityIndicator color={colores.primario} size="large" />
             <Text style={estilos.textoCargando}>Recuperando sesion...</Text>
           </View>
         )}
@@ -396,7 +407,6 @@ function ContenidoAplicacion() {
                 abrirConexion('inicio');
               }}
               alAbrirRegistro={() => establecerRuta('registro')}
-              alAbrirRecepcion={() => navegar('herramientas')}
               alAbrirCuenta={() => establecerRuta('cuenta')}
               alAbrirNuevaOrden={() => {
                 establecerBorradorOrden(crearBorradorOrdenTrabajo());
@@ -404,6 +414,11 @@ function ContenidoAplicacion() {
                 establecerRuta('nueva_orden');
               }}
               alAbrirCasosRecepcion={() => establecerRuta('casos_recepcion')}
+              alAbrirCasosMecanico={() => establecerRuta('herramientas')}
+              alAbrirCasoMecanico={casoId => {
+                establecerCasoMecanicoId(casoId);
+                establecerRuta('detalle_caso_mecanico');
+              }}
             />
           )}
         {!inicializando &&
@@ -749,25 +764,29 @@ function ContenidoAplicacion() {
 // mantengo una sola sesion del escaner mientras el trabajador recorre la app
 function Aplicacion() {
   return (
-    <SafeAreaProvider>
-      <ProveedorEscanerObd>
-        <ProveedorProteccionSalida>
-          <ContenidoAplicacion />
-        </ProveedorProteccionSalida>
-      </ProveedorEscanerObd>
-    </SafeAreaProvider>
+    <ProveedorTema>
+      <SafeAreaProvider>
+        <ProveedorEscanerObd>
+          <ProveedorProteccionSalida>
+            <ContenidoAplicacion />
+          </ProveedorProteccionSalida>
+        </ProveedorEscanerObd>
+      </SafeAreaProvider>
+    </ProveedorTema>
   );
 }
 
-const estilos = StyleSheet.create({
-  contenedor: { flex: 1, backgroundColor: '#0D0D0E' },
-  cargando: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-  },
-  textoCargando: { color: '#A1A1AA', fontSize: 13 },
-});
+const estilos = StyleSheet.create(
+  crearEstilosTematicos({
+    contenedor: { flex: 1, backgroundColor: '#0D0D0E' },
+    cargando: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 14,
+    },
+    textoCargando: { color: '#A1A1AA', fontSize: 13 },
+  }),
+);
 
 export default Aplicacion;

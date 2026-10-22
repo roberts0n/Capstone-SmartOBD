@@ -1,5 +1,9 @@
+import {
+  useTema,
+} from '../tema/TemaAplicacion';
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
 interface Propiedades {
@@ -19,6 +23,9 @@ export function Cuenta({
   alCerrarSesion,
   alAbrirPruebas,
 }: Propiedades) {
+  const { modo, colores, cambiarModo } = useTema();
+  const oscuro = modo === 'oscuro';
+
   return (
     <View style={estilos.pantalla}>
       <View style={estilos.avatar}>
@@ -35,6 +42,28 @@ export function Cuenta({
         <Dato etiqueta="Taller" valor={sesion.taller} />
         <View style={estilos.separador} />
         <Dato etiqueta="Estado" valor="Cuenta activa" destacado />
+      </View>
+
+      <View style={estilos.filaTema}>
+        <View style={estilos.iconoTema}>
+          <Text style={estilos.textoIconoTema}>{oscuro ? '☾' : '☀'}</Text>
+        </View>
+        <View style={estilos.descripcionTema}>
+          <Text style={estilos.tituloTema}>Modo oscuro</Text>
+          <Text style={estilos.estadoTema}>
+            {oscuro ? 'Activado' : 'Desactivado'}
+          </Text>
+        </View>
+        <Switch
+          accessibilityLabel="Modo oscuro"
+          accessibilityRole="switch"
+          onValueChange={activo => {
+            cambiarModo(activo ? 'oscuro' : 'claro').catch(() => undefined);
+          }}
+          thumbColor="#FFFFFF"
+          trackColor={{ false: colores.borde, true: colores.primario }}
+          value={oscuro}
+        />
       </View>
 
       {alAbrirPruebas ? (
@@ -76,7 +105,7 @@ function Dato({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: {
     flex: 1,
     backgroundColor: '#0D0D0E',
@@ -126,8 +155,31 @@ const estilos = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
   },
-  valorDestacado: { color: '#5BE0BB' },
+  valorDestacado: { color: '#26945B' },
   separador: { height: 1, backgroundColor: '#29292D' },
+  filaTema: {
+    minHeight: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#303034',
+    borderRadius: 18,
+    marginTop: 16,
+    paddingHorizontal: 16,
+  },
+  iconoTema: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#11241F',
+  },
+  textoIconoTema: { color: '#5BE0BB', fontSize: 20 },
+  descripcionTema: { flex: 1, marginLeft: 12 },
+  tituloTema: { color: '#F4F4F5', fontSize: 15, fontWeight: '700' },
+  estadoTema: { color: '#85858C', fontSize: 12, marginTop: 4 },
   boton: {
     minHeight: 51,
     alignItems: 'center',
@@ -148,4 +200,4 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#303034',
   },
-});
+}));

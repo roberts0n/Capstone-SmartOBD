@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CATALOGO_PIDS_MODE_01 } from '../obd/CatalogoPidsMode01';
@@ -95,7 +96,7 @@ export function PanelPidsCompatibles({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   titulo: {
     fontSize: 16,
     fontWeight: '600',
@@ -120,4 +121,4 @@ const estilos = StyleSheet.create({
     marginTop: 12,
     borderRadius: 8,
   },
-});
+}));

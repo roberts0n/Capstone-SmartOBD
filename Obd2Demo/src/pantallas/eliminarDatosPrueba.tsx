@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet,
@@ -212,7 +213,7 @@ export function EliminarDatosPrueba({ sesion, alVolver, alEliminar, alCambiarOpe
           <Text style={estilos.texto}>{etapa}</Text>
           <TextInput accessibilityLabel={`Buscar ${etapa.toLowerCase()}`} style={estilos.entrada} value={busqueda}
             onChangeText={establecerBusqueda} editable={!ocupada} placeholder="Buscar" placeholderTextColor="#71717A" />
-          {cargando ? <ActivityIndicator color="#13C296" /> : errorLista ? (
+          {cargando ? <ActivityIndicator color="#287FFF" /> : errorLista ? (
             <>
               <Text accessibilityRole="alert" style={estilos.error}>{errorLista}</Text>
               <Pressable accessibilityRole="button" disabled={ocupada} onPress={() => establecerRecarga(actual => actual + 1)}>
@@ -264,7 +265,7 @@ function mensajeError(capturado: unknown) {
   return capturado instanceof Error ? capturado.message : 'No se pudo completar la operación.';
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { padding: 20, paddingBottom: 36, gap: 14 },
   cabecera: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -288,4 +289,4 @@ const estilos = StyleSheet.create({
   conteo: { flexDirection: 'row', justifyContent: 'space-between' },
   error: { color: '#FF9C94', fontSize: 12, lineHeight: 18 },
   exito: { color: '#66DFBD', fontSize: 13 },
-});
+}));

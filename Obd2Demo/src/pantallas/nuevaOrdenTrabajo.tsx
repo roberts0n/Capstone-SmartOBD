@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -224,7 +225,7 @@ export function NuevaOrdenTrabajo({
             value={busqueda}
           />
           {cargandoClientes ? (
-            <ActivityIndicator color="#13C296" size="small" />
+            <ActivityIndicator color="#287FFF" size="small" />
           ) : null}
         </View>
 
@@ -330,7 +331,7 @@ export function NuevaOrdenTrabajo({
           <View style={estilos.tarjetaVehiculo}>
             <Text style={estilos.tituloTarjeta}>Vehículo</Text>
             {consultandoVehiculos ? (
-              <ActivityIndicator color="#13C296" />
+              <ActivityIndicator color="#287FFF" />
             ) : errorVehiculos ? null : vehiculosActuales.length === 0 ? (
               <Text style={estilos.sinResultados}>
                 Este cliente todavía no tiene vehículos registrados.
@@ -449,7 +450,7 @@ export function NuevaOrdenTrabajo({
           ]}
         >
           {guardando ? (
-            <ActivityIndicator color="#061B15" size="small" />
+            <ActivityIndicator color="#FFFFFF" size="small" />
           ) : null}
           <Text style={estilos.textoBoton}>
             {guardando ? 'Creando caso...' : 'Crear caso'}
@@ -486,7 +487,7 @@ function Cabecera({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   filaPaginas: {
     flexDirection: 'row',
@@ -648,6 +649,6 @@ const estilos = StyleSheet.create({
   textoBoton: { color: '#061B15', fontSize: 14, fontWeight: '800' },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.55 },
-});
+}));
 
 export default NuevaOrdenTrabajo;

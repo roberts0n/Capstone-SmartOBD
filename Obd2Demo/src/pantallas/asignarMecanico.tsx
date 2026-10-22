@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -186,7 +187,7 @@ export function AsignarMecanico({
 
       <Text style={estilos.etiquetaLista}>Mecánicos activos</Text>
       {cargando ? (
-        <ActivityIndicator color="#13C296" style={estilos.cargando} />
+        <ActivityIndicator color="#287FFF" style={estilos.cargando} />
       ) : mecanicos.length === 0 ? (
         <Text style={estilos.sinMecanicos}>
           No hay mecánicos activos para asignar.
@@ -270,7 +271,7 @@ export function AsignarMecanico({
             estilos.deshabilitado,
         ]}
       >
-        {asignando ? <ActivityIndicator color="#061B15" size="small" /> : null}
+        {asignando ? <ActivityIndicator color="#FFFFFF" size="small" /> : null}
         <Text style={estilos.textoBoton}>
           {asignando
             ? 'Procesando...'
@@ -313,7 +314,7 @@ function obtenerIniciales(nombre: string): string {
     .join('');
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: {
@@ -443,6 +444,6 @@ const estilos = StyleSheet.create({
   textoBoton: { color: '#061B15', fontSize: 14, fontWeight: '800' },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.5 },
-});
+}));
 
 export default AsignarMecanico;

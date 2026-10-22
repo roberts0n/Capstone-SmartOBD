@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -9,16 +10,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MarcaSmartObd } from '../componentes/MarcaSmartObd';
 interface PropiedadesLogin {
   alIngresar: (correo: string, contrasena: string) => Promise<void>;
   mensajeSistema?: string | null;
 }
 
 /** Acceso orientado al personal de un taller automotriz. */
-export function Login({
-  alIngresar,
-  mensajeSistema,
-}: PropiedadesLogin) {
+export function Login({ alIngresar, mensajeSistema }: PropiedadesLogin) {
   const [correo, establecerCorreo] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [mostrarContrasena, establecerMostrarContrasena] = useState(false);
@@ -60,17 +59,7 @@ export function Login({
         contentContainerStyle={estilos.contenido}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={estilos.marca}>
-          <View style={estilos.logo}>
-            <View style={estilos.logoCentro} />
-            <View style={[estilos.conector, estilos.conectorIzquierdo]} />
-            <View style={[estilos.conector, estilos.conectorDerecho]} />
-          </View>
-          <View>
-            <Text style={estilos.nombreMarca}>SmartOBD</Text>
-            <Text style={estilos.edicionMarca}>para talleres</Text>
-          </View>
-        </View>
+        <MarcaSmartObd />
 
         <View style={estilos.introduccion}>
           <Text style={estilos.sobretitulo}>Acceso al taller</Text>
@@ -147,7 +136,6 @@ export function Login({
             </Text>
             <Text style={estilos.flecha}>→</Text>
           </Pressable>
-
         </View>
 
         <View style={estilos.notaSeguridad}>
@@ -205,224 +193,191 @@ const COLORES = {
   azul: '#58A6FF',
 };
 
-const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: COLORES.fondo },
-  contenido: {
-    flexGrow: 1,
-    paddingHorizontal: 22,
-    paddingTop: 24,
-    paddingBottom: 28,
-  },
-  marca: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logo: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#3A3A3E',
-    backgroundColor: '#202023',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoCentro: {
-    width: 13,
-    height: 13,
-    borderWidth: 2,
-    borderColor: COLORES.verde,
-    borderRadius: 4,
-  },
-  conector: {
-    position: 'absolute',
-    width: 6,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: COLORES.azul,
-  },
-  conectorIzquierdo: { left: 6 },
-  conectorDerecho: { right: 6 },
-  nombreMarca: { color: COLORES.texto, fontWeight: '700', fontSize: 17 },
-  edicionMarca: {
-    color: COLORES.verde,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginTop: 1,
-  },
-  introduccion: { marginTop: 36, marginBottom: 24 },
-  sobretitulo: {
-    color: COLORES.verde,
-    fontWeight: '700',
-    fontSize: 10,
-    letterSpacing: 1.4,
-    marginBottom: 10,
-  },
-  titulo: {
-    color: COLORES.texto,
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: '700',
-    letterSpacing: -0.7,
-  },
-  descripcion: {
-    color: COLORES.secundario,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 12,
-  },
-  formulario: {
-    backgroundColor: COLORES.superficie,
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 20,
-    padding: 18,
-  },
-  selectorModo: {
-    flexDirection: 'row',
-    backgroundColor: '#101011',
-    borderRadius: 11,
-    padding: 3,
-    marginBottom: 22,
-  },
-  opcionModo: {
-    flex: 1,
-    minHeight: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 9,
-  },
-  opcionModoActiva: { backgroundColor: '#29292D' },
-  textoModo: { color: '#77777E', fontWeight: '600', fontSize: 13 },
-  textoModoActivo: { color: COLORES.texto },
-  tituloFormulario: { color: COLORES.texto, fontSize: 20, fontWeight: '700' },
-  subtituloFormulario: {
-    color: COLORES.secundario,
-    lineHeight: 19,
-    marginTop: 6,
-    marginBottom: 20,
-  },
-  mensajeSistema: {
-    color: '#F4B860',
-    backgroundColor: '#292116',
-    borderWidth: 1,
-    borderColor: '#5A4522',
-    borderRadius: 10,
-    padding: 11,
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  etiquetaGrupo: {
-    color: '#D4D4D8',
-    fontWeight: '600',
-    fontSize: 13,
-    marginBottom: 9,
-  },
-  perfiles: { flexDirection: 'row', gap: 9, marginBottom: 20 },
-  perfil: {
-    flex: 1,
-    minHeight: 98,
-    backgroundColor: '#111113',
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 13,
-    padding: 11,
-  },
-  perfilActivo: { borderColor: COLORES.verde, backgroundColor: '#11241F' },
-  codigoPerfil: {
-    alignSelf: 'flex-start',
-    color: '#77777E',
-    backgroundColor: '#252529',
-    borderRadius: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    fontFamily: 'monospace',
-    fontSize: 10,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  codigoPerfilActivo: { color: '#75E6C6', backgroundColor: '#1C4439' },
-  tituloPerfil: { color: '#EDEDEF', fontWeight: '700', fontSize: 13 },
-  descripcionPerfil: {
-    color: '#7F7F87',
-    fontSize: 10,
-    lineHeight: 14,
-    marginTop: 3,
-  },
-  etiqueta: {
-    color: '#D4D4D8',
-    fontWeight: '600',
-    fontSize: 13,
-    marginBottom: 7,
-  },
-  entrada: {
-    height: 48,
-    color: COLORES.texto,
-    backgroundColor: '#101011',
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 11,
-    paddingHorizontal: 13,
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  filaContrasena: {
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#101011',
-    borderWidth: 1,
-    borderColor: COLORES.borde,
-    borderRadius: 11,
-    paddingRight: 13,
-  },
-  entradaContrasena: {
-    flex: 1,
-    color: COLORES.texto,
-    paddingHorizontal: 13,
-    fontSize: 14,
-  },
-  mostrar: { color: COLORES.verde, fontSize: 12, fontWeight: '700' },
-  error: { color: '#FF8A80', fontSize: 12, lineHeight: 18, marginTop: 10 },
-  botonPrincipal: {
-    height: 51,
-    backgroundColor: COLORES.verde,
-    borderRadius: 12,
-    marginTop: 18,
-    paddingHorizontal: 17,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  textoBotonPrincipal: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  botonDeshabilitado: { opacity: 0.55 },
-  flecha: { color: '#FFFFFF', fontSize: 21 },
-  presionado: { opacity: 0.72 },
-  botonInvitacion: { alignItems: 'center', paddingTop: 17, paddingBottom: 2 },
-  textoBotonInvitacion: {
-    color: COLORES.verde,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  notaSeguridad: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 20,
-    paddingHorizontal: 12,
-  },
-  puntoSeguro: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: COLORES.verde,
-    marginTop: 5,
-  },
-  textoSeguridad: {
-    flex: 1,
-    color: '#77777E',
-    fontSize: 11,
-    lineHeight: 17,
-  },
-});
+const estilos = StyleSheet.create(
+  crearEstilosTematicos({
+    pantalla: { flex: 1, backgroundColor: COLORES.fondo },
+    contenido: {
+      flexGrow: 1,
+      paddingHorizontal: 22,
+      paddingTop: 24,
+      paddingBottom: 28,
+    },
+    introduccion: { marginTop: 36, marginBottom: 24 },
+    sobretitulo: {
+      color: COLORES.verde,
+      fontWeight: '700',
+      fontSize: 10,
+      letterSpacing: 1.4,
+      marginBottom: 10,
+    },
+    titulo: {
+      color: COLORES.texto,
+      fontSize: 32,
+      lineHeight: 38,
+      fontWeight: '700',
+      letterSpacing: -0.7,
+    },
+    descripcion: {
+      color: COLORES.secundario,
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: 12,
+    },
+    formulario: {
+      backgroundColor: COLORES.superficie,
+      borderWidth: 1,
+      borderColor: COLORES.borde,
+      borderRadius: 20,
+      padding: 18,
+    },
+    selectorModo: {
+      flexDirection: 'row',
+      backgroundColor: '#101011',
+      borderRadius: 11,
+      padding: 3,
+      marginBottom: 22,
+    },
+    opcionModo: {
+      flex: 1,
+      minHeight: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 9,
+    },
+    opcionModoActiva: { backgroundColor: '#29292D' },
+    textoModo: { color: '#77777E', fontWeight: '600', fontSize: 13 },
+    textoModoActivo: { color: COLORES.texto },
+    tituloFormulario: { color: COLORES.texto, fontSize: 20, fontWeight: '700' },
+    subtituloFormulario: {
+      color: COLORES.secundario,
+      lineHeight: 19,
+      marginTop: 6,
+      marginBottom: 20,
+    },
+    mensajeSistema: {
+      color: '#F4B860',
+      backgroundColor: '#292116',
+      borderWidth: 1,
+      borderColor: '#5A4522',
+      borderRadius: 10,
+      padding: 11,
+      fontSize: 12,
+      lineHeight: 18,
+      marginBottom: 16,
+    },
+    etiquetaGrupo: {
+      color: '#D4D4D8',
+      fontWeight: '600',
+      fontSize: 13,
+      marginBottom: 9,
+    },
+    perfiles: { flexDirection: 'row', gap: 9, marginBottom: 20 },
+    perfil: {
+      flex: 1,
+      minHeight: 98,
+      backgroundColor: '#111113',
+      borderWidth: 1,
+      borderColor: COLORES.borde,
+      borderRadius: 13,
+      padding: 11,
+    },
+    perfilActivo: { borderColor: COLORES.verde, backgroundColor: '#11241F' },
+    codigoPerfil: {
+      alignSelf: 'flex-start',
+      color: '#77777E',
+      backgroundColor: '#252529',
+      borderRadius: 5,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      fontFamily: 'monospace',
+      fontSize: 10,
+      fontWeight: '700',
+      marginBottom: 8,
+    },
+    codigoPerfilActivo: { color: '#75E6C6', backgroundColor: '#1C4439' },
+    tituloPerfil: { color: '#EDEDEF', fontWeight: '700', fontSize: 13 },
+    descripcionPerfil: {
+      color: '#7F7F87',
+      fontSize: 10,
+      lineHeight: 14,
+      marginTop: 3,
+    },
+    etiqueta: {
+      color: '#D4D4D8',
+      fontWeight: '600',
+      fontSize: 13,
+      marginBottom: 7,
+    },
+    entrada: {
+      height: 48,
+      color: COLORES.texto,
+      backgroundColor: '#101011',
+      borderWidth: 1,
+      borderColor: COLORES.borde,
+      borderRadius: 11,
+      paddingHorizontal: 13,
+      fontSize: 14,
+      marginBottom: 16,
+    },
+    filaContrasena: {
+      height: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#101011',
+      borderWidth: 1,
+      borderColor: COLORES.borde,
+      borderRadius: 11,
+      paddingRight: 13,
+    },
+    entradaContrasena: {
+      flex: 1,
+      color: COLORES.texto,
+      paddingHorizontal: 13,
+      fontSize: 14,
+    },
+    mostrar: { color: COLORES.verde, fontSize: 12, fontWeight: '700' },
+    error: { color: '#FF8A80', fontSize: 12, lineHeight: 18, marginTop: 10 },
+    botonPrincipal: {
+      height: 51,
+      backgroundColor: COLORES.verde,
+      borderRadius: 12,
+      marginTop: 18,
+      paddingHorizontal: 17,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    textoBotonPrincipal: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+    botonDeshabilitado: { opacity: 0.55 },
+    flecha: { color: '#FFFFFF', fontSize: 21 },
+    presionado: { opacity: 0.72 },
+    botonInvitacion: { alignItems: 'center', paddingTop: 17, paddingBottom: 2 },
+    textoBotonInvitacion: {
+      color: COLORES.verde,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    notaSeguridad: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      marginTop: 20,
+      paddingHorizontal: 12,
+    },
+    puntoSeguro: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: COLORES.verde,
+      marginTop: 5,
+    },
+    textoSeguridad: {
+      flex: 1,
+      color: '#77777E',
+      fontSize: 11,
+      lineHeight: 17,
+    },
+  }),
+);
 
 export default Login;

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
@@ -142,7 +143,7 @@ function Boton({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   panel: {
     marginVertical: 16,
     padding: 14,
@@ -200,4 +201,4 @@ const estilos = StyleSheet.create({
     fontSize: 12,
   },
   mono: { fontFamily: 'monospace', color: '#B8B8BE', fontSize: 12 },
-});
+}));

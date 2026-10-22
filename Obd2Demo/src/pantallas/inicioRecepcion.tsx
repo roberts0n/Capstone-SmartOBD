@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +14,7 @@ import {
   type CasoRecepcion,
 } from '../casos/ServicioCasosRecepcion';
 import type { EstadoCasoDiagnostico } from '../casos/TiposCasoDiagnostico';
+import { MarcaSmartObd } from '../componentes/MarcaSmartObd';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
 interface Propiedades {
@@ -74,12 +76,13 @@ export function InicioRecepcion({
         <RefreshControl
           refreshing={actualizando}
           onRefresh={() => cargar(true)}
-          tintColor="#13C296"
+          tintColor="#287FFF"
         />
       }
       style={estilos.pantalla}
       contentContainerStyle={estilos.contenido}
     >
+      <MarcaSmartObd />
       <Cabecera sesion={sesion} alAbrirCuenta={alAbrirCuenta} />
 
       <View style={estilos.tarjetaOrden}>
@@ -107,7 +110,7 @@ export function InicioRecepcion({
 
       {cargando ? (
         <View style={estilos.cargando}>
-          <ActivityIndicator color="#13C296" />
+          <ActivityIndicator color="#287FFF" />
           <Text style={estilos.textoCargando}>Cargando ingresos...</Text>
         </View>
       ) : (
@@ -171,27 +174,22 @@ function Cabecera({
   alAbrirCuenta: () => void;
 }) {
   return (
-    <>
-      <View style={estilos.cabecera}>
-        <View style={estilos.identidad}>
-          <Text style={estilos.taller}>{sesion.taller}</Text>
-          <Text style={estilos.saludo}>Hola, {primerNombre(sesion.nombre)}</Text>
-        </View>
-        <Pressable
-          accessibilityLabel="Abrir cuenta"
-          accessibilityRole="button"
-          onPress={alAbrirCuenta}
-          style={estilos.avatar}
-        >
-          <Text style={estilos.inicial}>
-            {sesion.nombre.charAt(0).toUpperCase()}
-          </Text>
-        </Pressable>
-      </View>
-      <View style={estilos.etiquetaPerfil}>
+    <View style={estilos.cabecera}>
+      <View style={estilos.identidad}>
+        <Text style={estilos.saludo}>Hola, {primerNombre(sesion.nombre)}</Text>
         <Text style={estilos.textoPerfil}>Recepción</Text>
       </View>
-    </>
+      <Pressable
+        accessibilityLabel="Abrir cuenta"
+        accessibilityRole="button"
+        onPress={alAbrirCuenta}
+        style={estilos.avatar}
+      >
+        <Text style={estilos.inicial}>
+          {sesion.nombre.charAt(0).toUpperCase()}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -227,7 +225,10 @@ function Ingreso({ caso }: { caso: CasoRecepcion }) {
         </Text>
         <View style={estilos.filaEstado}>
           <View
-            style={[estilos.puntoEstado, { backgroundColor: presentacion.color }]}
+            style={[
+              estilos.puntoEstado,
+              { backgroundColor: presentacion.color },
+            ]}
           />
           <Text style={[estilos.estado, { color: presentacion.color }]}>
             {presentacion.nombre}
@@ -244,9 +245,10 @@ function Ingreso({ caso }: { caso: CasoRecepcion }) {
   );
 }
 
-function presentarEstado(
-  estado: EstadoCasoDiagnostico,
-): { nombre: string; color: string } {
+function presentarEstado(estado: EstadoCasoDiagnostico): {
+  nombre: string;
+  color: string;
+} {
   const estados: Record<
     EstadoCasoDiagnostico,
     { nombre: string; color: string }
@@ -288,128 +290,140 @@ function primerNombre(nombre: string): string {
   return nombre.trim().split(/\s+/)[0] || nombre;
 }
 
-const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
-  contenido: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 42 },
-  cabecera: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  identidad: { flex: 1, paddingRight: 12 },
-  taller: {
-    color: '#10A37F',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  saludo: { color: '#F4F4F5', fontSize: 25, fontWeight: '700', marginTop: 5 },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: '#153B32',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inicial: { color: '#5BE0BB', fontWeight: '700', fontSize: 15 },
-  etiquetaPerfil: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#10352C',
-    borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    marginTop: 9,
-  },
-  textoPerfil: { color: '#53D9B4', fontSize: 11, fontWeight: '700' },
-  tarjetaOrden: {
-    backgroundColor: '#171719',
-    borderWidth: 1,
-    borderColor: '#303034',
-    borderRadius: 19,
-    padding: 17,
-    marginTop: 19,
-  },
-  tituloOrden: { color: '#F4F4F5', fontSize: 17, fontWeight: '700' },
-  descripcionOrden: { color: '#96969D', fontSize: 12, lineHeight: 18, marginTop: 8 },
-  botonOrden: {
-    minHeight: 46,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10A37F',
-    borderRadius: 12,
-    paddingHorizontal: 17,
-    marginTop: 18,
-  },
-  simboloAgregar: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginRight: 7 },
-  textoBoton: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  presionado: { opacity: 0.72 },
-  cabeceraSeccion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 23,
-    marginBottom: 10,
-  },
-  tituloSeccion: { color: '#F4F4F5', fontSize: 16, fontWeight: '700' },
-  auxiliar: { color: '#68686F', fontSize: 10 },
-  verTodos: { color: '#39CDA7', fontSize: 11, fontWeight: '700' },
-  filaResumen: { flexDirection: 'row', gap: 9 },
-  metrica: {
-    flex: 1,
-    minHeight: 95,
-    backgroundColor: '#171719',
-    borderWidth: 1,
-    borderColor: '#2A2A2E',
-    borderRadius: 14,
-    padding: 13,
-  },
-  valorMetrica: { color: '#F5F5F6', fontSize: 21, fontWeight: '700' },
-  etiquetaMetrica: { color: '#E4E4E7', fontSize: 11, fontWeight: '700', marginTop: 5 },
-  detalleMetrica: { color: '#73737B', fontSize: 9, marginTop: 3 },
-  cargando: {
-    minHeight: 95,
-    backgroundColor: '#171719',
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  textoCargando: { color: '#8D8D94', fontSize: 11 },
-  lista: { gap: 8 },
-  ingreso: {
-    minHeight: 78,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#171719',
-    borderWidth: 1,
-    borderColor: '#2A2A2E',
-    borderRadius: 14,
-    padding: 12,
-  },
-  datosIngreso: { flex: 1, paddingRight: 10 },
-  vehiculo: { color: '#F0F0F2', fontSize: 13, fontWeight: '700' },
-  cliente: { color: '#85858D', fontSize: 10, marginTop: 4 },
-  filaEstado: { flexDirection: 'row', alignItems: 'center', marginTop: 7 },
-  puntoEstado: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  estado: { fontSize: 9, fontWeight: '700' },
-  datosDerecha: { maxWidth: '34%', alignItems: 'flex-end' },
-  hora: { color: '#68686F', fontSize: 9 },
-  mecanico: { color: '#A5A5AB', fontSize: 9, marginTop: 8 },
-  estadoVacio: {
-    backgroundColor: '#171719',
-    borderWidth: 1,
-    borderColor: '#2A2A2E',
-    borderRadius: 14,
-    padding: 17,
-  },
-  tituloVacio: { color: '#E5E5E7', fontSize: 13, fontWeight: '700' },
-  textoVacio: { color: '#85858D', fontSize: 11, lineHeight: 17, marginTop: 5 },
-  textoError: { color: '#FF817A', fontSize: 11, lineHeight: 17 },
-  reintentar: { color: '#53D9B4', fontSize: 11, fontWeight: '700', marginTop: 10 },
-});
+const estilos = StyleSheet.create(
+  crearEstilosTematicos({
+    pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
+    contenido: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 42 },
+    cabecera: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    identidad: { flex: 1, paddingRight: 12 },
+    saludo: { color: '#F4F4F5', fontSize: 25, fontWeight: '700' },
+    avatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      backgroundColor: '#153B32',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inicial: { color: '#5BE0BB', fontWeight: '700', fontSize: 15 },
+    textoPerfil: { color: '#96969D', fontSize: 12, marginTop: 6 },
+    tarjetaOrden: {
+      backgroundColor: '#171719',
+      borderWidth: 1,
+      borderColor: '#303034',
+      borderRadius: 19,
+      padding: 17,
+      marginTop: 19,
+    },
+    tituloOrden: { color: '#F4F4F5', fontSize: 17, fontWeight: '700' },
+    descripcionOrden: {
+      color: '#96969D',
+      fontSize: 12,
+      lineHeight: 18,
+      marginTop: 8,
+    },
+    botonOrden: {
+      minHeight: 46,
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#10A37F',
+      borderRadius: 12,
+      paddingHorizontal: 17,
+      marginTop: 18,
+    },
+    simboloAgregar: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: '700',
+      marginRight: 7,
+    },
+    textoBoton: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+    presionado: { opacity: 0.72 },
+    cabeceraSeccion: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 23,
+      marginBottom: 10,
+    },
+    tituloSeccion: { color: '#F4F4F5', fontSize: 16, fontWeight: '700' },
+    auxiliar: { color: '#68686F', fontSize: 10 },
+    verTodos: { color: '#39CDA7', fontSize: 11, fontWeight: '700' },
+    filaResumen: { flexDirection: 'row', gap: 9 },
+    metrica: {
+      flex: 1,
+      minHeight: 95,
+      backgroundColor: '#171719',
+      borderWidth: 1,
+      borderColor: '#2A2A2E',
+      borderRadius: 14,
+      padding: 13,
+    },
+    valorMetrica: { color: '#F5F5F6', fontSize: 21, fontWeight: '700' },
+    etiquetaMetrica: {
+      color: '#E4E4E7',
+      fontSize: 11,
+      fontWeight: '700',
+      marginTop: 5,
+    },
+    detalleMetrica: { color: '#73737B', fontSize: 9, marginTop: 3 },
+    cargando: {
+      minHeight: 95,
+      backgroundColor: '#171719',
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    textoCargando: { color: '#8D8D94', fontSize: 11 },
+    lista: { gap: 8 },
+    ingreso: {
+      minHeight: 78,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#171719',
+      borderWidth: 1,
+      borderColor: '#2A2A2E',
+      borderRadius: 14,
+      padding: 12,
+    },
+    datosIngreso: { flex: 1, paddingRight: 10 },
+    vehiculo: { color: '#F0F0F2', fontSize: 13, fontWeight: '700' },
+    cliente: { color: '#85858D', fontSize: 10, marginTop: 4 },
+    filaEstado: { flexDirection: 'row', alignItems: 'center', marginTop: 7 },
+    puntoEstado: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+    estado: { fontSize: 9, fontWeight: '700' },
+    datosDerecha: { maxWidth: '34%', alignItems: 'flex-end' },
+    hora: { color: '#68686F', fontSize: 9 },
+    mecanico: { color: '#A5A5AB', fontSize: 9, marginTop: 8 },
+    estadoVacio: {
+      backgroundColor: '#171719',
+      borderWidth: 1,
+      borderColor: '#2A2A2E',
+      borderRadius: 14,
+      padding: 17,
+    },
+    tituloVacio: { color: '#E5E5E7', fontSize: 13, fontWeight: '700' },
+    textoVacio: {
+      color: '#85858D',
+      fontSize: 11,
+      lineHeight: 17,
+      marginTop: 5,
+    },
+    textoError: { color: '#FF817A', fontSize: 11, lineHeight: 17 },
+    reintentar: {
+      color: '#53D9B4',
+      fontSize: 11,
+      fontWeight: '700',
+      marginTop: 10,
+    },
+  }),
+);
 
 export default InicioRecepcion;

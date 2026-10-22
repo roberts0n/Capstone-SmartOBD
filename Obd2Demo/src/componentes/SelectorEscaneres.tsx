@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -273,7 +274,7 @@ function Accion({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   titulo: {
     color: '#EDEDEF',
     fontWeight: '700',
@@ -322,4 +323,4 @@ const estilos = StyleSheet.create({
   },
   textoBoton: { color: '#FFFFFF', fontWeight: '600' },
   deshabilitado: { opacity: 0.5 },
-});
+}));

@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -293,7 +294,7 @@ export function RegistrarVehiculo({
                 value={busqueda}
               />
               {cargandoClientes ? (
-                <ActivityIndicator color="#13C296" size="small" />
+                <ActivityIndicator color="#287FFF" size="small" />
               ) : null}
             </View>
             {!cargandoClientes && coincidencias.length > 0 ? (
@@ -473,7 +474,7 @@ export function RegistrarVehiculo({
           ]}
         >
           {guardando ? (
-            <ActivityIndicator color="#061B15" size="small" />
+            <ActivityIndicator color="#FFFFFF" size="small" />
           ) : null}
           <Text style={estilos.textoBoton}>
             {guardando
@@ -547,7 +548,7 @@ function Campo({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   contenidoConfirmacion: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
@@ -696,6 +697,6 @@ const estilos = StyleSheet.create({
   clienteConfirmacion: { color: '#85858C', fontSize: 12, marginTop: 6 },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.55 },
-});
+}));
 
 export default RegistrarVehiculo;

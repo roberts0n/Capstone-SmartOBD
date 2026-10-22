@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -174,7 +175,7 @@ export function DetalleCasoMecanico({
           </Text>
         ) : null}
         {cargando ? (
-          <ActivityIndicator color="#13C296" />
+          <ActivityIndicator color="#287FFF" />
         ) : error ? (
           <View style={estilos.tarjeta}>
             <Text accessibilityRole="alert" style={estilos.error}>
@@ -339,7 +340,7 @@ function motivoParcial(
   }[motivo];
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   cabecera: {
     flexDirection: 'row',
@@ -396,4 +397,4 @@ const estilos = StyleSheet.create({
   },
   textoBoton: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   deshabilitado: { opacity: 0.4 },
-});
+}));

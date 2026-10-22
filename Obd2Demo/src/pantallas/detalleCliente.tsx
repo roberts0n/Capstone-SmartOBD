@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -107,7 +108,7 @@ export function DetalleCliente({
         <RefreshControl
           refreshing={actualizando}
           onRefresh={() => cargar(true)}
-          tintColor="#13C296"
+          tintColor="#287FFF"
         />
       }
     >
@@ -123,7 +124,7 @@ export function DetalleCliente({
         <Text style={estilos.titulo}>Cliente</Text>
       </View>
       {cargando ? (
-        <ActivityIndicator color="#13C296" style={estilos.cargando} />
+        <ActivityIndicator color="#287FFF" style={estilos.cargando} />
       ) : error ? (
         <View style={estilos.mensaje}>
           <Text accessibilityRole="alert" style={estilos.error}>
@@ -369,7 +370,7 @@ function HistorialVehiculo({
     <View style={estilos.historial}>
       <Text style={estilos.tituloHistorial}>Casos del vehículo</Text>
       {cargando ? (
-        <ActivityIndicator color="#13C296" />
+        <ActivityIndicator color="#287FFF" />
       ) : error ? (
         <>
           <Text accessibilityRole="alert" style={estilos.error}>
@@ -454,7 +455,7 @@ function Dato({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: {
@@ -554,4 +555,4 @@ const estilos = StyleSheet.create({
   error: { color: '#FF9C94', fontSize: 12, textAlign: 'center' },
   reintentar: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
   textoAccion: { color: '#5BE0BB', fontSize: 13, fontWeight: '700' },
-});
+}));

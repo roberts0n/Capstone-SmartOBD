@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, {
   memo,
   useEffect,
@@ -404,7 +405,7 @@ export const GraficoPid = memo(function DibujoPid({
         <G clipPath={`url(#${identificador})`}>
           <Path
             d={segmentos.join(' ')}
-            stroke="#5BE0BB"
+            stroke="#3488FF"
             strokeWidth={historico ? 1.5 : 2}
             fill="none"
           />
@@ -414,7 +415,7 @@ export const GraficoPid = memo(function DibujoPid({
               cx={x(muestra.tiempoTranscurridoMs)}
               cy={y(muestra.valor)}
               r={2}
-              fill="#5BE0BB"
+              fill="#3488FF"
             />
           ))}
           {seleccionada ? (
@@ -627,7 +628,7 @@ export function GraficoHistoricoAmpliado({
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   grafico: { backgroundColor: '#0D0D0E', borderRadius: 10, marginBottom: 12 },
   vacio: { alignItems: 'center', justifyContent: 'center' },
   secundario: { color: '#929299', fontSize: 12, lineHeight: 18 },
@@ -659,4 +660,4 @@ const estilos = StyleSheet.create({
     gap: 12,
   },
   deshabilitado: { opacity: 0.4 },
-});
+}));

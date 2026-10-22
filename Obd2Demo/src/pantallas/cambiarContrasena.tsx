@@ -1,3 +1,4 @@
+import { crearEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, Pressable, ScrollView,
@@ -96,7 +97,7 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
   );
 }
 
-const estilos = StyleSheet.create({
+const estilos = StyleSheet.create(crearEstilosTematicos({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 30 },
   marca: { color: '#10A37F', fontWeight: '800', letterSpacing: 1.2, fontSize: 12 },
@@ -111,6 +112,6 @@ const estilos = StyleSheet.create({
   textoBoton: { color: '#FFFFFF', fontWeight: '800' },
   salir: { alignItems: 'center', paddingTop: 20 },
   textoSalir: { color: '#A1A1AA', fontWeight: '600' },
-});
+}));
 
 export default CambiarContrasena;
