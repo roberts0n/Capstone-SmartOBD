@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -43,6 +43,7 @@ export function NuevaOrdenTrabajo({
   alRegistrarCliente,
   alRegistrarVehiculo,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [vehiculos, establecerVehiculos] = useState<VehiculoTaller[]>([]);
   const [vehiculosDeClienteId, establecerVehiculosDeClienteId] = useState<
     string | null
@@ -468,6 +469,7 @@ function Cabecera({
   alVolver: () => void;
   deshabilitado: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.cabecera}>
       <Pressable
@@ -487,7 +489,7 @@ function Cabecera({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   filaPaginas: {
     flexDirection: 'row',
@@ -649,6 +651,6 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   textoBoton: { color: '#061B15', fontSize: 14, fontWeight: '800' },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.55 },
-}));
+});
 
 export default NuevaOrdenTrabajo;

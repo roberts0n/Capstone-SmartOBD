@@ -15,7 +15,7 @@ import type {
   RolPersonalRegistrable,
 } from '../servicios/personalTaller';
 import { useTema } from '../tema/TemaAplicacion';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 
 interface PropiedadesRegistro {
   alRegistrar: (personal: NuevoPersonal) => Promise<string>;
@@ -24,6 +24,7 @@ interface PropiedadesRegistro {
 
 /** Formulario privado para que Administración cree cuentas del taller. */
 export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [nombre, establecerNombre] = useState('');
   const [correo, establecerCorreo] = useState('');
   const [especialidad, establecerEspecialidad] = useState('');
@@ -227,6 +228,7 @@ export function Registro({ alRegistrar, alVolver }: PropiedadesRegistro) {
 }
 
 function MarcaSmartObd() {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.marca}>
       <View style={estilos.logo}>
@@ -263,6 +265,7 @@ function Campo({
   segura?: boolean;
   ultimo?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const { colores } = useTema();
   const [visible, establecerVisible] = useState(false);
 
@@ -313,6 +316,7 @@ function OpcionRol({
   rol: RolPersonalRegistrable;
   alPresionar: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="radio"
@@ -433,8 +437,7 @@ function IconoAgregar({ color }: { color: string }) {
   );
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenido: {
       flexGrow: 1,
@@ -632,7 +635,6 @@ const estilos = StyleSheet.create(
       marginTop: 10,
       paddingHorizontal: 12,
     },
-  }),
-);
+  });
 
 export default Registro;

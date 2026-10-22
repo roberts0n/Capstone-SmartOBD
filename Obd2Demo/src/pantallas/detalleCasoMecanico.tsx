@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,6 +39,7 @@ export function DetalleCasoMecanico({
   alVolver,
   alAbrirMediciones,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [caso, establecerCaso] = useState<CasoMecanico | null>(null);
   const [snapshot, establecerSnapshot] = useState<SnapshotDiagnostico | null>(
     null,
@@ -307,6 +308,7 @@ export function DetalleCasoMecanico({
 }
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.dato}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -340,7 +342,7 @@ function motivoParcial(
   }[motivo];
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   cabecera: {
     flexDirection: 'row',
@@ -397,4 +399,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   },
   textoBoton: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   deshabilitado: { opacity: 0.4 },
-}));
+});

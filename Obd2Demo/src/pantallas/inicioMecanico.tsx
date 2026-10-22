@@ -19,7 +19,7 @@ import {
   type CasoMecanico,
 } from '../casos/ServicioCasosMecanico';
 import { MarcaSmartObd } from '../componentes/MarcaSmartObd';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import { useTema } from '../tema/TemaAplicacion';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
@@ -50,6 +50,7 @@ export function InicioMecanico({
   alAbrirCasos,
   alAbrirCaso,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const { colores } = useTema();
   const [resumen, establecerResumen] = useState<ResumenCasos>(RESUMEN_VACIO);
   const [cargando, establecerCargando] = useState(true);
@@ -277,6 +278,7 @@ function Indicador({
   cantidad: number;
   etiqueta: string;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.indicador}>
       <View style={[estilos.lineaIndicador, { backgroundColor: color }]} />
@@ -293,6 +295,7 @@ function TarjetaCaso({
   caso: CasoMecanico;
   alAbrir: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityLabel={`Abrir caso de ${caso.vehiculo}`}
@@ -328,8 +331,7 @@ function TarjetaCaso({
   );
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenido: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 34 },
     cabecera: {
@@ -523,7 +525,6 @@ const estilos = StyleSheet.create(
     },
     flechaAcceso: { color: '#96969D', fontSize: 25 },
     presionado: { opacity: 0.72 },
-  }),
-);
+  });
 
 export default InicioMecanico;

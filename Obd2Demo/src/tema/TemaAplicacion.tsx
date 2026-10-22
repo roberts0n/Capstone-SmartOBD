@@ -1,8 +1,8 @@
 import React, {
-  createContext,
   type PropsWithChildren,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,30 +13,28 @@ import {
   leerPreferenciaRemota,
 } from '../servicios/preferenciaTema';
 import {
-  establecerModoTemaActual,
-  type ColoresTema,
+  ContextoTema,
+  type ValorContextoTema,
   type ModoTema,
   TEMAS,
 } from './tokensTema';
-
-interface ValorContextoTema {
-  modo: ModoTema;
-  colores: ColoresTema;
-  cargarTemaUsuario: (usuarioId: string | null) => Promise<void>;
-  cambiarModo: (modo: ModoTema) => Promise<void>;
-}
-
-const ContextoTema = createContext<ValorContextoTema | null>(null);
 
 export function ProveedorTema({ children }: PropsWithChildren) {
   const [modo, establecerModo] = useState<ModoTema>('claro');
   const usuarioActual = useRef<string | null>(null);
   const solicitudActual = useRef(0);
 
-  const aplicarModo = useCallback((siguiente: ModoTema) => {
-    establecerModoTemaActual(siguiente);
-    establecerModo(siguiente);
-  }, []);
+  const aplicarModo = useCallback(
+    (siguiente: ModoTema) => establecerModo(siguiente),
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      solicitudActual.current += 1;
+    },
+    [],
+  );
 
   const cargarTemaUsuario = useCallback(
     async (usuarioId: string | null) => {
@@ -67,6 +65,8 @@ export function ProveedorTema({ children }: PropsWithChildren) {
 
   const cambiarModo = useCallback(
     async (siguiente: ModoTema) => {
+      // si ya elegi otro modo, no dejo que una lectura remota atrasada lo reemplace
+      solicitudActual.current += 1;
       aplicarModo(siguiente);
       const usuarioId = usuarioActual.current;
       if (usuarioId) await guardarPreferenciaTema(usuarioId, siguiente, true);
@@ -84,7 +84,9 @@ export function ProveedorTema({ children }: PropsWithChildren) {
     [modo, cargarTemaUsuario, cambiarModo],
   );
 
-  return <ContextoTema.Provider value={valor}>{children}</ContextoTema.Provider>;
+  return (
+    <ContextoTema.Provider value={valor}>{children}</ContextoTema.Provider>
+  );
 }
 
 export function useTema(): ValorContextoTema {

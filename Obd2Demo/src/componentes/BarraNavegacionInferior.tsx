@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { PerfilTaller } from '../tipos/usuarioTaller';
@@ -40,6 +40,7 @@ export function BarraNavegacionInferior({
   destinoActivo,
   alNavegar,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View accessibilityRole="tablist" style={estilos.barra}>
       {OPCIONES_POR_PERFIL[perfil].map(opcion => {
@@ -73,7 +74,7 @@ export function BarraNavegacionInferior({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   barra: {
     minHeight: 70,
     flexDirection: 'row',
@@ -126,4 +127,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     borderRadius: 1,
     backgroundColor: 'transparent',
   },
-}));
+});

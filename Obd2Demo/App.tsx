@@ -1,5 +1,5 @@
 import { ProveedorTema, useTema } from './src/tema/TemaAplicacion';
-import { crearEstilosTematicos } from './src/tema/tokensTema';
+import { useEstilosTematicos } from './src/tema/tokensTema';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -96,6 +96,7 @@ const PRUEBAS_INTERNAS_HABILITADAS = true;
 // Punto de entrada visual. La logica BLE y OBD vive fuera de App para mantener
 // este componente limitado a configurar el area segura y la barra de estado.
 function ContenidoAplicacion() {
+  const estilos = useEstilosTematicos(estilosBase);
   const solicitarSalida = useSolicitudSalida();
   const sesionEscaner = useSesionEscanerObd();
   const { modo, colores, cargarTemaUsuario } = useTema();
@@ -374,7 +375,6 @@ function ContenidoAplicacion() {
         backgroundColor={colores.fondo}
       />
       <SafeAreaView
-        key={modo}
         style={estilos.contenedor}
         edges={['top', 'right', 'bottom', 'left']}
       >
@@ -776,17 +776,15 @@ function Aplicacion() {
   );
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
-    contenedor: { flex: 1, backgroundColor: '#0D0D0E' },
-    cargando: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 14,
-    },
-    textoCargando: { color: '#A1A1AA', fontSize: 13 },
-  }),
-);
+const estilosBase = StyleSheet.create({
+  contenedor: { flex: 1, backgroundColor: '#0D0D0E' },
+  cargando: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  textoCargando: { color: '#A1A1AA', fontSize: 13 },
+});
 
 export default Aplicacion;

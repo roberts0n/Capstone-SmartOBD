@@ -1,4 +1,10 @@
-import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { createContext, useContext, useMemo } from 'react';
+import {
+  StyleSheet,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 
 export type ModoTema = 'claro' | 'oscuro';
 
@@ -51,14 +57,40 @@ export const TEMAS: Record<ModoTema, ColoresTema> = {
   },
 };
 
-let modoTemaActual: ModoTema = 'claro';
-
-export function establecerModoTemaActual(modo: ModoTema): void {
-  modoTemaActual = modo;
-}
-
 type EstiloNombrado = ViewStyle | TextStyle | ImageStyle;
 type HojaEstilos = Record<string, EstiloNombrado>;
+
+export interface ValorContextoTema {
+  modo: ModoTema;
+  colores: ColoresTema;
+  cargarTemaUsuario: (usuarioId: string | null) => Promise<void>;
+  cambiarModo: (modo: ModoTema) => Promise<void>;
+}
+
+export const ContextoTema = createContext<ValorContextoTema | null>(null);
+const estilosPorTema = new WeakMap<HojaEstilos, Map<ModoTema, HojaEstilos>>();
+
+export function useColoresTema(): ColoresTema {
+  return useContext(ContextoTema)?.colores ?? TEMAS.claro;
+}
+
+// comparto la hoja de cada modo para no reconstruirla con cada muestra del escaner
+export function useEstilosTematicos<T extends HojaEstilos>(base: T): T {
+  const modo = useContext(ContextoTema)?.modo ?? 'claro';
+  return useMemo(() => {
+    let versiones = estilosPorTema.get(base);
+    if (!versiones) {
+      versiones = new Map();
+      estilosPorTema.set(base, versiones);
+    }
+    let estilos = versiones.get(modo);
+    if (!estilos) {
+      estilos = StyleSheet.create(crearEstilosTematicos(base, modo));
+      versiones.set(modo, estilos);
+    }
+    return estilos as T;
+  }, [base, modo]);
+}
 const PROPIEDADES_COLOR = new Set([
   'backgroundColor',
   'borderColor',
@@ -71,18 +103,19 @@ const PROPIEDADES_COLOR = new Set([
   'textDecorationColor',
 ]);
 
-/** Aplica la paleta vigente a las hojas existentes sin duplicar pantallas. */
-export function crearEstilosTematicos<T extends HojaEstilos>(estilos: T): T {
+// resuelvo colores concretos; no dejo propiedades que cambien por una variable global
+export function crearEstilosTematicos<T extends HojaEstilos>(
+  estilos: T,
+  modo: ModoTema = 'claro',
+): T {
   const adaptados: HojaEstilos = {};
   Object.entries(estilos).forEach(([nombre, estilo]) => {
     const siguiente = { ...estilo } as EstiloNombrado;
     Object.entries(estilo).forEach(([propiedad, valor]) => {
       if (!PROPIEDADES_COLOR.has(propiedad) || typeof valor !== 'string')
         return;
-      Object.defineProperty(siguiente, propiedad, {
-        enumerable: true,
-        configurable: true,
-        get: () => resolverColor(valor, propiedad, modoTemaActual),
+      Object.assign(siguiente, {
+        [propiedad]: resolverColor(valor, propiedad, modo),
       });
     });
     adaptados[nombre] = siguiente;

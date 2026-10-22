@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -40,6 +40,7 @@ export function DetalleCliente({
   alEditarCliente,
   alEditarVehiculo,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [cliente, establecerCliente] = useState<ClienteTaller | null>(null);
   const [vehiculos, establecerVehiculos] = useState<VehiculoTaller[]>([]);
   const [vehiculoAbiertoId, establecerVehiculoAbiertoId] = useState<
@@ -197,6 +198,7 @@ function FichaVehiculo({
   alAbrirCaso?: (caso: CasoRecepcion) => void;
   alEditar?: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.fichaVehiculo}>
       <Pressable
@@ -271,6 +273,7 @@ function HistorialVehiculo({
   revision: number;
   alAbrirCaso?: (caso: CasoRecepcion) => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [casos, establecerCasos] = useState<CasoRecepcion[]>([]);
   const [cargando, establecerCargando] = useState(true);
   const [error, establecerError] = useState<string | null>(null);
@@ -445,6 +448,7 @@ function Dato({
   valor?: string | null;
   ausente?: string;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.dato}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -455,7 +459,7 @@ function Dato({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: {
@@ -555,4 +559,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   error: { color: '#FF9C94', fontSize: 12, textAlign: 'center' },
   reintentar: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
   textoAccion: { color: '#5BE0BB', fontSize: 13, fontWeight: '700' },
-}));
+});

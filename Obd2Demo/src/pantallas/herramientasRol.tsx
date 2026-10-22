@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
 interface Propiedades {
@@ -106,6 +106,7 @@ export function HerramientasRol({
   alAbrirClientesVehiculos,
   alAbrirLimpieza,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const esRecepcion = sesion.perfil !== 'mecanico';
   const contenido = esRecepcion ? CONTENIDO.recepcion : CONTENIDO.mecanico;
   const abrir = (destino: Destino) =>
@@ -211,6 +212,7 @@ export function HerramientasRol({
 }
 
 function MarcaSmartObd() {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.marca}>
       <View style={estilos.logo}>
@@ -238,6 +240,7 @@ function TarjetaHerramienta({
   variante: VarianteTarjeta;
   onPress: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const destacada = variante === 'destacada';
   const peligro = variante === 'peligro';
   return (
@@ -392,8 +395,7 @@ function resolverDestino(
   return alAbrirEscaner;
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenidoRecepcion: {
       paddingHorizontal: 21,
@@ -585,5 +587,4 @@ const estilos = StyleSheet.create(
     tituloOpcion: { color: '#F0F0F2', fontSize: 14, fontWeight: '700' },
     detalle: { color: '#85858C', fontSize: 11, lineHeight: 16, marginTop: 4 },
     flecha: { color: '#71717A', fontSize: 27 },
-  }),
-);
+  });

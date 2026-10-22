@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,6 +29,7 @@ interface Propiedades {
 }
 
 export function ConectarEscaner({ alVolver, alPreparado }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const sesion = useSesionEscanerObd();
   const [ocupado, establecerOcupado] = useState(false);
   const [error, establecerError] = useState<string | null>(null);
@@ -442,6 +443,7 @@ function Boton({
   deshabilitado?: boolean;
   secundario?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -462,7 +464,7 @@ function mensajeError(capturado: unknown) {
   return capturado instanceof Error ? capturado.message : String(capturado);
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { padding: 20, paddingBottom: 32, gap: 12 },
   enlace: { color: '#5BE0BB', fontSize: 14, paddingVertical: 8 },
@@ -522,4 +524,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     alignItems: 'center',
     paddingVertical: 8,
   },
-}));
+});

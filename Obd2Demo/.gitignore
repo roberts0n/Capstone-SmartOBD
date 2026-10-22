@@ -78,9 +78,6 @@ supabase/functions/.env.*
 /supabase/tests/
 **/*.test.*
 **/*.spec.*
-!/__tests__/
-/__tests__/*
-!/__tests__/TemaAplicacion.test.ts
 
 # Yarn
 .yarn/*

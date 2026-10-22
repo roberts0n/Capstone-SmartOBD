@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,6 +32,7 @@ export function ClientesVehiculos({
   alAbrirCliente,
   alVolver,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [clientes, establecerClientes] = useState<ClienteTaller[]>([]);
   const [haySiguiente, establecerHaySiguiente] = useState(false);
   const [cargando, establecerCargando] = useState(true);
@@ -208,7 +209,7 @@ export function ClientesVehiculos({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   encabezado: { paddingHorizontal: 20, paddingTop: 20 },
   cabecera: {
@@ -278,4 +279,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   },
   numeroPagina: { color: '#A1A1AA', fontSize: 13 },
   deshabilitada: { opacity: 0.4 },
-}));
+});

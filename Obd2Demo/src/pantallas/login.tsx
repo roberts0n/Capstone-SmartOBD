@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ interface PropiedadesLogin {
 
 /** Acceso orientado al personal de un taller automotriz. */
 export function Login({ alIngresar, mensajeSistema }: PropiedadesLogin) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [correo, establecerCorreo] = useState('');
   const [contrasena, establecerContrasena] = useState('');
   const [mostrarContrasena, establecerMostrarContrasena] = useState(false);
@@ -165,6 +166,7 @@ function Campo({
   autoComplete: 'email';
   teclado?: 'email-address';
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -193,8 +195,7 @@ const COLORES = {
   azul: '#58A6FF',
 };
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: COLORES.fondo },
     contenido: {
       flexGrow: 1,
@@ -377,7 +378,6 @@ const estilos = StyleSheet.create(
       fontSize: 11,
       lineHeight: 17,
     },
-  }),
-);
+  });
 
 export default Login;

@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -31,6 +31,7 @@ export function CasosRecepcion({
   consultaInicial,
   alCambiarConsulta,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [casos, establecerCasos] = useState<CasoRecepcion[]>([]);
   const [cargando, establecerCargando] = useState(true);
   const [actualizando, establecerActualizando] = useState(false);
@@ -261,6 +262,7 @@ export function CasosRecepcion({
 }
 
 function Cabecera({ alVolver }: { alVolver: () => void }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.cabecera}>
       <Pressable
@@ -285,6 +287,7 @@ function TarjetaCaso({
   alAbrir: () => void;
   deshabilitado?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -347,7 +350,7 @@ function formatearFecha(fecha: string): string {
   }).format(new Date(fecha));
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   buscador: {
     minHeight: 48,
@@ -448,6 +451,6 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   },
   datoSecundario: { flex: 1, color: '#85858C', fontSize: 11 },
   fecha: { color: '#85858C', fontSize: 11 },
-}));
+});
 
 export default CasosRecepcion;

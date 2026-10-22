@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -48,6 +48,7 @@ export function SelectorEscaneres({
   alConectar,
   alOlvidar,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [mostrarTodos, establecerMostrarTodos] = useState(false);
   const [consulta, establecerConsulta] = useState('');
   const [limite, establecerLimite] = useState(TAMANO_PAGINA);
@@ -260,6 +261,7 @@ function Accion({
   alPulsar: () => void;
   deshabilitado?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -274,7 +276,7 @@ function Accion({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   titulo: {
     color: '#EDEDEF',
     fontWeight: '700',
@@ -323,4 +325,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   },
   textoBoton: { color: '#FFFFFF', fontWeight: '600' },
   deshabilitado: { opacity: 0.5 },
-}));
+});

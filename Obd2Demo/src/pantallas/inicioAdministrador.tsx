@@ -14,7 +14,7 @@ import {
   type IntegranteTaller,
   type ResumenAdministrador,
 } from '../servicios/personalTaller';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import type { PerfilTaller } from '../tipos/usuarioTaller';
 
 interface Propiedades {
@@ -22,6 +22,7 @@ interface Propiedades {
 }
 
 export function InicioAdministrador({ alAbrirRegistro }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [resumen, establecerResumen] = useState<ResumenAdministrador | null>(
     null,
   );
@@ -140,6 +141,7 @@ export function InicioAdministrador({ alAbrirRegistro }: Propiedades) {
 }
 
 function MarcaSmartObd() {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.marca}>
       <View style={estilos.logo}>
@@ -164,6 +166,7 @@ function PanelEquipo({
   equipo: IntegranteTaller[];
   cargando: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const mecanicos = equipo.filter(item => item.rol === 'mecanico').length;
   const recepcionistas = equipo.filter(item => item.rol === 'recepcion').length;
 
@@ -235,6 +238,7 @@ function PanelEquipo({
 }
 
 function TarjetaIntegrante({ integrante }: { integrante: IntegranteTaller }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.tarjetaIntegrante}>
       <View style={estilos.avatarIntegrante}>
@@ -270,6 +274,7 @@ function EstadoTrabajo({
   valor: number | undefined;
   cargando: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.filaEstadoTrabajo}>
       <View style={[estilos.puntoEstadoTrabajo, { backgroundColor: color }]} />
@@ -308,8 +313,7 @@ function nombreRol(rol: PerfilTaller): string {
   return 'ADMINISTRADOR';
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenido: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 34 },
     marca: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
@@ -551,7 +555,6 @@ const estilos = StyleSheet.create(
     },
     valorEstado: { color: '#5BE0BB', fontSize: 13, fontWeight: '800' },
     separadorEstado: { height: 1, backgroundColor: '#2A2A2E' },
-  }),
-);
+  });
 
 export default InicioAdministrador;

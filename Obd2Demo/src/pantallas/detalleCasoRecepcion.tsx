@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,6 +39,7 @@ export function DetalleCasoRecepcion({
   alActualizarCaso,
   alAsignarMecanico,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const sesionEscaner = useSesionEscanerObd();
   const captura = useCapturaSnapshot();
   const solicitarSalida = useProteccionSalida({
@@ -322,6 +323,7 @@ export function DetalleCasoRecepcion({
 }
 
 function ResumenSnapshot({ snapshot }: { snapshot: SnapshotDiagnostico }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.resumen}>
       <Text style={estilos.resultadoPrincipal}>
@@ -378,6 +380,7 @@ function Boton({
   deshabilitado?: boolean;
   secundario?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -395,6 +398,7 @@ function Boton({
 }
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.dato}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -430,7 +434,7 @@ function mensajeError(capturado: unknown): string {
   return capturado instanceof Error ? capturado.message : String(capturado);
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -517,6 +521,6 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   advertencia: { color: '#E6B85C', fontSize: 12, lineHeight: 18, marginTop: 8 },
   resumen: { marginTop: 12 },
   resultadoPrincipal: { color: '#66DFBD', fontSize: 14, fontWeight: '700' },
-}));
+});
 
 export default DetalleCasoRecepcion;

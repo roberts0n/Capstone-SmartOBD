@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,6 +36,7 @@ export function MedicionesCaso({
   alVolver,
   alConectar,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const mediciones = useMedicionesCaso(casoId, sesion, visible);
   const [vista, establecerVista] = useState<Vista>('vivo');
   const [titulo, establecerTitulo] = useState('');
@@ -439,6 +440,7 @@ function Boton({
   deshabilitado?: boolean;
   secundario?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -455,7 +457,7 @@ function Boton({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   cabecera: {
     flexDirection: 'row',
@@ -517,4 +519,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     padding: 12,
   },
   deshabilitado: { opacity: 0.4 },
-}));
+});

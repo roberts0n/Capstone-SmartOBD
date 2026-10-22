@@ -1,8 +1,14 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, Pressable, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import type { SesionTaller } from '../tipos/usuarioTaller';
 
@@ -12,6 +18,7 @@ interface Propiedades {
 }
 
 export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [nueva, establecerNueva] = useState('');
   const [confirmacion, establecerConfirmacion] = useState('');
   const [error, establecerError] = useState<string | null>(null);
@@ -33,8 +40,11 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
       establecerNueva('');
       establecerConfirmacion('');
     } catch (capturado) {
-      establecerError(capturado instanceof Error
-        ? capturado.message : 'No fue posible cambiar la contraseña.');
+      establecerError(
+        capturado instanceof Error
+          ? capturado.message
+          : 'No fue posible cambiar la contraseña.',
+      );
     } finally {
       establecerEnviando(false);
     }
@@ -45,7 +55,10 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={estilos.pantalla}
     >
-      <ScrollView contentContainerStyle={estilos.contenido} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={estilos.contenido}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={estilos.marca}>SmartOBD</Text>
         <Text style={estilos.titulo}>Crea tu contraseña</Text>
         <Text style={estilos.descripcion}>
@@ -77,7 +90,11 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
             style={estilos.entrada}
             value={confirmacion}
           />
-          {error ? <Text accessibilityRole="alert" style={estilos.error}>{error}</Text> : null}
+          {error ? (
+            <Text accessibilityRole="alert" style={estilos.error}>
+              {error}
+            </Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             disabled={enviando}
@@ -89,7 +106,11 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
             </Text>
           </Pressable>
         </View>
-        <Pressable accessibilityRole="button" onPress={alCerrarSesion} style={estilos.salir}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={alCerrarSesion}
+          style={estilos.salir}
+        >
           <Text style={estilos.textoSalir}>Cerrar sesión</Text>
         </Pressable>
       </ScrollView>
@@ -97,21 +118,58 @@ export function CambiarContrasena({ alCambiar, alCerrarSesion }: Propiedades) {
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
-  contenido: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 30 },
-  marca: { color: '#10A37F', fontWeight: '800', letterSpacing: 1.2, fontSize: 12 },
+  contenido: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 30,
+  },
+  marca: {
+    color: '#10A37F',
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    fontSize: 12,
+  },
   titulo: { color: '#F4F4F5', fontWeight: '700', fontSize: 29, marginTop: 24 },
-  descripcion: { color: '#A1A1AA', fontSize: 14, lineHeight: 21, marginTop: 12, marginBottom: 24 },
-  formulario: { backgroundColor: '#171719', borderWidth: 1, borderColor: '#303034', borderRadius: 18, padding: 18 },
+  descripcion: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 12,
+    marginBottom: 24,
+  },
+  formulario: {
+    backgroundColor: '#171719',
+    borderWidth: 1,
+    borderColor: '#303034',
+    borderRadius: 18,
+    padding: 18,
+  },
   etiqueta: { color: '#D4D4D8', fontWeight: '600', marginBottom: 8 },
-  entrada: { minHeight: 50, color: '#F4F4F5', backgroundColor: '#101011', borderWidth: 1, borderColor: '#38383D', borderRadius: 12, paddingHorizontal: 14, marginBottom: 18 },
+  entrada: {
+    minHeight: 50,
+    color: '#F4F4F5',
+    backgroundColor: '#101011',
+    borderWidth: 1,
+    borderColor: '#38383D',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 18,
+  },
   error: { color: '#FF9C94', fontSize: 12, marginBottom: 14 },
-  boton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', backgroundColor: '#10A37F', borderRadius: 12 },
+  boton: {
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10A37F',
+    borderRadius: 12,
+  },
   deshabilitado: { opacity: 0.55 },
   textoBoton: { color: '#FFFFFF', fontWeight: '800' },
   salir: { alignItems: 'center', paddingTop: 20 },
   textoSalir: { color: '#A1A1AA', fontWeight: '600' },
-}));
+});
 
 export default CambiarContrasena;

@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -42,6 +42,7 @@ export function RegistrarCliente({
   clienteEditar,
   alGuardarEdicion,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [nombre, establecerNombre] = useState(clienteEditar?.nombre ?? '');
   const [telefono, establecerTelefono] = useState(
     prepararTelefonoParaEntrada(clienteEditar?.telefono ?? ''),
@@ -239,6 +240,7 @@ function Cabecera({
   alVolver: () => void;
   titulo?: string;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.cabecera}>
       <Pressable
@@ -271,6 +273,7 @@ function Campo({
   prefijo?: string;
   deshabilitado?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.campo}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -292,7 +295,7 @@ function Campo({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   contenidoConfirmacion: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
@@ -382,6 +385,6 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   nombreConfirmacion: { color: '#F4F4F5', fontSize: 18, marginTop: 8 },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.55 },
-}));
+});
 
 export default RegistrarCliente;

@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
@@ -24,6 +24,7 @@ interface Propiedades {
 
 /** Componente de presentacion: no conoce servicios BLE ni escribe archivos. */
 export function PanelPruebaDtc(p: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.panel}>
       <Text style={estilos.titulo}>Lectura completa de DTC</Text>
@@ -42,9 +43,7 @@ export function PanelPruebaDtc(p: Propiedades) {
         style={estilos.notas}
       />
       <Boton
-        texto={
-          p.ejecutando ? 'Lectura en curso…' : 'Leer todos los DTC'
-        }
+        texto={p.ejecutando ? 'Lectura en curso…' : 'Leer todos los DTC'}
         accion={p.alIniciar}
         deshabilitado={
           p.deshabilitado || p.cargando || p.ejecutando || p.guardando
@@ -85,6 +84,7 @@ export function PanelPruebaDtc(p: Propiedades) {
 }
 
 function Inspeccion({ capturas }: { capturas: CapturaPruebaDtc[] }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [visible, establecerVisible] = useState(false);
   return (
     <View>
@@ -129,6 +129,7 @@ function Boton({
   accion: () => void;
   deshabilitado?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -143,7 +144,7 @@ function Boton({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   panel: {
     marginVertical: 16,
     padding: 14,
@@ -201,4 +202,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     fontSize: 12,
   },
   mono: { fontFamily: 'monospace', color: '#B8B8BE', fontSize: 12 },
-}));
+});

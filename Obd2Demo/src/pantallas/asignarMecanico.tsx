@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -34,6 +34,7 @@ export function AsignarMecanico({
   alVolver,
   alCompletar,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [mecanicos, establecerMecanicos] = useState<MecanicoAsignable[]>([]);
   const [seleccionado, establecerSeleccionado] = useState<string | null>(null);
   const [cargando, establecerCargando] = useState(true);
@@ -293,6 +294,7 @@ function Resumen({
   valor: string;
   secundario?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.datoResumen}>
       <Text style={estilos.etiquetaResumen}>{etiqueta}</Text>
@@ -314,7 +316,7 @@ function obtenerIniciales(nombre: string): string {
     .join('');
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenido: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   cabecera: {
@@ -444,6 +446,6 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   textoBoton: { color: '#061B15', fontSize: 14, fontWeight: '800' },
   presionado: { opacity: 0.78 },
   deshabilitado: { opacity: 0.5 },
-}));
+});
 
 export default AsignarMecanico;

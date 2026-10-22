@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CATALOGO_PIDS_MODE_01 } from '../obd/CatalogoPidsMode01';
@@ -22,6 +22,7 @@ export function PanelPidsCompatibles({
   deshabilitado: boolean;
   alConsultar: (comando: string) => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   if (!deteccion) {
     return (
       <Text style={estilos.ayuda}>
@@ -96,7 +97,7 @@ export function PanelPidsCompatibles({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   titulo: {
     fontSize: 16,
     fontWeight: '600',
@@ -121,4 +122,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     marginTop: 12,
     borderRadius: 8,
   },
-}));
+});

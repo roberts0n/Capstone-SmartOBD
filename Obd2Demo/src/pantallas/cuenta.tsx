@@ -1,7 +1,5 @@
-import {
-  useTema,
-} from '../tema/TemaAplicacion';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useTema } from '../tema/TemaAplicacion';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import type { SesionTaller } from '../tipos/usuarioTaller';
@@ -23,6 +21,7 @@ export function Cuenta({
   alCerrarSesion,
   alAbrirPruebas,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const { modo, colores, cambiarModo } = useTema();
   const oscuro = modo === 'oscuro';
 
@@ -95,6 +94,7 @@ function Dato({
   valor: string;
   destacado?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.dato}>
       <Text style={estilos.etiqueta}>{etiqueta}</Text>
@@ -105,7 +105,7 @@ function Dato({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: {
     flex: 1,
     backgroundColor: '#0D0D0E',
@@ -200,4 +200,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     borderWidth: 1,
     borderColor: '#303034',
   },
-}));
+});

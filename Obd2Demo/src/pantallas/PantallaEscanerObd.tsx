@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, {
   forwardRef,
   memo,
@@ -102,6 +102,7 @@ const ETIQUETAS_ESTADO: Record<EstadoConexion, string> = {
  * - React: estado visible, seleccion manual, consola y JSON.
  */
 export function PantallaEscanerObd({ alVolver }: { alVolver?: () => void }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const sesionEscaner = useSesionEscanerObd();
   const escaneres = {
     guardados: sesionEscaner.escaneresGuardados,
@@ -1532,6 +1533,7 @@ const RegistroHistoricoEnPantalla = memo(
 );
 
 const ConsolaEscaner = memo(function MostrarConsolaEscaner() {
+  const estilos = useEstilosTematicos(estilosBase);
   const entradas = useRegistrosEscanerObd();
   const { limpiarRegistros } = useSesionEscanerObd();
   return (
@@ -1561,8 +1563,15 @@ const LineaConsola = memo(function MostrarLineaConsola({
 }: {
   entrada: EntradaConsola;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
+  const claseColor = colorConsola(entrada.nivel);
   return (
-    <Text style={[estilos.textoConsola, colorConsola(entrada.nivel)]}>
+    <Text
+      style={[
+        estilos.textoConsola,
+        claseColor ? estilos[claseColor] : undefined,
+      ]}
+    >
       [{entrada.marcaTiempo}] {entrada.nivel.toUpperCase()} · {entrada.mensaje}
     </Text>
   );
@@ -1570,6 +1579,7 @@ const LineaConsola = memo(function MostrarLineaConsola({
 
 // Presenta una linea logica sin mezclarla con fragmentos BLE vecinos.
 function DetalleLineaObd({ linea }: { linea: DiagnosticoLineaObd }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.tarjetaLineaObd}>
       <Text style={estilos.tituloLineaObd}>
@@ -1605,6 +1615,7 @@ interface PropiedadesFilaMetrica {
 
 // Fila compacta para comparar cada etapa sin ocultar la consola tecnica.
 function FilaMetrica({ nombre, valor, destacado }: PropiedadesFilaMetrica) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.filaMetrica}>
       <Text style={estilos.nombreMetrica}>{nombre}</Text>
@@ -1626,6 +1637,7 @@ function Seccion({
   descripcion,
   children: hijos,
 }: React.PropsWithChildren<{ titulo: string; descripcion?: string }>) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.seccion}>
       <Text style={estilos.tituloSeccion}>{titulo}</Text>
@@ -1646,6 +1658,7 @@ function Paso({
   etiqueta: string;
   activo: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.paso}>
       <View style={[estilos.numeroPaso, activo && estilos.numeroPasoActivo]}>
@@ -1678,6 +1691,7 @@ function BotonAccion({
   peligro,
   compacto,
 }: PropiedadesBotonAccion) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1711,6 +1725,7 @@ function OpcionesCaracteristica({
   mensajeVacio,
   deshabilitado = false,
 }: PropiedadesOpcionesCaracteristica) {
+  const estilos = useEstilosTematicos(estilosBase);
   if (candidatas.length === 0) {
     return <Text style={estilos.vacio}>{mensajeVacio}</Text>;
   }
@@ -1783,19 +1798,19 @@ function convertirAError(valor: unknown): Error {
 function colorConsola(nivel: EntradaConsola['nivel']) {
   switch (nivel) {
     case 'error':
-      return estilos.errorConsola;
+      return 'errorConsola';
     case 'exito':
-      return estilos.exitoConsola;
+      return 'exitoConsola';
     case 'rx':
-      return estilos.consolaRx;
+      return 'consolaRx';
     case 'tx':
-      return estilos.consolaTx;
+      return 'consolaTx';
     default:
       return undefined;
   }
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
   contenedor: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 40 },
   cabeceraPrincipal: {
@@ -2119,4 +2134,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
   exitoConsola: { color: '#A7F3D0' },
   consolaRx: { color: '#93C5FD' },
   consolaTx: { color: '#FDE68A' },
-}));
+});

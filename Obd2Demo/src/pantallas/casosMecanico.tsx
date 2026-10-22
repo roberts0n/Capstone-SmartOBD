@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ export function CasosMecanico({
   consultaInicial,
   alCambiarConsulta,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [busqueda, establecerBusqueda] = useState(
     consultaInicial?.busqueda ?? '',
   );
@@ -256,8 +257,7 @@ export function CasosMecanico({
   );
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenido: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 36 },
     titulo: {
@@ -333,5 +333,4 @@ const estilos = StyleSheet.create(
     },
     deshabilitado: { opacity: 0.4 },
     presionada: { opacity: 0.75 },
-  }),
-);
+  });

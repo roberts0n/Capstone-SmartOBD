@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
@@ -54,6 +54,7 @@ const SelectorMediciones = memo(function OpcionesMediciones({
   alSeleccionar: (comando: string) => void;
   usoTaller?: boolean;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const grupos = useMemo(() => {
     const agrupadas = new Map<string, MedicionGraficaPid[]>();
     for (const medicion of disponibles) {
@@ -144,6 +145,7 @@ const SelectorMediciones = memo(function OpcionesMediciones({
 });
 
 export function PanelGraficoPids(props: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const disponibles = useMemo(
     () => obtenerMedicionesGraficables(props.pidsCompatibles),
     [props.pidsCompatibles],
@@ -338,6 +340,7 @@ export interface PropiedadesRegistroHistorico {
 export function PanelRegistroHistoricoPids(
   props: PropiedadesRegistroHistorico,
 ) {
+  const estilos = useEstilosTematicos(estilosBase);
   const disponibles = useMemo(
     () => obtenerMedicionesGraficables(props.pidsCompatibles),
     [props.pidsCompatibles],
@@ -531,6 +534,7 @@ export function GraficosRegistroPids({
   duracionMs: number;
   identidad?: unknown;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [ampliada, establecerAmpliada] = useState<SerieGrafico | null>(null);
   useEffect(() => establecerAmpliada(null), [series, identidad]);
   const ventana = useMemo(
@@ -595,7 +599,7 @@ export function GraficosRegistroPids({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   panel: {
     backgroundColor: '#171719',
     borderWidth: 1,
@@ -672,4 +676,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     fontFamily: 'monospace',
     fontSize: 11,
   },
-}));
+});

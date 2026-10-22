@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type {
@@ -246,6 +246,7 @@ export function LecturasSnapshot({
   lecturas: readonly NuevoValorPidSnapshot[];
   catalogo: readonly CatalogoPid[];
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [abiertas, establecerAbiertas] = useState(false);
   const definiciones = new Map(
     catalogo.map(item => [item.codigo.toUpperCase(), item]),
@@ -312,6 +313,7 @@ function DetalleLectura({
   titulo: string;
   presentacion: LecturaPresentada;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [verMonitores, establecerVerMonitores] = useState(false);
   return (
     <View style={estilos.lectura}>
@@ -365,6 +367,7 @@ function DetalleLectura({
 }
 
 function Campo({ campo }: { campo: CampoLectura }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.campo}>
       {campo.etiqueta ? (
@@ -377,7 +380,7 @@ function Campo({ campo }: { campo: CampoLectura }) {
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   contenedor: { gap: 16 },
   boton: {
     minHeight: 48,
@@ -425,4 +428,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     gap: 12,
   },
   monitores: { gap: 10 },
-}));
+});

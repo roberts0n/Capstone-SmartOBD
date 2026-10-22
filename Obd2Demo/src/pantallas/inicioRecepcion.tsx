@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -30,6 +30,7 @@ export function InicioRecepcion({
   alAbrirNuevaOrden,
   alAbrirCasos,
 }: Propiedades) {
+  const estilos = useEstilosTematicos(estilosBase);
   const [casos, establecerCasos] = useState<CasoRecepcion[]>([]);
   const [cargando, establecerCargando] = useState(true);
   const [actualizando, establecerActualizando] = useState(false);
@@ -173,6 +174,7 @@ function Cabecera({
   sesion: SesionTaller;
   alAbrirCuenta: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.cabecera}>
       <View style={estilos.identidad}>
@@ -202,6 +204,7 @@ function Metrica({
   etiqueta: string;
   detalle: string;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View style={estilos.metrica}>
       <Text style={estilos.valorMetrica}>{valor}</Text>
@@ -212,6 +215,7 @@ function Metrica({
 }
 
 function Ingreso({ caso }: { caso: CasoRecepcion }) {
+  const estilos = useEstilosTematicos(estilosBase);
   const presentacion = presentarEstado(caso.estado);
 
   return (
@@ -290,8 +294,7 @@ function primerNombre(nombre: string): string {
   return nombre.trim().split(/\s+/)[0] || nombre;
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     pantalla: { flex: 1, backgroundColor: '#0D0D0E' },
     contenido: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 42 },
     cabecera: {
@@ -423,7 +426,6 @@ const estilos = StyleSheet.create(
       fontWeight: '700',
       marginTop: 10,
     },
-  }),
-);
+  });
 
 export default InicioRecepcion;

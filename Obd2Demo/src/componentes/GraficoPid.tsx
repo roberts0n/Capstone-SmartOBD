@@ -1,4 +1,4 @@
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useColoresTema, useEstilosTematicos } from '../tema/tokensTema';
 import React, {
   memo,
   useEffect,
@@ -173,6 +173,8 @@ export const GraficoPid = memo(function DibujoPid({
   alSeleccionar,
   alDesplazar,
 }: PropiedadesGrafico) {
+  const estilos = useEstilosTematicos(estilosBase);
+  const colores = useColoresTema();
   const [ancho, establecerAncho] = useState(340);
   const identificador = `recorte${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const escala = useMemo(
@@ -385,13 +387,13 @@ export const GraficoPid = memo(function DibujoPid({
               x2={derecha}
               y1={y(valor)}
               y2={y(valor)}
-              stroke="#303034"
+              stroke={colores.borde}
             />
             <TextoSvg
               x={izquierda - 7}
               y={y(valor) + 4}
               textAnchor="end"
-              fill="#929299"
+              fill={colores.textoSecundario}
               fontSize={historico ? 11 : 10}
             >
               {historico
@@ -405,7 +407,7 @@ export const GraficoPid = memo(function DibujoPid({
         <G clipPath={`url(#${identificador})`}>
           <Path
             d={segmentos.join(' ')}
-            stroke="#3488FF"
+            stroke={colores.primario}
             strokeWidth={historico ? 1.5 : 2}
             fill="none"
           />
@@ -415,7 +417,7 @@ export const GraficoPid = memo(function DibujoPid({
               cx={x(muestra.tiempoTranscurridoMs)}
               cy={y(muestra.valor)}
               r={2}
-              fill="#3488FF"
+              fill={colores.primario}
             />
           ))}
           {seleccionada ? (
@@ -425,7 +427,7 @@ export const GraficoPid = memo(function DibujoPid({
                 x2={x(seleccionada.tiempoTranscurridoMs)}
                 y1={arriba}
                 y2={abajo}
-                stroke="#FFFFFF"
+                stroke={colores.texto}
                 strokeDasharray="4 4"
               />
               {seleccionada.valor !== null ? (
@@ -433,7 +435,9 @@ export const GraficoPid = memo(function DibujoPid({
                   cx={x(seleccionada.tiempoTranscurridoMs)}
                   cy={y(seleccionada.valor)}
                   r={4}
-                  fill="#FFFFFF"
+                  fill={colores.texto}
+                  stroke={colores.fondo}
+                  strokeWidth={1}
                 />
               ) : null}
             </>
@@ -447,7 +451,7 @@ export const GraficoPid = memo(function DibujoPid({
             textAnchor={
               fraccion === 0 ? 'start' : fraccion === 1 ? 'end' : 'middle'
             }
-            fill="#929299"
+            fill={colores.textoSecundario}
             fontSize={historico ? 11 : 10}
           >
             {historico
@@ -476,6 +480,8 @@ export function GraficoHistoricoAmpliado({
   duracionMs: number;
   alCerrar: () => void;
 }) {
+  const estilos = useEstilosTematicos(estilosBase);
+  const colores = useColoresTema();
   const dimensiones = useWindowDimensions();
   const [duracionVentanaMs, establecerDuracionVentana] = useState(0);
   const [inicioVentanaMs, establecerInicioVentana] = useState(0);
@@ -590,7 +596,9 @@ export function GraficoHistoricoAmpliado({
                   : 'Toca la curva para consultar una medición.'}
               </Text>
               {muestraSeleccionada?.error ? (
-                <Text style={estilos.error}>{muestraSeleccionada.error}</Text>
+                <Text style={[estilos.error, { color: colores.error }]}>
+                  {muestraSeleccionada.error}
+                </Text>
               ) : null}
             </View>
             <View style={estilos.navegacion}>
@@ -628,7 +636,7 @@ export function GraficoHistoricoAmpliado({
   );
 }
 
-const estilos = StyleSheet.create(crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
   grafico: { backgroundColor: '#0D0D0E', borderRadius: 10, marginBottom: 12 },
   vacio: { alignItems: 'center', justifyContent: 'center' },
   secundario: { color: '#929299', fontSize: 12, lineHeight: 18 },
@@ -660,4 +668,4 @@ const estilos = StyleSheet.create(crearEstilosTematicos({
     gap: 12,
   },
   deshabilitado: { opacity: 0.4 },
-}));
+});

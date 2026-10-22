@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { crearEstilosTematicos } from '../tema/tokensTema';
+import { useEstilosTematicos } from '../tema/tokensTema';
 
 export function MarcaSmartObd() {
+  const estilos = useEstilosTematicos(estilosBase);
   return (
     <View
       accessibilityLabel="SmartOBD para talleres"
@@ -24,8 +25,7 @@ export function MarcaSmartObd() {
   );
 }
 
-const estilos = StyleSheet.create(
-  crearEstilosTematicos({
+const estilosBase = StyleSheet.create({
     marca: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     logo: {
       width: 39,
@@ -76,7 +76,6 @@ const estilos = StyleSheet.create(
       marginLeft: 11,
       marginTop: 2,
     },
-  }),
-);
+  });
 
 export default MarcaSmartObd;
